@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Publisher Forge — AI Seller Agents</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2e;--panel2:#18223b;--text:#edf2ff;--muted:#8e9bb8;--accent:#7c5cff;--good:#35d07f;--warn:#ffbf55;--bad:#ff6577;--border:#263452}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit}button{cursor:pointer;border:0}.app{display:flex;min-height:100vh}.side{width:245px;background:#090e1b;border-right:1px solid var(--border);padding:22px 15px;position:fixed;inset:0 auto 0 0}.brand{font-weight:800;font-size:20px;margin:0 10px 28px}.brand span{color:#9b86ff}.nav button{display:block;width:100%;text-align:left;background:transparent;color:var(--muted);padding:12px 13px;border-radius:10px;margin:4px 0}.nav button.active,.nav button:hover{background:var(--panel2);color:var(--text)}.main{margin-left:245px;padding:28px;max-width:1450px;width:calc(100% - 245px)}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.top h1{margin:0;font-size:27px}.sub{color:var(--muted);margin-top:5px}.primary{background:var(--accent);color:white;padding:11px 16px;border-radius:9px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:18px}.metric{font-size:27px;font-weight:800;margin:8px 0}.muted{color:var(--muted);font-size:13px}.green{color:var(--good)}.yellow{color:var(--warn)}.red{color:var(--bad)}.section{margin-top:20px}.section h2{font-size:18px;margin:0 0 12px}.two{display:grid;grid-template-columns:1.4fr 1fr;gap:15px}.agent{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--border)}.agent:last-child{border-bottom:0}.avatar{width:40px;height:40px;border-radius:11px;background:var(--panel2);display:grid;place-items:center;font-size:20px}.grow{flex:1}.tag{display:inline-block;padding:4px 8px;border-radius:20px;background:#1e2a48;color:#aebcff;font-size:11px;margin:2px}.opp{display:grid;grid-template-columns:1fr 90px 100px;gap:10px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}.score{font-size:21px;font-weight:800}.bar{height:7px;background:#202b45;border-radius:20px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}.row{display:flex;gap:8px;align-items:center}.view{display:none}.view.active{display:block}.toolbar{display:flex;gap:9px;margin-bottom:15px}.toolbar input,.toolbar select{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px}.modal{position:fixed;inset:0;background:#0009;display:none;place-items:center;padding:20px;z-index:5}.modal.show{display:grid}.modalbox{width:min(700px,100%);background:var(--panel);border:1px solid var(--border);border-radius:15px;padding:22px}.modalbox input,.modalbox textarea,.modalbox select{width:100%;margin:7px 0 14px;background:#0c1324;color:var(--text);border:1px solid var(--border);padding:11px;border-radius:8px}.close{float:right;background:transparent;color:var(--muted);font-size:22px}.pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.stage{background:#0d1425;border:1px solid var(--border);border-radius:11px;padding:12px;min-height:145px}.stage h3{font-size:13px;color:#aeb8cf;margin:0 0 10px}.item{background:var(--panel2);padding:10px;border-radius:8px;margin-bottom:7px;font-size:12px}.check{color:var(--good)}@media(max-width:900px){.side{width:70px}.brand{font-size:0}.brand:after{content:"PF";font-size:18px}.nav button{font-size:0;text-align:center}.nav button:first-letter{font-size:18px}.main{margin-left:70px;width:calc(100% - 70px);padding:18px}.grid{grid-template-columns:repeat(2,1fr)}.two,.pipeline{grid-template-columns:1fr}.opp{grid-template-columns:1fr 70px}.opp .bar{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div class="brand">Publisher <span>Forge</span></div>
+  <div class="nav">
+    <button class="active" onclick="show('dashboard',this)">◈ Dashboard</button>
+    <button onclick="show('agents',this)">🤖 Agents</button>
+    <button onclick="show('research',this)">⌕ Research</button>
+    <button onclick="show('products',this)">▣ Products</button>
+    <button onclick="show('memory',this)">↻ Agent Memory</button>
+  </div>
+</aside>
+<main class="main">
+<section id="dashboard" class="view active">
+ <div class="top"><div><h1>Publisher Forge</h1><div class="sub">AI agents that research, build, learn and improve.</div></div><button class="primary" onclick="openAgent()">+ Create Agent</button></div>
+ <div class="grid">
+  <div class="card"><div class="muted">Active agents</div><div class="metric" id="mAgents">3</div><div class="green">● 2 running</div></div>
+  <div class="card"><div class="muted">Products created</div><div class="metric" id="mProducts">24</div><div class="muted">KDP + Etsy</div></div>
+  <div class="card"><div class="muted">Tracked revenue</div><div class="metric">$641</div><div class="green">↑ 18.4% this cycle</div></div>
+  <div class="card"><div class="muted">Learning signals</div><div class="metric">137</div><div class="muted">wins + failures analyzed</div></div>
+ </div>
+ <div class="section two">
+  <div class="card"><h2>Top opportunities</h2><div id="dashOpp"></div></div>
+  <div class="card"><h2>Agent activity</h2><div id="activity"></div></div>
+ </div>
+</section>
+
+<section id="agents" class="view">
+ <div class="top"><div><h1>Agents</h1><div class="sub">Create specialized sellers with their own goals and memory.</div></div><button class="primary" onclick="openAgent()">+ Create Agent</button></div>
+ <div class="card" id="agentList"></div>
+</section>
+
+<section id="research" class="view">
+ <div class="top"><div><h1>Market Research</h1><div class="sub">Opportunity scoring based on demand, competition, differentiation and margin.</div></div><button class="primary" onclick="runResearch()">Run Research</button></div>
+ <div class="toolbar"><input id="search" placeholder="Search niche or product..." oninput="renderResearch()"><select id="platform" onchange="renderResearch()"><option>All platforms</option><option>KDP</option><option>Etsy</option></select></div>
+ <div class="card" id="researchList"></div>
+</section>
+
+<section id="products" class="view">
+ <div class="top"><div><h1>Product Factory</h1><div class="sub">From opportunity to QA-ready listing.</div></div><button class="primary" onclick="createProduct()">Create from opportunity</button></div>
+ <div class="pipeline">
+  <div class="stage"><h3>IDEAS</h3><div class="item">RV Maintenance Planner</div><div class="item">Fishing Trip Log</div></div>
+  <div class="stage"><h3>BUILDING</h3><div class="item">Wedding Budget Workbook<br><span class="muted">Writing 64%</span></div></div>
+  <div class="stage"><h3>QA</h3><div class="item">Large Print Word Search<br><span class="check">✓ 18 checks passed</span></div></div>
+  <div class="stage"><h3>READY</h3><div class="item">Camping Checklist Planner<br><span class="muted">Awaiting approval</span></div></div>
+  <div class="stage"><h3>PUBLISHED</h3><div class="item">Boat Maintenance Log<br><span class="green">Sales tracked</span></div></div>
+ </div>
+ <div class="section card"><h2>Production rules</h2><p class="muted">Every product passes originality, quality, metadata and platform-compliance checks before publishing. Human approval is required in this MVP.</p></div>
+</section>
+
+<section id="memory" class="view">
+ <div class="top"><div><h1>Agent Memory</h1><div class="sub">Lessons extracted from market signals and product performance.</div></div></div>
+ <div class="two">
+  <div class="card"><h2>What is working</h2><div class="agent"><div class="avatar">✓</div><div class="grow"><b>Specific buyer intent wins</b><div class="muted">Narrow utility products outperform generic journals in current sample.</div></div></div><div class="agent"><div class="avatar">✓</div><div class="grow"><b>Customer complaints are product specs</b><div class="muted">Repeated review complaints are converted into differentiation requirements.</div></div></div><div class="agent"><div class="avatar">✓</div><div class="grow"><b>Clearer covers improve clicks</b><div class="muted">Agents should test benefit-first cover concepts.</div></div></div></div>
+  <div class="card"><h2>What failed</h2><div class="agent"><div class="avatar">!</div><div class="grow"><b>Generic gratitude journal</b><div class="muted">High competition, weak differentiation.</div></div></div><div class="agent"><div class="avatar">!</div><div class="grow"><b>Generic lined notebook</b><div class="muted">Insufficient buyer intent.</div></div></div></div>
+ </div>
+</section>
+</main></div>
+
+<div class="modal" id="modal"><div class="modalbox">
+<button class="close" onclick="closeModal()">×</button><h2>Create seller agent</h2>
+<label>Name</label><input id="aName" placeholder="e.g. KDP Scout">
+<label>Goal</label><input id="aGoal" placeholder="e.g. Find underserved nonfiction opportunities">
+<label>Platforms</label><select id="aPlatform"><option>KDP + Etsy</option><option>KDP</option><option>Etsy</option></select>
+<label>Budget per cycle ($)</label><input id="aBudget" type="number" value="20">
+<button class="primary" onclick="saveAgent()">Create agent</button>
+</div></div>
+
+<script>
+let agents=[
+ {name:"KDP Scout",icon:"📚",goal:"Find underserved KDP nonfiction opportunities",platform:"KDP",status:"Running",products:14,rev:217,win:"22%"},
+ {name:"Etsy Scout",icon:"🎨",goal:"Find printable niches with strong buyer intent",platform:"Etsy",status:"Running",products:9,rev:384,win:"33%"},
+ {name:"Seasonal Hunter",icon:"🎃",goal:"Discover seasonal products before demand spikes",platform:"KDP + Etsy",status:"Paused",products:1,rev:40,win:"11%"}
+];
+let opps=[
+ {name:"RV Maintenance Planner",platform:"KDP",score:87,demand:82,competition:38,margin:91,why:"Strong utility intent; repeated complaints about poor organization."},
+ {name:"Fishing Trip Log",platform:"KDP",score:81,demand:77,competition:43,margin:88,why:"Clear niche buyer; room for better tracking pages."},
+ {name:"Wedding Budget Workbook",platform:"Etsy",score:78,demand:86,competition:59,margin:83,why:"High-intent buyer with obvious printable use case."},
+ {name:"Camping Checklist Planner",platform:"Etsy",score:74,demand:72,competition:47,margin:81,why:"Useful product; differentiation can focus on trip types."},
+ {name:"Generic Gratitude Journal",platform:"KDP",score:38,demand:74,competition:94,margin:42,why:"Demand exists but saturation is severe."}
+];
+function show(id,btn){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active'); if(id==='agents')renderAgents();if(id==='research')renderResearch();}
+function oppHTML(o){return `<div class="opp"><div><b>${o.name}</b><div><span class="tag">${o.platform}</span></div><div class="muted">${o.why}</div></div><div class="score ${o.score>=70?'green':o.score<50?'red':'yellow'}">${o.score}</div><div><div class="bar"><i style="width:${o.score}%"></i></div><div class="muted">${o.score>=70?'Opportunity':'Low priority'}</div></div></div>`}
+function renderResearch(){let q=document.getElementById('search').value.toLowerCase(),p=document.getElementById('platform').value;let a=opps.filter(o=>(!q||o.name.toLowerCase().includes(q)||o.why.toLowerCase().includes(q))&&(p==='All platforms'||o.platform===p));document.getElementById('researchList').innerHTML=a.map(oppHTML).join('')||'<p class="muted">No matching opportunities.</p>'}
+function renderAgents(){document.getElementById('agentList').innerHTML=agents.map(a=>`<div class="agent"><div class="avatar">${a.icon}</div><div class="grow"><b>${a.name}</b><div class="muted">${a.goal}</div><span class="tag">${a.platform}</span><span class="tag">${a.status}</span></div><div><b>${a.products}</b><div class="muted">products</div></div><div><b>$${a.rev}</b><div class="muted">tracked</div></div><div><b>${a.win}</b><div class="muted">win rate</div></div></div>`).join('')}
+function renderDash(){document.getElementById('dashOpp').innerHTML=opps.slice(0,3).map(oppHTML).join('');document.getElementById('activity').innerHTML=['KDP Scout found 3 new opportunities','Etsy Scout converted 5 reviews into product requirements','QA Agent passed Camping Checklist Planner','Learning Agent updated 4 rules'].map((x,i)=>`<div class="agent"><div class="avatar">${['🔎','🧠','✓','↻'][i]}</div><div class="grow">${x}<div class="muted">${i+1}h ago</div></div></div>`).join('')}
+function runResearch(){let n=opps.length+1;opps.unshift({name:"Boat Winterization Checklist",platform:"KDP",score:72,demand:79,competition:49,margin:80,why:"New research signal: strong seasonal utility with obvious checklist format."});renderResearch();alert("Research complete. 1 new opportunity added.");}
+function openAgent(){document.getElementById('modal').classList.add('show')}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+function saveAgent(){let name=document.getElementById('aName').value.trim()||"New Seller Agent";agents.push({name,icon:"🤖",goal:document.getElementById('aGoal').value.trim()||"Research and create profitable products",platform:document.getElementById('aPlatform').value,status:"Running",products:0,rev:0,win:"—"});closeModal();document.getElementById('mAgents').textContent=agents.length;renderAgents();alert(name+" created. It is ready for its research cycle.");}
+function createProduct(){let o=opps.find(x=>x.score>=70);alert(`Product Architect started: ${o.name}\\n\\nPipeline: research → outline → content → design → QA → approval.`)}
+renderDash();renderAgents();renderResearch();
+</script>
+</body>
+</html>
