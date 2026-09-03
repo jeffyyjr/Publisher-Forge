@@ -19,6 +19,69 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const requestLog = new Map();
 
+const trendReportSchema = {
+  type: "object",
+  properties: {
+    summary: {
+      type: "string"
+    },
+    opportunities: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string"
+          },
+          platform: {
+            type: "string",
+            enum: ["KDP", "Etsy", "Both"]
+          },
+          audience: {
+            type: "string"
+          },
+          evidence: {
+            type: "string"
+          },
+          competition: {
+            type: "string"
+          },
+          angle: {
+            type: "string"
+          },
+          risk: {
+            type: "string"
+          },
+          score: {
+            type: "integer"
+          },
+          verdict: {
+            type: "string",
+            enum: ["MAKE", "VALIDATE", "SKIP"]
+          }
+        },
+        required: [
+          "title",
+          "platform",
+          "audience",
+          "evidence",
+          "competition",
+          "angle",
+          "risk",
+          "score",
+          "verdict"
+        ],
+        additionalProperties: false
+      }
+    }
+  },
+  required: [
+    "summary",
+    "opportunities"
+  ],
+  additionalProperties: false
+};
+
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "200kb" }));
@@ -109,36 +172,75 @@ function localDecision(values) {
   };
 }
 
-function parseReport(value) {
-  const raw = String(value || "");
-  const first = raw.indexOf("{");
-  const last = raw.lastIndexOf("}");
+function parseReport(response) {
+  if (response.status === "incomplete") {
+    const reason =
+      response.incomplete_details?.reason ||
+      "unknown reason";
 
-  if (first === -1 || last === -1) {
     throw new Error(
-      "Trend Radar returned an invalid report."
+      "Trend Radar response was incomplete: " +
+      reason +
+      "."
     );
   }
 
-  return JSON.parse(
-    raw.slice(first, last + 1)
-  );
+  const raw = String(
+    response.output_text || ""
+  ).trim();
+
+  if (!raw) {
+    throw new Error(
+      "Trend Radar returned no report. Please try the scan again."
+    );
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      "Trend Radar could not read the completed report."
+    );
+  }
 }
 
 function getSources(response) {
   const found = new Map();
 
+  function remember(source) {
+    if (!source?.url) {
+      return;
+    }
+
+    try {
+      const url = new URL(source.url);
+
+      if (
+        !["http:", "https:"].includes(url.protocol)
+      ) {
+        return;
+      }
+
+      found.set(url.href, {
+        title: source.title || url.hostname,
+        url: url.href
+      });
+    } catch (error) {}
+  }
+
   for (const item of response.output || []) {
+    for (
+      const source of item.action?.sources || []
+    ) {
+      remember(source);
+    }
+
     for (const part of item.content || []) {
-      for (const note of part.annotations || []) {
-        if (
-          note.type === "url_citation" &&
-          note.url
-        ) {
-          found.set(note.url, {
-            title: note.title || note.url,
-            url: note.url
-          });
+      for (
+        const note of part.annotations || []
+      ) {
+        if (note.type === "url_citation") {
+          remember(note);
         }
       }
     }
@@ -156,7 +258,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.6.0",
+    version: "0.6.1",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client)
   });
@@ -200,10 +302,8 @@ app.post(
       const response =
         await client.responses.create({
           model: MODEL,
-
           instructions:
             "You evaluate original KDP and Etsy product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
-
           input:
             "Evaluate this " +
             market +
@@ -214,7 +314,6 @@ app.post(
             "/100 and the local verdict is " +
             decision.verdict +
             ". Give three strengths, two risks, and one specific way to improve it.",
-
           max_output_tokens: 900
         });
 
@@ -266,10 +365,8 @@ app.post(
       const response =
         await client.responses.create({
           model: MODEL,
-
           instructions:
             "You are the Product Architect for Publisher Forge. Create original, useful product plans. Never copy existing products or protected content.",
-
           input:
             "Create a complete " +
             market +
@@ -278,11 +375,12 @@ app.post(
             ". " +
             (
               notes
-                ? "Extra notes: " + notes + ". "
+                ? "Extra notes: " +
+                  notes +
+                  ". "
                 : ""
             ) +
             "Include the buyer, problem, promise, differentiation, structure, page or section plan, metadata angle, risks, and QA checklist.",
-
           max_output_tokens: 1800
         });
 
@@ -337,28 +435,41 @@ app.post(
           ? " related to " + niche
           : ""
       ) +
-      ". Use multiple public signals. Do not claim private sales data. Avoid trademarks, celebrities, copyrighted characters, medical promises, copying, and obvious platform risks. Rank the best idea first. " +
-      'Return only JSON shaped like: {"summary":"short overview","opportunities":[{"title":"idea","platform":"KDP, Etsy, or Both","audience":"buyer","evidence":"current signals","competition":"level and reason","angle":"differentiation","risk":"main risk","score":75,"verdict":"MAKE, VALIDATE, or SKIP"}]}';
+      ". Use multiple public signals. Do not claim private sales data. Avoid trademarks, celebrities, copyrighted characters, medical promises, copying, and obvious platform risks. Rank exactly five ideas from best to worst.";
 
     try {
       const response =
         await client.responses.create({
           model: MODEL,
-
+          instructions:
+            "You are Trend Radar for Publisher Forge. Find practical, original product opportunities and report only evidence supported by your web research.",
           tools: [
             {
               type: "web_search"
             }
           ],
-
           tool_choice: "required",
+          include: [
+            "web_search_call.action.sources"
+          ],
+          reasoning: {
+            effort: "low"
+          },
           input: prompt,
-          max_output_tokens: 2600
+          text: {
+            format: {
+              type: "json_schema",
+              name:
+                "publisher_forge_trend_report",
+              strict: true,
+              schema: trendReportSchema
+            }
+          },
+          max_output_tokens: 5000
         });
 
-      const report = parseReport(
-        response.output_text
-      );
+      const report =
+        parseReport(response);
 
       if (
         !Array.isArray(
@@ -373,71 +484,60 @@ app.post(
       const opportunities =
         report.opportunities
           .slice(0, 5)
-          .map((item, index) => ({
-            rank: index + 1,
-
-            title: text(
-              item.title,
-              160
-            ),
-
-            platform: platform(
-              item.platform,
-              true
-            ),
-
-            audience: text(
-              item.audience,
-              250
-            ),
-
-            evidence: text(
-              item.evidence,
-              600
-            ),
-
-            competition: text(
-              item.competition,
-              250
-            ),
-
-            angle: text(
-              item.angle,
-              350
-            ),
-
-            risk: text(
-              item.risk,
-              350
-            ),
-
-            score: Math.round(
-              score(item.score)
-            ),
-
-            verdict: [
-              "MAKE",
-              "VALIDATE",
-              "SKIP"
-            ].includes(item.verdict)
-              ? item.verdict
-              : "VALIDATE"
-          }));
+          .map(function (item, index) {
+            return {
+              rank: index + 1,
+              title: text(
+                item.title,
+                160
+              ),
+              platform: platform(
+                item.platform,
+                true
+              ),
+              audience: text(
+                item.audience,
+                250
+              ),
+              evidence: text(
+                item.evidence,
+                600
+              ),
+              competition: text(
+                item.competition,
+                250
+              ),
+              angle: text(
+                item.angle,
+                350
+              ),
+              risk: text(
+                item.risk,
+                350
+              ),
+              score: Math.round(
+                score(item.score)
+              ),
+              verdict: [
+                "MAKE",
+                "VALIDATE",
+                "SKIP"
+              ].includes(item.verdict)
+                ? item.verdict
+                : "VALIDATE"
+            };
+          });
 
       res.json({
         scannedAt:
           new Date().toISOString(),
-
         platform: market,
         niche,
-
         summary: text(
           report.summary,
           800
         ),
-
         opportunities,
-
         sources: getSources(response)
       });
     } catch (error) {
