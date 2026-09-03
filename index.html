@@ -2,403 +2,966 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090b0f">
+  <meta name="description" content="AI-assisted product research for Amazon KDP and Etsy.">
   <title>Publisher Forge</title>
 
   <style>
-    * {
-      box-sizing: border-box;
+    :root {
+      color-scheme: dark;
+      --bg:#090b0f;
+      --panel:#141920;
+      --line:#2b3440;
+      --text:#f5f7fa;
+      --muted:#9ba6b5;
+      --orange:#ff9d2e;
+      --gold:#ffc267;
+      --green:#4cdb83;
+      --red:#ff7080;
     }
+
+    * { box-sizing:border-box }
 
     body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0b1020;
-      color: #f4f7fb;
+      margin:0;
+      min-height:100vh;
+      color:var(--text);
+      font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 90% -10%,#ff9d2e20,transparent 30rem),
+        var(--bg);
     }
 
-    .wrap {
-      max-width: 900px;
-      margin: auto;
-      padding: 20px;
+    button,input,select { font:inherit }
+
+    .shell {
+      width:min(1120px,100%);
+      margin:auto;
+      padding:18px 16px 80px;
     }
 
-    .header {
-      margin-bottom: 24px;
+    .topbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:18px;
     }
 
-    .header h1 {
-      margin: 0;
-      font-size: 32px;
+    .brand {
+      display:flex;
+      align-items:center;
+      gap:11px;
+      min-width:0;
     }
 
-    .header p {
-      color: #aab4c8;
-      line-height: 1.5;
+    .mark {
+      display:grid;
+      place-items:center;
+      width:42px;
+      height:42px;
+      flex:none;
+      border:1px solid #71491b;
+      border-radius:12px;
+      background:#23170c;
+      color:var(--gold);
+      font-size:20px;
+      font-weight:900;
+    }
+
+    h1 {
+      margin:0;
+      font-size:1.15rem;
+      letter-spacing:-.02em;
+    }
+
+    .brand p {
+      margin:1px 0 0;
+      color:var(--muted);
+      font-size:.78rem;
     }
 
     .status {
-      display: inline-block;
-      padding: 7px 12px;
-      border-radius: 999px;
-      background: #17213b;
-      color: #b8c8ff;
-      font-size: 14px;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      max-width:48%;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:#11161d;
+      color:var(--muted);
+      font-size:.76rem;
+      white-space:nowrap;
     }
 
-    .card {
-      background: #121a2e;
-      border: 1px solid #263352;
-      border-radius: 16px;
-      padding: 18px;
-      margin-bottom: 18px;
+    .dot {
+      width:8px;
+      height:8px;
+      flex:none;
+      border-radius:50%;
+      background:#687383;
+    }
+
+    .online .dot { background:var(--green) }
+    .warn .dot { background:var(--orange) }
+
+    .workspace {
+      display:grid;
+      gap:16px;
+    }
+
+    .panel {
+      overflow:hidden;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:linear-gradient(180deg,#171c24,#0f1319);
+      box-shadow:0 18px 50px #00000045;
+    }
+
+    .panel-head {
+      padding:18px;
+      border-bottom:1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin:0 0 5px;
+      color:var(--gold);
+      font-size:.72rem;
+      font-weight:850;
+      letter-spacing:.12em;
+      text-transform:uppercase;
     }
 
     h2 {
-      margin-top: 0;
+      margin:0;
+      font-size:1.35rem;
+      letter-spacing:-.025em;
     }
+
+    .subtext {
+      margin:7px 0 0;
+      color:var(--muted);
+      font-size:.9rem;
+    }
+
+    .form-body,.result { padding:18px }
+    .field { margin-bottom:16px }
 
     label {
-      display: block;
-      margin: 14px 0 6px;
-      font-weight: bold;
+      display:block;
+      margin-bottom:7px;
+      color:#dfe4eb;
+      font-size:.86rem;
+      font-weight:750;
     }
 
-    input,
-    select,
-    textarea {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid #34415f;
-      background: #0d1425;
-      color: white;
-      font-size: 16px;
+    input[type=text],select {
+      width:100%;
+      min-height:49px;
+      padding:0 13px;
+      border:1px solid #35404e;
+      border-radius:12px;
+      outline:0;
+      background:#0b0f14;
+      color:var(--text);
+      font-size:1rem;
     }
 
-    textarea {
-      min-height: 100px;
-      resize: vertical;
+    input:focus,select:focus {
+      border-color:var(--orange);
+      box-shadow:0 0 0 3px #ff9d2e20;
     }
 
-    .range-row {
-      margin-top: 16px;
+    .two {
+      display:grid;
+      gap:12px;
+    }
+
+    details {
+      margin:3px 0 18px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#090c1044;
+    }
+
+    summary {
+      padding:13px 14px;
+      cursor:pointer;
+      list-style:none;
+      font-size:.88rem;
+      font-weight:800;
+    }
+
+    summary::-webkit-details-marker { display:none }
+    summary:after {
+      content:"＋";
+      float:right;
+      color:var(--gold);
+    }
+
+    details[open] summary:after { content:"−" }
+
+    .sliders {
+      display:grid;
+      gap:15px;
+      padding:3px 14px 15px;
     }
 
     .range-head {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 5px;
+      display:flex;
+      justify-content:space-between;
+      margin-bottom:6px;
+      color:var(--muted);
+      font-size:.82rem;
     }
 
-    input[type="range"] {
-      padding: 0;
+    .range-head b { color:var(--text) }
+
+    input[type=range] {
+      width:100%;
+      accent-color:var(--orange);
     }
 
-    button {
-      width: 100%;
-      padding: 14px;
-      margin-top: 18px;
-      border: 0;
-      border-radius: 10px;
-      background: #5865f2;
-      color: white;
-      font-size: 17px;
-      font-weight: bold;
-      cursor: pointer;
+    .buttons,.result-actions {
+      display:grid;
+      gap:10px;
     }
 
-    button.secondary {
-      background: #25304b;
+    .btn {
+      min-height:50px;
+      padding:12px 16px;
+      border:0;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:850;
     }
 
-    button:disabled {
-      opacity: .6;
+    .btn:disabled {
+      cursor:wait;
+      opacity:.58;
     }
 
-    .result {
-      white-space: pre-wrap;
-      line-height: 1.55;
-      background: #0d1425;
-      border-radius: 10px;
-      padding: 14px;
-      min-height: 70px;
-      color: #dfe6f5;
+    .primary {
+      background:linear-gradient(135deg,var(--orange),#ff7919);
+      color:#1d0d00;
+    }
+
+    .secondary {
+      border:1px solid #3b4655;
+      background:#202832;
+      color:var(--text);
+    }
+
+    .empty {
+      display:grid;
+      place-items:center;
+      min-height:300px;
+      padding:28px;
+      color:var(--muted);
+      text-align:center;
+    }
+
+    .empty-icon {
+      display:grid;
+      place-items:center;
+      width:58px;
+      height:58px;
+      margin:0 auto 13px;
+      border:1px solid #3a4451;
+      border-radius:16px;
+      background:#171c23;
+      color:var(--gold);
+      font-size:1.5rem;
+    }
+
+    .empty strong {
+      display:block;
+      margin-bottom:6px;
+      color:#e8ecf1;
+    }
+
+    .result { display:none }
+    .result.visible { display:block }
+
+    .score-line {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom:15px;
     }
 
     .verdict {
-      font-size: 28px;
-      font-weight: bold;
-      margin-bottom: 10px;
+      padding:7px 11px;
+      border:1px solid #ffc26755;
+      border-radius:10px;
+      background:#ff9d2e18;
+      color:var(--gold);
+      font-weight:900;
+      letter-spacing:.05em;
     }
 
-    .small {
-      color: #9ba8bf;
-      font-size: 14px;
+    .verdict.make {
+      border-color:#4cdb8355;
+      background:#4cdb8318;
+      color:#79eca4;
     }
 
-    .hidden {
-      display: none;
+    .verdict.skip,.verdict.error {
+      border-color:#ff708055;
+      background:#ff708018;
+      color:#ff98a4;
+    }
+
+    .score {
+      font-size:1.75rem;
+      font-weight:900;
+    }
+
+    .score small {
+      color:var(--muted);
+      font-size:.75rem;
+    }
+
+    .idea-name {
+      margin:0 0 13px;
+      font-size:1.05rem;
+    }
+
+    .output {
+      min-height:160px;
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#090d12;
+      color:#d8dee7;
+      font-size:.9rem;
+      line-height:1.6;
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+    }
+
+    .result-actions { margin-top:11px }
+    .recent { margin-top:16px }
+
+    .recent h3 {
+      margin:0 0 9px;
+      color:var(--muted);
+      font-size:.76rem;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    .recent-list {
+      display:grid;
+      gap:8px;
+    }
+
+    .recent-item {
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:10px;
+      width:100%;
+      padding:11px 12px;
+      border:1px solid var(--line);
+      border-radius:11px;
+      background:#11161d;
+      color:var(--text);
+      text-align:left;
+      cursor:pointer;
+    }
+
+    .recent-item span {
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .recent-item b { color:var(--gold) }
+
+    .toast {
+      position:fixed;
+      left:50%;
+      bottom:calc(18px + env(safe-area-inset-bottom));
+      transform:translate(-50%,20px);
+      max-width:calc(100% - 32px);
+      padding:10px 14px;
+      border:1px solid #3c4654;
+      border-radius:999px;
+      background:#1a2029;
+      box-shadow:0 12px 30px #0008;
+      opacity:0;
+      pointer-events:none;
+      transition:.2s;
+    }
+
+    .toast.show {
+      opacity:1;
+      transform:translate(-50%,0);
+    }
+
+    @media(min-width:680px) {
+      .shell { padding:28px 24px 70px }
+      .two { grid-template-columns:1.3fr .7fr }
+      .buttons,.result-actions { grid-template-columns:1fr 1fr }
+    }
+
+    @media(min-width:920px) {
+      .workspace {
+        grid-template-columns:.92fr 1.08fr;
+        align-items:start;
+      }
+
+      .panel { min-height:635px }
     }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-
-    <div class="header">
-      <div class="status" id="status">Checking backend...</div>
-
-      <h1>Publisher Forge</h1>
-
-      <p>
-        AI-assisted opportunity research and product development for
-        Amazon KDP and Etsy.
-      </p>
-    </div>
-
-    <div class="card">
-      <h2>Opportunity Analyzer</h2>
-
-      <label for="title">Product idea</label>
-      <input
-        id="title"
-        placeholder="Example: ADHD daily planner for night-shift workers"
-      >
-
-      <label for="platform">Platform</label>
-      <select id="platform">
-        <option value="KDP">Amazon KDP</option>
-        <option value="Etsy">Etsy</option>
-      </select>
-
-      <div class="range-row">
-        <div class="range-head">
-          <span>Demand</span>
-          <span id="demandValue">60</span>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">PF</div>
+        <div>
+          <h1>Publisher Forge</h1>
+          <p>KDP + Etsy decision engine</p>
         </div>
-        <input id="demand" type="range" min="0" max="100" value="60">
       </div>
 
-      <div class="range-row">
-        <div class="range-head">
-          <span>Competition</span>
-          <span id="competitionValue">50</span>
-        </div>
-        <input id="competition" type="range" min="0" max="100" value="50">
+      <div class="status" id="status" role="status">
+        <span class="dot"></span>
+        <span id="statusText">Checking system</span>
       </div>
+    </header>
 
-      <div class="range-row">
-        <div class="range-head">
-          <span>Margin potential</span>
-          <span id="marginValue">65</span>
+    <section class="workspace">
+      <article class="panel">
+        <div class="panel-head">
+          <p class="eyebrow">Opportunity Analyzer</p>
+          <h2>Should we build it?</h2>
+          <p class="subtext">
+            Score one original product idea before spending time producing it.
+          </p>
         </div>
-        <input id="margin" type="range" min="0" max="100" value="65">
-      </div>
 
-      <div class="range-row">
-        <div class="range-head">
-          <span>Differentiation</span>
-          <span id="differentiationValue">60</span>
+        <div class="form-body">
+          <div class="two">
+            <div class="field">
+              <label for="title">Product idea</label>
+              <input
+                id="title"
+                type="text"
+                autocomplete="off"
+                placeholder="ADHD planner for night-shift workers"
+              >
+            </div>
+
+            <div class="field">
+              <label for="platform">Marketplace</label>
+              <select id="platform">
+                <option value="KDP">Amazon KDP</option>
+                <option value="Etsy">Etsy</option>
+              </select>
+            </div>
+          </div>
+
+          <details>
+            <summary>Tune the scoring signals</summary>
+
+            <div class="sliders">
+              <div>
+                <div class="range-head">
+                  <span>Demand</span>
+                  <b id="demandValue">60</b>
+                </div>
+                <input id="demand" type="range" min="0" max="100" value="60">
+              </div>
+
+              <div>
+                <div class="range-head">
+                  <span>Competition</span>
+                  <b id="competitionValue">50</b>
+                </div>
+                <input id="competition" type="range" min="0" max="100" value="50">
+              </div>
+
+              <div>
+                <div class="range-head">
+                  <span>Margin potential</span>
+                  <b id="marginValue">65</b>
+                </div>
+                <input id="margin" type="range" min="0" max="100" value="65">
+              </div>
+
+              <div>
+                <div class="range-head">
+                  <span>Differentiation</span>
+                  <b id="differentiationValue">60</b>
+                </div>
+                <input id="differentiation" type="range" min="0" max="100" value="60">
+              </div>
+
+              <div>
+                <div class="range-head">
+                  <span>Evidence confidence</span>
+                  <b id="confidenceValue">60</b>
+                </div>
+                <input id="confidence" type="range" min="0" max="100" value="60">
+              </div>
+            </div>
+          </details>
+
+          <div class="buttons">
+            <button class="btn primary" id="analyzeButton">
+              Analyze opportunity
+            </button>
+
+            <button class="btn secondary" id="briefButton">
+              Create product brief
+            </button>
+          </div>
+
+          <div class="recent" id="recentSection" hidden>
+            <h3>Recent decisions</h3>
+            <div class="recent-list" id="recentList"></div>
+          </div>
         </div>
-        <input
-          id="differentiation"
-          type="range"
-          min="0"
-          max="100"
-          value="60"
-        >
-      </div>
+      </article>
 
-      <div class="range-row">
-        <div class="range-head">
-          <span>Confidence</span>
-          <span id="confidenceValue">60</span>
+      <article class="panel">
+        <div class="panel-head">
+          <p class="eyebrow" id="outputEyebrow">Decision Workspace</p>
+          <h2 id="outputHeading">Ready for an idea</h2>
+          <p class="subtext" id="outputSubtext">
+            Enter an idea, adjust the signals if needed, and run the analysis.
+          </p>
         </div>
-        <input id="confidence" type="range" min="0" max="100" value="60">
-      </div>
 
-      <button id="analyzeButton" onclick="analyzeIdea()">
-        Analyze Opportunity
-      </button>
-    </div>
+        <div class="empty" id="emptyState">
+          <div>
+            <div class="empty-icon">⌁</div>
+            <strong>No decision yet</strong>
+            Your analysis and product brief will appear here.
+          </div>
+        </div>
 
-    <div class="card hidden" id="analysisCard">
-      <h2>Decision</h2>
-      <div class="verdict" id="verdict"></div>
-      <div class="result" id="analysisResult"></div>
+        <div class="result" id="resultState" aria-live="polite">
+          <div class="score-line" id="scoreLine">
+            <span class="verdict" id="verdict">VALIDATE</span>
+            <span class="score">
+              <span id="score">—</span><small>/100</small>
+            </span>
+          </div>
 
-      <button
-        class="secondary"
-        onclick="generateBrief()"
-        id="briefButton"
-      >
-        Generate Product Brief
-      </button>
-    </div>
+          <h3 class="idea-name" id="ideaName"></h3>
+          <div class="output" id="output"></div>
 
-    <div class="card hidden" id="briefCard">
-      <h2>Product Architect</h2>
+          <div class="result-actions">
+            <button class="btn secondary" id="copyButton">
+              Copy result
+            </button>
 
-      <label for="notes">Extra instructions</label>
-      <textarea
-        id="notes"
-        placeholder="Optional notes about audience, style, format, etc."
-      ></textarea>
+            <button class="btn primary" id="resultBriefButton">
+              Build full brief
+            </button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
 
-      <button onclick="generateBrief()">
-        Generate / Regenerate Brief
-      </button>
+  <div class="toast" id="toast" role="status"></div>
 
-      <div class="result" id="briefResult" style="margin-top:16px;"></div>
-    </div>
+  <script>
+    const signalIds = [
+      "demand",
+      "competition",
+      "margin",
+      "differentiation",
+      "confidence"
+    ];
 
-  </div>
+    const titleInput = document.getElementById("title");
+    const platformInput = document.getElementById("platform");
+    const analyzeButton = document.getElementById("analyzeButton");
+    const briefButton = document.getElementById("briefButton");
+    const resultBriefButton = document.getElementById("resultBriefButton");
+    const output = document.getElementById("output");
 
-<script>
-  const sliders = [
-    "demand",
-    "competition",
-    "margin",
-    "differentiation",
-    "confidence"
-  ];
+    let activeResult = "";
 
-  sliders.forEach(id => {
-    const slider = document.getElementById(id);
-    const output = document.getElementById(id + "Value");
+    signalIds.forEach(function(id) {
+      const input = document.getElementById(id);
 
-    slider.addEventListener("input", () => {
-      output.textContent = slider.value;
+      input.addEventListener("input", function() {
+        document.getElementById(id + "Value").textContent = input.value;
+      });
     });
-  });
 
-  async function checkHealth() {
-    const status = document.getElementById("status");
+    function toast(message) {
+      const box = document.getElementById("toast");
 
-    try {
-      const response = await fetch("/api/health");
-      const data = await response.json();
+      box.textContent = message;
+      box.classList.add("show");
 
-      if (data.ok && data.openaiConfigured) {
-        status.textContent = "● Backend + OpenAI connected";
-      } else if (data.ok) {
-        status.textContent = "● Backend live — OpenAI not configured";
-      } else {
-        status.textContent = "Backend error";
-      }
-    } catch (error) {
-      status.textContent = "Backend unavailable";
-    }
-  }
+      clearTimeout(toast.timer);
 
-  async function analyzeIdea() {
-    const button = document.getElementById("analyzeButton");
-    const title = document.getElementById("title").value.trim();
-
-    if (!title) {
-      alert("Enter a product idea first.");
-      return;
+      toast.timer = setTimeout(function() {
+        box.classList.remove("show");
+      }, 2200);
     }
 
-    button.disabled = true;
-    button.textContent = "Analyzing...";
+    function loading(button, on, label) {
+      button.disabled = on;
+      button.textContent = on ? "Working…" : label;
+    }
 
-    document.getElementById("analysisCard").classList.remove("hidden");
-    document.getElementById("verdict").textContent = "";
-    document.getElementById("analysisResult").textContent =
-      "Publisher Forge is evaluating this opportunity...";
+    function ideaData() {
+      const data = {
+        title: titleInput.value.trim(),
+        platform: platformInput.value
+      };
 
-    const body = {
-      title,
-      platform: document.getElementById("platform").value,
-      demand: Number(document.getElementById("demand").value),
-      competition: Number(document.getElementById("competition").value),
-      margin: Number(document.getElementById("margin").value),
-      differentiation: Number(
-        document.getElementById("differentiation").value
-      ),
-      confidence: Number(document.getElementById("confidence").value)
-    };
-
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
+      signalIds.forEach(function(id) {
+        data[id] = Number(document.getElementById(id).value);
       });
 
-      const data = await response.json();
+      return data;
+    }
 
-      if (!response.ok) {
-        throw new Error(data.message || data.error || "Analysis failed");
+    async function json(response) {
+      const text = await response.text();
+
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        throw new Error("The server returned an unreadable response.");
+      }
+    }
+
+    function showResult(data) {
+      document.getElementById("emptyState").style.display = "none";
+      document.getElementById("resultState").classList.add("visible");
+      document.getElementById("outputHeading").textContent = data.heading;
+      document.getElementById("outputEyebrow").textContent = data.eyebrow;
+      document.getElementById("outputSubtext").textContent = data.subtext;
+      document.getElementById("ideaName").textContent = data.idea;
+
+      output.textContent = data.text;
+      activeResult = data.text;
+
+      const isBrief = data.mode === "brief";
+
+      document.getElementById("scoreLine").style.display =
+        isBrief ? "none" : "flex";
+
+      resultBriefButton.style.display =
+        isBrief ? "none" : "block";
+
+      if (!isBrief) {
+        const badge = document.getElementById("verdict");
+
+        badge.textContent = data.verdict || "RESULT";
+        badge.className =
+          "verdict " + String(data.verdict || "").toLowerCase();
+
+        document.getElementById("score").textContent =
+          data.score == null ? "—" : data.score;
+      }
+    }
+
+    function saveRecent(item) {
+      let recent = [];
+
+      try {
+        recent =
+          JSON.parse(localStorage.getItem("pfRecent")) || [];
+      } catch (error) {}
+
+      recent = [item]
+        .concat(
+          recent.filter(function(old) {
+            return old.title !== item.title;
+          })
+        )
+        .slice(0, 4);
+
+      localStorage.setItem("pfRecent", JSON.stringify(recent));
+      renderRecent();
+    }
+
+    function renderRecent() {
+      let recent = [];
+
+      try {
+        recent =
+          JSON.parse(localStorage.getItem("pfRecent")) || [];
+      } catch (error) {}
+
+      const section = document.getElementById("recentSection");
+      const list = document.getElementById("recentList");
+
+      section.hidden = recent.length === 0;
+      list.replaceChildren();
+
+      recent.forEach(function(item) {
+        const button = document.createElement("button");
+        const name = document.createElement("span");
+        const score = document.createElement("b");
+
+        button.className = "recent-item";
+        name.textContent = item.title;
+        score.textContent = item.score;
+
+        button.append(name, score);
+
+        button.addEventListener("click", function() {
+          titleInput.value = item.title;
+          platformInput.value = item.platform;
+
+          showResult({
+            heading: "Saved decision",
+            eyebrow: item.platform + " opportunity",
+            subtext: "Loaded from this device.",
+            verdict: item.verdict,
+            score: item.score,
+            idea: item.title,
+            text: item.text,
+            mode: "analysis"
+          });
+        });
+
+        list.appendChild(button);
+      });
+    }
+
+    async function checkHealth() {
+      const status = document.getElementById("status");
+      const text = document.getElementById("statusText");
+
+      try {
+        const response = await fetch("/api/health");
+        const data = await json(response);
+
+        if (!response.ok || !data.ok) {
+          throw new Error();
+        }
+
+        status.className =
+          data.openaiConfigured ? "status online" : "status warn";
+
+        text.textContent =
+          data.openaiConfigured
+            ? "AI connected"
+            : "Local scoring only";
+      } catch (error) {
+        status.className = "status";
+        text.textContent = "Backend offline";
+      }
+    }
+
+    async function analyze() {
+      const idea = ideaData();
+
+      if (!idea.title) {
+        titleInput.focus();
+        toast("Enter a product idea first");
+        return;
       }
 
-      document.getElementById("verdict").textContent =
-        `${data.verdict || "RESULT"} — Score ${data.score ?? "?"}/100`;
+      loading(analyzeButton, true, "Analyze opportunity");
 
-      document.getElementById("analysisResult").textContent =
-        data.aiAnalysis ||
-        (data.reasoning ? data.reasoning.join("\n") : "Analysis complete.");
-
-    } catch (error) {
-      document.getElementById("analysisResult").textContent =
-        "Error: " + error.message;
-    } finally {
-      button.disabled = false;
-      button.textContent = "Analyze Opportunity";
-    }
-  }
-
-  async function generateBrief() {
-    const title = document.getElementById("title").value.trim();
-
-    if (!title) {
-      alert("Enter a product idea first.");
-      return;
-    }
-
-    document.getElementById("briefCard").classList.remove("hidden");
-    document.getElementById("briefResult").textContent =
-      "Product Architect is building the brief...";
-
-    const body = {
-      title,
-      platform: document.getElementById("platform").value,
-      notes: document.getElementById("notes").value
-    };
-
-    try {
-      const response = await fetch("/api/product-brief", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
+      showResult({
+        heading: "Evaluating opportunity",
+        eyebrow: idea.platform + " opportunity",
+        subtext: "Scoring the idea now.",
+        verdict: "ANALYZING",
+        score: null,
+        idea: idea.title,
+        text: "Publisher Forge is working…",
+        mode: "analysis"
       });
 
-      const data = await response.json();
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(idea)
+        });
 
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-          data.error ||
-          "Brief generation failed"
+        const data = await json(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            data.error ||
+            "Analysis failed"
+          );
+        }
+
+        const text =
+          data.aiAnalysis ||
+          (
+            data.reasoning
+              ? data.reasoning.join("\n")
+              : "Analysis complete."
+          );
+
+        showResult({
+          heading: "Decision complete",
+          eyebrow: idea.platform + " opportunity",
+          subtext:
+            "Use this result to decide whether to build, validate, or skip.",
+          verdict: data.verdict,
+          score: data.score,
+          idea: idea.title,
+          text: text,
+          mode: "analysis"
+        });
+
+        saveRecent({
+          title: idea.title,
+          platform: idea.platform,
+          verdict: data.verdict,
+          score: data.score,
+          text: text
+        });
+      } catch (error) {
+        showResult({
+          heading: "Analysis stopped",
+          eyebrow: "Connection problem",
+          subtext: "Nothing was saved.",
+          verdict: "ERROR",
+          score: null,
+          idea: idea.title,
+          text: error.message,
+          mode: "analysis"
+        });
+      } finally {
+        loading(
+          analyzeButton,
+          false,
+          "Analyze opportunity"
         );
       }
-
-      document.getElementById("briefResult").textContent = data.brief;
-
-    } catch (error) {
-      document.getElementById("briefResult").textContent =
-        "Error: " + error.message;
     }
-  }
 
-  checkHealth();
-</script>
+    async function brief() {
+      const idea = ideaData();
 
+      if (!idea.title) {
+        titleInput.focus();
+        toast("Enter a product idea first");
+        return;
+      }
+
+      loading(
+        briefButton,
+        true,
+        "Create product brief"
+      );
+
+      loading(
+        resultBriefButton,
+        true,
+        "Build full brief"
+      );
+
+      showResult({
+        heading: "Building product brief",
+        eyebrow: "Product Architect",
+        subtext:
+          "Creating the audience, structure, metadata, risks, and quality checks.",
+        idea: idea.title,
+        text: "Publisher Forge is working…",
+        mode: "brief"
+      });
+
+      try {
+        const response = await fetch("/api/product-brief", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: idea.title,
+            platform: idea.platform,
+            notes: ""
+          })
+        });
+
+        const data = await json(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            data.error ||
+            "Brief generation failed"
+          );
+        }
+
+        showResult({
+          heading: "Product brief",
+          eyebrow: "Product Architect",
+          subtext:
+            "Review this plan before creating or publishing anything.",
+          idea: idea.title,
+          text: data.brief,
+          mode: "brief"
+        });
+      } catch (error) {
+        showResult({
+          heading: "Brief stopped",
+          eyebrow: "Connection problem",
+          subtext: "The brief was not generated.",
+          idea: idea.title,
+          text: error.message,
+          mode: "brief"
+        });
+      } finally {
+        loading(
+          briefButton,
+          false,
+          "Create product brief"
+        );
+
+        loading(
+          resultBriefButton,
+          false,
+          "Build full brief"
+        );
+      }
+    }
+
+    analyzeButton.addEventListener("click", analyze);
+    briefButton.addEventListener("click", brief);
+    resultBriefButton.addEventListener("click", brief);
+
+    document
+      .getElementById("copyButton")
+      .addEventListener("click", async function() {
+        if (!activeResult) return;
+
+        try {
+          await navigator.clipboard.writeText(activeResult);
+          toast("Result copied");
+        } catch (error) {
+          toast("Copy was blocked by the browser");
+        }
+      });
+
+    titleInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        analyze();
+      }
+    });
+
+    renderRecent();
+    checkHealth();
+  </script>
 </body>
 </html>
