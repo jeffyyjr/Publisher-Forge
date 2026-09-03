@@ -10,7 +10,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
-
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -22,42 +21,38 @@ const requestLog = new Map();
 const trendReportSchema = {
   type: "object",
   properties: {
-    summary: {
-      type: "string"
-    },
+    summary: { type: "string" },
     opportunities: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          title: {
-            type: "string"
-          },
-          platform: {
-            type: "string",
-            enum: ["KDP", "Etsy", "Both"]
-          },
-          audience: {
-            type: "string"
-          },
-          evidence: {
-            type: "string"
+          title: { type: "string" },
+          platform: { type: "string", enum: ["KDP", "Etsy", "Both"] },
+          audience: { type: "string" },
+          evidence: { type: "string" },
+          competitionNote: { type: "string" },
+          angle: { type: "string" },
+          risk: { type: "string" },
+          demand: {
+            type: "integer",
+            description: "Estimated buyer demand from 0 to 100."
           },
           competition: {
-            type: "string"
+            type: "integer",
+            description: "Market crowding from 0 to 100, where a higher number means more competition."
           },
-          angle: {
-            type: "string"
+          margin: {
+            type: "integer",
+            description: "Potential profit margin from 0 to 100."
           },
-          risk: {
-            type: "string"
+          differentiation: {
+            type: "integer",
+            description: "Room for a distinct, defensible offer from 0 to 100."
           },
-          score: {
-            type: "integer"
-          },
-          verdict: {
-            type: "string",
-            enum: ["MAKE", "VALIDATE", "SKIP"]
+          confidence: {
+            type: "integer",
+            description: "Confidence in the public evidence from 0 to 100."
           }
         },
         required: [
@@ -65,20 +60,20 @@ const trendReportSchema = {
           "platform",
           "audience",
           "evidence",
-          "competition",
+          "competitionNote",
           "angle",
           "risk",
-          "score",
-          "verdict"
+          "demand",
+          "competition",
+          "margin",
+          "differentiation",
+          "confidence"
         ],
         additionalProperties: false
       }
     }
   },
-  required: [
-    "summary",
-    "opportunities"
-  ],
+  required: ["summary", "opportunities"],
   additionalProperties: false
 };
 
@@ -88,14 +83,11 @@ app.use(express.json({ limit: "200kb" }));
 app.use(express.static(__dirname));
 
 function text(value, limit = 300) {
-  return String(value || "")
-    .trim()
-    .slice(0, limit);
+  return String(value || "").trim().slice(0, limit);
 }
 
 function score(value, fallback = 50) {
   const number = Number(value);
-
   return Number.isFinite(number)
     ? Math.max(0, Math.min(100, number))
     : fallback;
@@ -120,11 +112,7 @@ function limitAI(req, res, next) {
   const current = requestLog.get(key);
 
   if (!current || now - current.started > windowMs) {
-    requestLog.set(key, {
-      started: now,
-      count: 1
-    });
-
+    requestLog.set(key, { started: now, count: 1 });
     return next();
   }
 
@@ -140,9 +128,7 @@ function limitAI(req, res, next) {
 }
 
 function requireOpenAI(res) {
-  if (client) {
-    return true;
-  }
+  if (client) return true;
 
   res.status(503).json({
     error: "OPENAI_API_KEY is not configured"
@@ -174,33 +160,20 @@ function localDecision(values) {
 
 function parseReport(response) {
   if (response.status === "incomplete") {
-    const reason =
-      response.incomplete_details?.reason ||
-      "unknown reason";
-
-    throw new Error(
-      "Trend Radar response was incomplete: " +
-      reason +
-      "."
-    );
+    const reason = response.incomplete_details?.reason || "unknown reason";
+    throw new Error("Trend Radar response was incomplete: " + reason + ".");
   }
 
-  const raw = String(
-    response.output_text || ""
-  ).trim();
+  const raw = String(response.output_text || "").trim();
 
   if (!raw) {
-    throw new Error(
-      "Trend Radar returned no report. Please try the scan again."
-    );
+    throw new Error("Trend Radar returned no report. Please try the scan again.");
   }
 
   try {
     return JSON.parse(raw);
   } catch (error) {
-    throw new Error(
-      "Trend Radar could not read the completed report."
-    );
+    throw new Error("Trend Radar could not read the completed report.");
   }
 }
 
@@ -208,18 +181,11 @@ function getSources(response) {
   const found = new Map();
 
   function remember(source) {
-    if (!source?.url) {
-      return;
-    }
+    if (!source?.url) return;
 
     try {
       const url = new URL(source.url);
-
-      if (
-        !["http:", "https:"].includes(url.protocol)
-      ) {
-        return;
-      }
+      if (!["http:", "https:"].includes(url.protocol)) return;
 
       found.set(url.href, {
         title: source.title || url.hostname,
@@ -229,19 +195,13 @@ function getSources(response) {
   }
 
   for (const item of response.output || []) {
-    for (
-      const source of item.action?.sources || []
-    ) {
+    for (const source of item.action?.sources || []) {
       remember(source);
     }
 
     for (const part of item.content || []) {
-      for (
-        const note of part.annotations || []
-      ) {
-        if (note.type === "url_citation") {
-          remember(note);
-        }
+      for (const note of part.annotations || []) {
+        if (note.type === "url_citation") remember(note);
       }
     }
   }
@@ -250,308 +210,191 @@ function getSources(response) {
 }
 
 app.get("/", (req, res) => {
-  res.sendFile(
-    path.join(__dirname, "index.html")
-  );
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.6.1",
+    version: "0.6.2",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client)
   });
 });
 
-app.post(
-  "/api/analyze",
-  limitAI,
-  async (req, res) => {
-    const title = text(
-      req.body.title,
-      200
-    );
+app.post("/api/analyze", limitAI, async (req, res) => {
+  const title = text(req.body.title, 200);
+  const market = platform(req.body.platform);
 
-    const market = platform(
-      req.body.platform
-    );
-
-    if (!title) {
-      return res.status(400).json({
-        error: "Product idea is required"
-      });
-    }
-
-    const decision = localDecision(
-      req.body
-    );
-
-    if (!client) {
-      return res.json({
-        ...decision,
-        title,
-        platform: market,
-        reasoning: [
-          "Local scoring used because OpenAI is not configured."
-        ]
-      });
-    }
-
-    try {
-      const response =
-        await client.responses.create({
-          model: MODEL,
-          instructions:
-            "You evaluate original KDP and Etsy product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
-          input:
-            "Evaluate this " +
-            market +
-            " idea: " +
-            title +
-            ". The local score is " +
-            decision.score +
-            "/100 and the local verdict is " +
-            decision.verdict +
-            ". Give three strengths, two risks, and one specific way to improve it.",
-          max_output_tokens: 900
-        });
-
-      res.json({
-        ...decision,
-        title,
-        platform: market,
-        aiAnalysis: response.output_text
-      });
-    } catch (error) {
-      res.status(502).json({
-        error: "AI analysis failed",
-        message: error.message,
-        fallback: decision
-      });
-    }
+  if (!title) {
+    return res.status(400).json({
+      error: "Product idea is required"
+    });
   }
-);
 
-app.post(
-  "/api/product-brief",
-  limitAI,
-  async (req, res) => {
-    if (!requireOpenAI(res)) {
-      return;
-    }
+  const decision = localDecision(req.body);
 
-    const title = text(
-      req.body.title,
-      200
-    );
-
-    const market = platform(
-      req.body.platform
-    );
-
-    const notes = text(
-      req.body.notes,
-      1200
-    );
-
-    if (!title) {
-      return res.status(400).json({
-        error: "Product idea is required"
-      });
-    }
-
-    try {
-      const response =
-        await client.responses.create({
-          model: MODEL,
-          instructions:
-            "You are the Product Architect for Publisher Forge. Create original, useful product plans. Never copy existing products or protected content.",
-          input:
-            "Create a complete " +
-            market +
-            " product brief for: " +
-            title +
-            ". " +
-            (
-              notes
-                ? "Extra notes: " +
-                  notes +
-                  ". "
-                : ""
-            ) +
-            "Include the buyer, problem, promise, differentiation, structure, page or section plan, metadata angle, risks, and QA checklist.",
-          max_output_tokens: 1800
-        });
-
-      res.json({
-        title,
-        platform: market,
-        brief: response.output_text
-      });
-    } catch (error) {
-      res.status(502).json({
-        error: "Product brief failed",
-        message: error.message
-      });
-    }
+  if (!client) {
+    return res.json({
+      ...decision,
+      title,
+      platform: market,
+      reasoning: ["Local scoring used because OpenAI is not configured."]
+    });
   }
-);
 
-app.post(
-  "/api/trend-radar",
-  limitAI,
-  async (req, res) => {
-    if (!requireOpenAI(res)) {
-      return;
-    }
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You evaluate original KDP and Etsy product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
+      input:
+        "Evaluate this " + market + " idea: " + title + ". " +
+        "The local score is " + decision.score + "/100 and the local verdict is " +
+        decision.verdict + ". Give three strengths, two risks, and one specific way to improve it.",
+      max_output_tokens: 900
+    });
 
-    const market = platform(
-      req.body.platform,
-      true
-    );
-
-    const niche = text(
-      req.body.niche,
-      160
-    );
-
-    const today =
-      new Date()
-        .toISOString()
-        .slice(0, 10);
-
-    const prompt =
-      "Today is " +
-      today +
-      ". Search the live web for current demand signals and find five original product opportunities for " +
-      (
-        market === "Both"
-          ? "Amazon KDP and Etsy"
-          : market
-      ) +
-      (
-        niche
-          ? " related to " + niche
-          : ""
-      ) +
-      ". Use multiple public signals. Do not claim private sales data. Avoid trademarks, celebrities, copyrighted characters, medical promises, copying, and obvious platform risks. Rank exactly five ideas from best to worst.";
-
-    try {
-      const response =
-        await client.responses.create({
-          model: MODEL,
-          instructions:
-            "You are Trend Radar for Publisher Forge. Find practical, original product opportunities and report only evidence supported by your web research.",
-          tools: [
-            {
-              type: "web_search"
-            }
-          ],
-          tool_choice: "required",
-          include: [
-            "web_search_call.action.sources"
-          ],
-          reasoning: {
-            effort: "low"
-          },
-          input: prompt,
-          text: {
-            format: {
-              type: "json_schema",
-              name:
-                "publisher_forge_trend_report",
-              strict: true,
-              schema: trendReportSchema
-            }
-          },
-          max_output_tokens: 5000
-        });
-
-      const report =
-        parseReport(response);
-
-      if (
-        !Array.isArray(
-          report.opportunities
-        )
-      ) {
-        throw new Error(
-          "Trend Radar returned no opportunities."
-        );
-      }
-
-      const opportunities =
-        report.opportunities
-          .slice(0, 5)
-          .map(function (item, index) {
-            return {
-              rank: index + 1,
-              title: text(
-                item.title,
-                160
-              ),
-              platform: platform(
-                item.platform,
-                true
-              ),
-              audience: text(
-                item.audience,
-                250
-              ),
-              evidence: text(
-                item.evidence,
-                600
-              ),
-              competition: text(
-                item.competition,
-                250
-              ),
-              angle: text(
-                item.angle,
-                350
-              ),
-              risk: text(
-                item.risk,
-                350
-              ),
-              score: Math.round(
-                score(item.score)
-              ),
-              verdict: [
-                "MAKE",
-                "VALIDATE",
-                "SKIP"
-              ].includes(item.verdict)
-                ? item.verdict
-                : "VALIDATE"
-            };
-          });
-
-      res.json({
-        scannedAt:
-          new Date().toISOString(),
-        platform: market,
-        niche,
-        summary: text(
-          report.summary,
-          800
-        ),
-        opportunities,
-        sources: getSources(response)
-      });
-    } catch (error) {
-      res.status(502).json({
-        error: "Trend Radar failed",
-        message: error.message
-      });
-    }
+    res.json({
+      ...decision,
+      title,
+      platform: market,
+      aiAnalysis: response.output_text
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "AI analysis failed",
+      message: error.message,
+      fallback: decision
+    });
   }
-);
+});
+
+app.post("/api/product-brief", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const title = text(req.body.title, 200);
+  const market = platform(req.body.platform);
+  const notes = text(req.body.notes, 1200);
+
+  if (!title) {
+    return res.status(400).json({
+      error: "Product idea is required"
+    });
+  }
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are the Product Architect for Publisher Forge. Create original, useful product plans. Never copy existing products or protected content.",
+      input:
+        "Create a complete " + market + " product brief for: " + title + ". " +
+        (notes ? "Extra notes: " + notes + ". " : "") +
+        "Include the buyer, problem, promise, differentiation, structure, page or section plan, metadata angle, risks, and QA checklist.",
+      max_output_tokens: 1800
+    });
+
+    res.json({
+      title,
+      platform: market,
+      brief: response.output_text
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Product brief failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/trend-radar", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const market = platform(req.body.platform, true);
+  const niche = text(req.body.niche, 160);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const prompt =
+    "Today is " + today + ". Search the live web for current demand signals and find five original product opportunities for " +
+    (market === "Both" ? "Amazon KDP and Etsy" : market) +
+    (niche ? " related to " + niche : "") +
+    ". Use multiple public signals. Return exactly five ideas. Score demand, competition, margin, differentiation, and confidence from 0 to 100. A higher competition score means a more crowded market. Do not calculate the final score, verdict, or rank. Do not claim private sales data. Avoid trademarks, celebrities, copyrighted characters, medical promises, copying, and obvious platform risks.";
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are Trend Radar for Publisher Forge. Find practical, original product opportunities and report only evidence supported by your web research.",
+      tools: [{ type: "web_search" }],
+      tool_choice: "required",
+      include: ["web_search_call.action.sources"],
+      reasoning: { effort: "low" },
+      input: prompt,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_trend_report",
+          strict: true,
+          schema: trendReportSchema
+        }
+      },
+      max_output_tokens: 5000
+    });
+
+    const report = parseReport(response);
+
+    if (!Array.isArray(report.opportunities)) {
+      throw new Error("Trend Radar returned no opportunities.");
+    }
+
+    const opportunities = report.opportunities
+      .slice(0, 5)
+      .map((item) => {
+        const signals = {
+          demand: Math.round(score(item.demand)),
+          competition: Math.round(score(item.competition)),
+          margin: Math.round(score(item.margin)),
+          differentiation: Math.round(score(item.differentiation)),
+          confidence: Math.round(score(item.confidence))
+        };
+        const decision = localDecision(signals);
+
+        return {
+          title: text(item.title, 160),
+          platform: platform(item.platform, true),
+          audience: text(item.audience, 250),
+          evidence: text(item.evidence, 600),
+          competitionNote: text(item.competitionNote, 250),
+          angle: text(item.angle, 350),
+          risk: text(item.risk, 350),
+          ...signals,
+          score: decision.score,
+          verdict: decision.verdict
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1
+      }));
+
+    res.json({
+      scannedAt: new Date().toISOString(),
+      platform: market,
+      niche,
+      summary: text(report.summary, 800),
+      opportunities,
+      sources: getSources(response)
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Trend Radar failed",
+      message: error.message
+    });
+  }
+});
 
 app.listen(PORT, () => {
-  console.log(
-    "Publisher Forge running on port " +
-    PORT
-  );
+  console.log("Publisher Forge running on port " + PORT);
 });
