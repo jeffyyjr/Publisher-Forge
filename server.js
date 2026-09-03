@@ -2,208 +2,456 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
-import crypto from "crypto";
 import path from "path";
-
 import { fileURLToPath } from "url";
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-app.use(express.static(__dirname));
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+const PORT = process.env.PORT || 10000;
+const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-const state = {
-  opportunities: [],
-  lessons: [],
-  products: []
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const requestLog = new Map();
 
-function fallbackScore({ demand, competition, margin, differentiation, confidence }) {
-  const score =
-    demand * 0.30 +
-    (100 - competition) * 0.20 +
-    margin * 0.20 +
-    differentiation * 0.20 +
-    confidence * 0.10;
+app.set("trust proxy", 1);
+app.use(cors());
+app.use(express.json({ limit: "200kb" }));
+app.use(express.static(__dirname));
 
-  if (score >= 75) return { verdict: "MAKE", score: Math.round(score) };
-  if (score >= 55) return { verdict: "VALIDATE", score: Math.round(score) };
-  return { verdict: "SKIP", score: Math.round(score) };
+function text(value, limit = 300) {
+  return String(value || "")
+    .trim()
+    .slice(0, limit);
 }
+
+function score(value, fallback = 50) {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? Math.max(0, Math.min(100, number))
+    : fallback;
+}
+
+function platform(value, allowBoth = false) {
+  const allowed = allowBoth
+    ? ["KDP", "Etsy", "Both"]
+    : ["KDP", "Etsy"];
+
+  return allowed.includes(value)
+    ? value
+    : allowBoth
+      ? "Both"
+      : "KDP";
+}
+
+function limitAI(req, res, next) {
+  const key = req.ip || "unknown";
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const current = requestLog.get(key);
+
+  if (!current || now - current.started > windowMs) {
+    requestLog.set(key, {
+      started: now,
+      count: 1
+    });
+
+    return next();
+  }
+
+  if (current.count >= 15) {
+    return res.status(429).json({
+      error: "Too many requests",
+      message: "Wait a few minutes and try again."
+    });
+  }
+
+  current.count += 1;
+  next();
+}
+
+function requireOpenAI(res) {
+  if (client) {
+    return true;
+  }
+
+  res.status(503).json({
+    error: "OPENAI_API_KEY is not configured"
+  });
+
+  return false;
+}
+
+function localDecision(values) {
+  const total =
+    score(values.demand) * 0.30 +
+    (100 - score(values.competition)) * 0.20 +
+    score(values.margin) * 0.20 +
+    score(values.differentiation) * 0.20 +
+    score(values.confidence) * 0.10;
+
+  const finalScore = Math.round(total);
+
+  return {
+    score: finalScore,
+    verdict:
+      finalScore >= 75
+        ? "MAKE"
+        : finalScore >= 55
+          ? "VALIDATE"
+          : "SKIP"
+  };
+}
+
+function parseReport(value) {
+  const raw = String(value || "");
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+
+  if (first === -1 || last === -1) {
+    throw new Error(
+      "Trend Radar returned an invalid report."
+    );
+  }
+
+  return JSON.parse(
+    raw.slice(first, last + 1)
+  );
+}
+
+function getSources(response) {
+  const found = new Map();
+
+  for (const item of response.output || []) {
+    for (const part of item.content || []) {
+      for (const note of part.annotations || []) {
+        if (
+          note.type === "url_citation" &&
+          note.url
+        ) {
+          found.set(note.url, {
+            title: note.title || note.url,
+            url: note.url
+          });
+        }
+      }
+    }
+  }
+
+  return [...found.values()].slice(0, 10);
+}
+
+app.get("/", (req, res) => {
+  res.sendFile(
+    path.join(__dirname, "index.html")
+  );
+});
 
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    service: "publisher-forge",
-    openaiConfigured: Boolean(process.env.OPENAI_API_KEY)
+    version: "0.6.0",
+    openaiConfigured: Boolean(client),
+    trendRadarAvailable: Boolean(client)
   });
 });
 
-app.post("/api/analyze", async (req, res) => {
-  const {
-    title,
-    platform = "KDP",
-    demand = 50,
-    competition = 50,
-    margin = 50,
-    differentiation = 50,
-    confidence = 50
-  } = req.body;
+app.post(
+  "/api/analyze",
+  limitAI,
+  async (req, res) => {
+    const title = text(
+      req.body.title,
+      200
+    );
 
-  const base = fallbackScore({
-    demand,
-    competition,
-    margin,
-    differentiation,
-    confidence
-  });
+    const market = platform(
+      req.body.platform
+    );
 
-  if (!client) {
-    return res.json({
-      ...base,
-      title,
-      platform,
-      reasoning: [
-        "OpenAI key is not configured yet.",
-        "This result uses the local scoring model only."
-      ]
-    });
+    if (!title) {
+      return res.status(400).json({
+        error: "Product idea is required"
+      });
+    }
+
+    const decision = localDecision(
+      req.body
+    );
+
+    if (!client) {
+      return res.json({
+        ...decision,
+        title,
+        platform: market,
+        reasoning: [
+          "Local scoring used because OpenAI is not configured."
+        ]
+      });
+    }
+
+    try {
+      const response =
+        await client.responses.create({
+          model: MODEL,
+
+          instructions:
+            "You evaluate original KDP and Etsy product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
+
+          input:
+            "Evaluate this " +
+            market +
+            " idea: " +
+            title +
+            ". The local score is " +
+            decision.score +
+            "/100 and the local verdict is " +
+            decision.verdict +
+            ". Give three strengths, two risks, and one specific way to improve it.",
+
+          max_output_tokens: 900
+        });
+
+      res.json({
+        ...decision,
+        title,
+        platform: market,
+        aiAnalysis: response.output_text
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: "AI analysis failed",
+        message: error.message,
+        fallback: decision
+      });
+    }
   }
+);
 
-  try {
-    const response = await client.responses.create({
-      model: "gpt-5-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "You are the decision engine for Publisher Forge, an AI publishing system. Evaluate original KDP and Etsy product opportunities. Avoid copying competitors. Prefer underserved demand, clear buyer intent, strong differentiation, reasonable margins, and low platform/IP risk. Return concise reasoning."
-        },
-        {
-          role: "user",
-          content: `
-Evaluate this product opportunity.
+app.post(
+  "/api/product-brief",
+  limitAI,
+  async (req, res) => {
+    if (!requireOpenAI(res)) {
+      return;
+    }
 
-Title: ${title}
-Platform: ${platform}
-Demand: ${demand}/100
-Competition: ${competition}/100
-Margin: ${margin}/100
-Differentiation: ${differentiation}/100
-Confidence: ${confidence}/100
-Local score: ${base.score}
-Local verdict: ${base.verdict}
+    const title = text(
+      req.body.title,
+      200
+    );
 
-Give:
-1. Final verdict: MAKE, VALIDATE, or SKIP
-2. 3 strongest reasons
-3. 2 biggest risks
-4. One concrete way to improve differentiation
-`
-        }
-      ]
-    });
+    const market = platform(
+      req.body.platform
+    );
 
-    res.json({
-      ...base,
-      title,
-      platform,
-      aiAnalysis: response.output_text
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "AI analysis failed",
-      message: error.message,
-      fallback: base
-    });
+    const notes = text(
+      req.body.notes,
+      1200
+    );
+
+    if (!title) {
+      return res.status(400).json({
+        error: "Product idea is required"
+      });
+    }
+
+    try {
+      const response =
+        await client.responses.create({
+          model: MODEL,
+
+          instructions:
+            "You are the Product Architect for Publisher Forge. Create original, useful product plans. Never copy existing products or protected content.",
+
+          input:
+            "Create a complete " +
+            market +
+            " product brief for: " +
+            title +
+            ". " +
+            (
+              notes
+                ? "Extra notes: " + notes + ". "
+                : ""
+            ) +
+            "Include the buyer, problem, promise, differentiation, structure, page or section plan, metadata angle, risks, and QA checklist.",
+
+          max_output_tokens: 1800
+        });
+
+      res.json({
+        title,
+        platform: market,
+        brief: response.output_text
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: "Product brief failed",
+        message: error.message
+      });
+    }
   }
-});
+);
 
-app.post("/api/product-brief", async (req, res) => {
-  const { title, platform = "KDP", notes = "" } = req.body;
+app.post(
+  "/api/trend-radar",
+  limitAI,
+  async (req, res) => {
+    if (!requireOpenAI(res)) {
+      return;
+    }
 
-  if (!client) {
-    return res.status(400).json({
-      error: "OPENAI_API_KEY is not configured"
-    });
+    const market = platform(
+      req.body.platform,
+      true
+    );
+
+    const niche = text(
+      req.body.niche,
+      160
+    );
+
+    const today =
+      new Date()
+        .toISOString()
+        .slice(0, 10);
+
+    const prompt =
+      "Today is " +
+      today +
+      ". Search the live web for current demand signals and find five original product opportunities for " +
+      (
+        market === "Both"
+          ? "Amazon KDP and Etsy"
+          : market
+      ) +
+      (
+        niche
+          ? " related to " + niche
+          : ""
+      ) +
+      ". Use multiple public signals. Do not claim private sales data. Avoid trademarks, celebrities, copyrighted characters, medical promises, copying, and obvious platform risks. Rank the best idea first. " +
+      'Return only JSON shaped like: {"summary":"short overview","opportunities":[{"title":"idea","platform":"KDP, Etsy, or Both","audience":"buyer","evidence":"current signals","competition":"level and reason","angle":"differentiation","risk":"main risk","score":75,"verdict":"MAKE, VALIDATE, or SKIP"}]}';
+
+    try {
+      const response =
+        await client.responses.create({
+          model: MODEL,
+
+          tools: [
+            {
+              type: "web_search"
+            }
+          ],
+
+          tool_choice: "required",
+          input: prompt,
+          max_output_tokens: 2600
+        });
+
+      const report = parseReport(
+        response.output_text
+      );
+
+      if (
+        !Array.isArray(
+          report.opportunities
+        )
+      ) {
+        throw new Error(
+          "Trend Radar returned no opportunities."
+        );
+      }
+
+      const opportunities =
+        report.opportunities
+          .slice(0, 5)
+          .map((item, index) => ({
+            rank: index + 1,
+
+            title: text(
+              item.title,
+              160
+            ),
+
+            platform: platform(
+              item.platform,
+              true
+            ),
+
+            audience: text(
+              item.audience,
+              250
+            ),
+
+            evidence: text(
+              item.evidence,
+              600
+            ),
+
+            competition: text(
+              item.competition,
+              250
+            ),
+
+            angle: text(
+              item.angle,
+              350
+            ),
+
+            risk: text(
+              item.risk,
+              350
+            ),
+
+            score: Math.round(
+              score(item.score)
+            ),
+
+            verdict: [
+              "MAKE",
+              "VALIDATE",
+              "SKIP"
+            ].includes(item.verdict)
+              ? item.verdict
+              : "VALIDATE"
+          }));
+
+      res.json({
+        scannedAt:
+          new Date().toISOString(),
+
+        platform: market,
+        niche,
+
+        summary: text(
+          report.summary,
+          800
+        ),
+
+        opportunities,
+
+        sources: getSources(response)
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: "Trend Radar failed",
+        message: error.message
+      });
+    }
   }
-
-  try {
-    const response = await client.responses.create({
-      model: "gpt-5-mini",
-      input: [
-        {
-          role: "system",
-          content:
-            "You are the Product Architect for Publisher Forge. Create original, practical publishing product briefs. Do not copy existing books, listings, covers, brands, or protected text."
-        },
-        {
-          role: "user",
-          content: `
-Create a product brief for:
-
-Title/idea: ${title}
-Platform: ${platform}
-Notes: ${notes}
-
-Include:
-- Target buyer
-- Main problem solved
-- Product promise
-- Differentiation
-- Suggested structure
-- Page/section plan
-- Metadata angle
-- Risks to check
-- QA checklist
-`
-        }
-      ]
-    });
-
-    res.json({
-      title,
-      platform,
-      brief: response.output_text
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Product brief generation failed",
-      message: error.message
-    });
-  }
-});
-
-app.post("/api/learn", (req, res) => {
-  const lesson = {
-    id: crypto.randomUUID(),
-    ...req.body,
-    createdAt: new Date().toISOString()
-  };
-
-  state.lessons.unshift(lesson);
-  res.json(lesson);
-});
-
-app.get("/api/lessons", (req, res) => {
-  res.json(state.lessons);
-});
-
-const PORT = process.env.PORT || 10000;
+);
 
 app.listen(PORT, () => {
-  console.log(`Publisher Forge running on port ${PORT}`);
+  console.log(
+    "Publisher Forge running on port " +
+    PORT
+  );
 });
