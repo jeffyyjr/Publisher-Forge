@@ -959,11 +959,71 @@
         value || "Not enough evidence yet.";
 
       row.append(term, description);
+function loadOpportunity(item) {
+  titleInput.value = item.title || "";
 
-      return row;
-    }
+  if (item.platform === "Etsy") {
+    platformInput.value = "Etsy";
+  } else if (item.platform === "KDP") {
+    platformInput.value = "KDP";
+  } else {
+    platformInput.value =
+      document.getElementById("radarPlatform").value === "Etsy"
+        ? "Etsy"
+        : "KDP";
+  }
 
-    function loadOpportunity(item) {
+  signalIds.forEach(function(id) {
+    const value = Number(item[id]);
+    if (!Number.isFinite(value)) return;
+
+    const normalized = Math.max(
+      0,
+      Math.min(100, Math.round(value))
+    );
+
+    document.getElementById(id).value = normalized;
+    document.getElementById(id + "Value").textContent = normalized;
+  });
+
+  switchView("analyzer");
+  titleInput.focus();
+  window.scrollTo({ top:0, behavior:"smooth" });
+  toast("Idea and scoring signals loaded");
+}
+      return function loadOpportunity(item) {
+  titleInput.value = item.title || "";
+
+  if (item.platform === "Etsy") {
+    platformInput.value = "Etsy";
+  } else if (item.platform === "KDP") {
+    platformInput.value = "KDP";
+  } else {
+    platformInput.value =
+      document.getElementById("radarPlatform").value === "Etsy"
+        ? "Etsy"
+        : "KDP";
+  }
+
+  signalIds.forEach(function(id) {
+    const value = Number(item[id]);
+    if (!Number.isFinite(value)) return;
+
+    const normalized = Math.max(
+      0,
+      Math.min(100, Math.round(value))
+    );
+
+    document.getElementById(id).value = normalized;
+    document.getElementById(id + "Value").textContent = normalized;
+  });
+
+  switchView("analyzer");
+  titleInput.focus();
+  window.scrollTo({ top:0, behavior:"smooth" });
+  toast("Idea and scoring signals loaded");
+}
+    
       titleInput.value = item.title || "";
 
       if (item.platform === "Etsy") {
