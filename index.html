@@ -4,36 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b0f">
-  <meta name="description" content="AI-assisted product research for Amazon KDP and Etsy.">
+  <meta name="description" content="Find and evaluate original product opportunities for Amazon KDP and Etsy.">
   <title>Publisher Forge</title>
-
   <style>
     :root {
       color-scheme: dark;
       --bg:#090b0f;
-      --panel:#141920;
-      --line:#2b3440;
+      --panel:#151a22;
+      --line:#2c3542;
       --text:#f5f7fa;
       --muted:#9ba6b5;
       --orange:#ff9d2e;
       --gold:#ffc267;
-      --green:#4cdb83;
-      --red:#ff7080;
+      --green:#55dd8a;
+      --red:#ff7b89;
     }
 
     * { box-sizing:border-box }
+    [hidden] { display:none !important }
 
     body {
       margin:0;
       min-height:100vh;
+      background:radial-gradient(circle at 90% -10%,#ff9d2e20,transparent 30rem),var(--bg);
       color:var(--text);
       font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
-      background:
-        radial-gradient(circle at 90% -10%,#ff9d2e20,transparent 30rem),
-        var(--bg);
     }
 
     button,input,select { font:inherit }
+    button { -webkit-tap-highlight-color:transparent }
 
     .shell {
       width:min(1120px,100%);
@@ -46,7 +45,6 @@
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      margin-bottom:18px;
     }
 
     .brand {
@@ -107,7 +105,35 @@
     .online .dot { background:var(--green) }
     .warn .dot { background:var(--orange) }
 
-    .workspace {
+    .tabs {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:5px;
+      margin:18px 0 16px;
+      padding:5px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#0c1015;
+    }
+
+    .tab {
+      min-height:44px;
+      border:0;
+      border-radius:10px;
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:.9rem;
+      font-weight:850;
+    }
+
+    .tab[aria-selected="true"] {
+      background:#252d38;
+      color:var(--text);
+      box-shadow:0 2px 10px #0005;
+    }
+
+    .workspace,.radar-grid {
       display:grid;
       gap:16px;
     }
@@ -146,8 +172,13 @@
       font-size:.9rem;
     }
 
-    .form-body,.result { padding:18px }
-    .field { margin-bottom:16px }
+    .form-body,.result,.radar-results {
+      padding:18px;
+    }
+
+    .field {
+      margin-bottom:16px;
+    }
 
     label {
       display:block;
@@ -218,7 +249,6 @@
     }
 
     .range-head b { color:var(--text) }
-
     input[type=range] {
       width:100%;
       accent-color:var(--orange);
@@ -254,6 +284,8 @@
       color:var(--text);
     }
 
+    .wide { width:100% }
+
     .empty {
       display:grid;
       place-items:center;
@@ -282,8 +314,8 @@
       color:#e8ecf1;
     }
 
-    .result { display:none }
-    .result.visible { display:block }
+    .result,.radar-results { display:none }
+    .result.visible,.radar-results.visible { display:block }
 
     .score-line {
       display:flex;
@@ -304,15 +336,15 @@
     }
 
     .verdict.make {
-      border-color:#4cdb8355;
-      background:#4cdb8318;
-      color:#79eca4;
+      border-color:#55dd8a55;
+      background:#55dd8a18;
+      color:#7aeca5;
     }
 
     .verdict.skip,.verdict.error {
-      border-color:#ff708055;
-      background:#ff708018;
-      color:#ff98a4;
+      border-color:#ff7b8955;
+      background:#ff7b8918;
+      color:#ff9ca7;
     }
 
     .score {
@@ -346,7 +378,7 @@
     .result-actions { margin-top:11px }
     .recent { margin-top:16px }
 
-    .recent h3 {
+    .recent h3,.sources h3 {
       margin:0 0 9px;
       color:var(--muted);
       font-size:.76rem;
@@ -361,7 +393,7 @@
 
     .recent-item {
       display:grid;
-      grid-template-columns:1fr auto;
+      grid-template-columns:minmax(0,1fr) auto;
       gap:10px;
       width:100%;
       padding:11px 12px;
@@ -381,10 +413,139 @@
 
     .recent-item b { color:var(--gold) }
 
+    .radar-form-note {
+      margin:13px 0 0;
+      color:var(--muted);
+      font-size:.8rem;
+    }
+
+    .radar-meta {
+      margin:0 0 6px;
+      color:var(--gold);
+      font-size:.74rem;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    .radar-summary {
+      margin:0 0 16px;
+      color:#dce2ea;
+      overflow-wrap:anywhere;
+    }
+
+    .opportunity-list {
+      display:grid;
+      gap:12px;
+    }
+
+    .opportunity {
+      padding:15px;
+      border:1px solid var(--line);
+      border-radius:15px;
+      background:#0c1016;
+    }
+
+    .opportunity-top {
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr) auto;
+      align-items:start;
+      gap:10px;
+    }
+
+    .rank {
+      display:grid;
+      place-items:center;
+      width:30px;
+      height:30px;
+      border:1px solid #704719;
+      border-radius:9px;
+      background:#24170b;
+      color:var(--gold);
+      font-weight:900;
+    }
+
+    .opportunity h3 {
+      margin:1px 0 3px;
+      font-size:1rem;
+      line-height:1.3;
+      overflow-wrap:anywhere;
+    }
+
+    .platform-tag {
+      color:var(--muted);
+      font-size:.78rem;
+    }
+
+    .opportunity-score {
+      color:var(--text);
+      font-size:1.12rem;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .opportunity-score small {
+      color:var(--muted);
+      font-size:.68rem;
+    }
+
+    .opportunity .verdict {
+      display:inline-block;
+      margin:12px 0 4px;
+      padding:4px 8px;
+      font-size:.72rem;
+    }
+
+    .facts {
+      display:grid;
+      gap:9px;
+      margin:10px 0 14px;
+    }
+
+    .fact {
+      margin:0;
+      overflow-wrap:anywhere;
+    }
+
+    .fact dt {
+      color:var(--muted);
+      font-size:.73rem;
+      font-weight:850;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+
+    .fact dd {
+      margin:2px 0 0;
+      color:#dce2ea;
+      font-size:.86rem;
+    }
+
+    .load-button { min-height:43px }
+
+    .sources {
+      margin-top:18px;
+      padding-top:15px;
+      border-top:1px solid var(--line);
+    }
+
+    .source-list {
+      display:grid;
+      gap:8px;
+      margin:0;
+      padding-left:20px;
+    }
+
+    .source-list a {
+      color:var(--gold);
+      overflow-wrap:anywhere;
+    }
+
     .toast {
       position:fixed;
       left:50%;
       bottom:calc(18px + env(safe-area-inset-bottom));
+      z-index:10;
       transform:translate(-50%,20px);
       max-width:calc(100% - 32px);
       padding:10px 14px;
@@ -394,6 +555,7 @@
       box-shadow:0 12px 30px #0008;
       opacity:0;
       pointer-events:none;
+      text-align:center;
       transition:.2s;
     }
 
@@ -402,23 +564,34 @@
       transform:translate(-50%,0);
     }
 
-    @media(min-width:680px) {
+    @media (min-width:680px) {
       .shell { padding:28px 24px 70px }
+      .tabs { width:420px }
       .two { grid-template-columns:1.3fr .7fr }
       .buttons,.result-actions { grid-template-columns:1fr 1fr }
+      .facts { grid-template-columns:1fr 1fr }
     }
 
-    @media(min-width:920px) {
+    @media (min-width:920px) {
       .workspace {
         grid-template-columns:.92fr 1.08fr;
         align-items:start;
       }
 
-      .panel { min-height:635px }
+      .analyzer-panel { min-height:635px }
+
+      .radar-grid {
+        grid-template-columns:340px minmax(0,1fr);
+        align-items:start;
+      }
+
+      .radar-controls {
+        position:sticky;
+        top:20px;
+      }
     }
   </style>
 </head>
-
 <body>
   <main class="shell">
     <header class="topbar">
@@ -426,7 +599,7 @@
         <div class="mark">PF</div>
         <div>
           <h1>Publisher Forge</h1>
-          <p>KDP + Etsy decision engine</p>
+          <p>KDP + Etsy opportunity engine</p>
         </div>
       </div>
 
@@ -436,139 +609,225 @@
       </div>
     </header>
 
-    <section class="workspace">
-      <article class="panel">
-        <div class="panel-head">
-          <p class="eyebrow">Opportunity Analyzer</p>
-          <h2>Should we build it?</h2>
-          <p class="subtext">
-            Score one original product idea before spending time producing it.
-          </p>
-        </div>
+    <nav class="tabs" role="tablist" aria-label="Publisher Forge tools">
+      <button class="tab" id="radarTab" type="button" role="tab"
+        aria-selected="true" aria-controls="radarView">
+        Trend Radar
+      </button>
 
-        <div class="form-body">
-          <div class="two">
-            <div class="field">
-              <label for="title">Product idea</label>
-              <input
-                id="title"
-                type="text"
-                autocomplete="off"
-                placeholder="ADHD planner for night-shift workers"
-              >
-            </div>
+      <button class="tab" id="analyzerTab" type="button" role="tab"
+        aria-selected="false" aria-controls="analyzerView">
+        Manual Analyzer
+      </button>
+    </nav>
 
+    <section id="radarView" role="tabpanel" aria-labelledby="radarTab">
+      <div class="radar-grid">
+        <article class="panel radar-controls">
+          <div class="panel-head">
+            <p class="eyebrow">Live Trend Radar</p>
+            <h2>Find the next opportunity</h2>
+            <p class="subtext">
+              Scan current public web signals for original products worth validating.
+            </p>
+          </div>
+
+          <div class="form-body">
             <div class="field">
-              <label for="platform">Marketplace</label>
-              <select id="platform">
+              <label for="radarPlatform">Marketplace</label>
+              <select id="radarPlatform">
+                <option value="Both">KDP + Etsy</option>
                 <option value="KDP">Amazon KDP</option>
                 <option value="Etsy">Etsy</option>
               </select>
             </div>
+
+            <div class="field">
+              <label for="niche">
+                Niche
+                <span style="color:var(--muted);font-weight:500">(optional)</span>
+              </label>
+              <input id="niche" type="text" maxlength="160"
+                autocomplete="off"
+                placeholder="Example: night-shift wellness">
+            </div>
+
+            <button class="btn primary wide" id="scanButton" type="button">
+              Scan live trends
+            </button>
+
+            <p class="radar-form-note">
+              A live scan can take a little longer than a normal analysis.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <p class="eyebrow" id="radarEyebrow">Opportunity Feed</p>
+            <h2 id="radarHeading">Ready to scan</h2>
+            <p class="subtext" id="radarSubtext">
+              Choose a marketplace and optionally narrow the search to a niche.
+            </p>
           </div>
 
-          <details>
-            <summary>Tune the scoring signals</summary>
+          <div class="empty" id="radarEmpty">
+            <div>
+              <div class="empty-icon">⌁</div>
+              <strong>No scan yet</strong>
+              Five ranked ideas and their evidence will appear here.
+            </div>
+          </div>
 
-            <div class="sliders">
-              <div>
-                <div class="range-head">
-                  <span>Demand</span>
-                  <b id="demandValue">60</b>
-                </div>
-                <input id="demand" type="range" min="0" max="100" value="60">
+          <div class="radar-results" id="radarResults" aria-live="polite">
+            <p class="radar-meta" id="radarMeta"></p>
+            <p class="radar-summary" id="radarSummary"></p>
+            <div class="opportunity-list" id="opportunityList"></div>
+
+            <div class="sources" id="sourcesSection" hidden>
+              <h3>Web sources</h3>
+              <ol class="source-list" id="sourceList"></ol>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="analyzerView" role="tabpanel"
+      aria-labelledby="analyzerTab" hidden>
+      <div class="workspace">
+        <article class="panel analyzer-panel">
+          <div class="panel-head">
+            <p class="eyebrow">Opportunity Analyzer</p>
+            <h2>Should we build it?</h2>
+            <p class="subtext">
+              Score one original product idea before spending time producing it.
+            </p>
+          </div>
+
+          <div class="form-body">
+            <div class="two">
+              <div class="field">
+                <label for="title">Product idea</label>
+                <input id="title" type="text" autocomplete="off"
+                  placeholder="ADHD planner for night-shift workers">
               </div>
 
-              <div>
-                <div class="range-head">
-                  <span>Competition</span>
-                  <b id="competitionValue">50</b>
-                </div>
-                <input id="competition" type="range" min="0" max="100" value="50">
-              </div>
-
-              <div>
-                <div class="range-head">
-                  <span>Margin potential</span>
-                  <b id="marginValue">65</b>
-                </div>
-                <input id="margin" type="range" min="0" max="100" value="65">
-              </div>
-
-              <div>
-                <div class="range-head">
-                  <span>Differentiation</span>
-                  <b id="differentiationValue">60</b>
-                </div>
-                <input id="differentiation" type="range" min="0" max="100" value="60">
-              </div>
-
-              <div>
-                <div class="range-head">
-                  <span>Evidence confidence</span>
-                  <b id="confidenceValue">60</b>
-                </div>
-                <input id="confidence" type="range" min="0" max="100" value="60">
+              <div class="field">
+                <label for="platform">Marketplace</label>
+                <select id="platform">
+                  <option value="KDP">Amazon KDP</option>
+                  <option value="Etsy">Etsy</option>
+                </select>
               </div>
             </div>
-          </details>
 
-          <div class="buttons">
-            <button class="btn primary" id="analyzeButton">
-              Analyze opportunity
-            </button>
+            <details>
+              <summary>Tune the scoring signals</summary>
 
-            <button class="btn secondary" id="briefButton">
-              Create product brief
-            </button>
+              <div class="sliders">
+                <div>
+                  <div class="range-head">
+                    <span>Demand</span>
+                    <b id="demandValue">60</b>
+                  </div>
+                  <input id="demand" type="range" min="0" max="100" value="60">
+                </div>
+
+                <div>
+                  <div class="range-head">
+                    <span>Competition</span>
+                    <b id="competitionValue">50</b>
+                  </div>
+                  <input id="competition" type="range" min="0" max="100" value="50">
+                </div>
+
+                <div>
+                  <div class="range-head">
+                    <span>Margin potential</span>
+                    <b id="marginValue">65</b>
+                  </div>
+                  <input id="margin" type="range" min="0" max="100" value="65">
+                </div>
+
+                <div>
+                  <div class="range-head">
+                    <span>Differentiation</span>
+                    <b id="differentiationValue">60</b>
+                  </div>
+                  <input id="differentiation" type="range"
+                    min="0" max="100" value="60">
+                </div>
+
+                <div>
+                  <div class="range-head">
+                    <span>Evidence confidence</span>
+                    <b id="confidenceValue">60</b>
+                  </div>
+                  <input id="confidence" type="range"
+                    min="0" max="100" value="60">
+                </div>
+              </div>
+            </details>
+
+            <div class="buttons">
+              <button class="btn primary" id="analyzeButton" type="button">
+                Analyze opportunity
+              </button>
+
+              <button class="btn secondary" id="briefButton" type="button">
+                Create product brief
+              </button>
+            </div>
+
+            <div class="recent" id="recentSection" hidden>
+              <h3>Recent decisions</h3>
+              <div class="recent-list" id="recentList"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel analyzer-panel">
+          <div class="panel-head">
+            <p class="eyebrow" id="outputEyebrow">Decision Workspace</p>
+            <h2 id="outputHeading">Ready for an idea</h2>
+            <p class="subtext" id="outputSubtext">
+              Enter an idea, adjust the signals if needed, and run the analysis.
+            </p>
           </div>
 
-          <div class="recent" id="recentSection" hidden>
-            <h3>Recent decisions</h3>
-            <div class="recent-list" id="recentList"></div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <p class="eyebrow" id="outputEyebrow">Decision Workspace</p>
-          <h2 id="outputHeading">Ready for an idea</h2>
-          <p class="subtext" id="outputSubtext">
-            Enter an idea, adjust the signals if needed, and run the analysis.
-          </p>
-        </div>
-
-        <div class="empty" id="emptyState">
-          <div>
-            <div class="empty-icon">⌁</div>
-            <strong>No decision yet</strong>
-            Your analysis and product brief will appear here.
-          </div>
-        </div>
-
-        <div class="result" id="resultState" aria-live="polite">
-          <div class="score-line" id="scoreLine">
-            <span class="verdict" id="verdict">VALIDATE</span>
-            <span class="score">
-              <span id="score">—</span><small>/100</small>
-            </span>
+          <div class="empty" id="emptyState">
+            <div>
+              <div class="empty-icon">⌁</div>
+              <strong>No decision yet</strong>
+              Your analysis and product brief will appear here.
+            </div>
           </div>
 
-          <h3 class="idea-name" id="ideaName"></h3>
-          <div class="output" id="output"></div>
+          <div class="result" id="resultState" aria-live="polite">
+            <div class="score-line" id="scoreLine">
+              <span class="verdict" id="verdict">VALIDATE</span>
 
-          <div class="result-actions">
-            <button class="btn secondary" id="copyButton">
-              Copy result
-            </button>
+              <span class="score">
+                <span id="score">—</span><small>/100</small>
+              </span>
+            </div>
 
-            <button class="btn primary" id="resultBriefButton">
-              Build full brief
-            </button>
+            <h3 class="idea-name" id="ideaName"></h3>
+            <div class="output" id="output"></div>
+
+            <div class="result-actions">
+              <button class="btn secondary" id="copyButton" type="button">
+                Copy result
+              </button>
+
+              <button class="btn primary" id="resultBriefButton" type="button">
+                Build full brief
+              </button>
+            </div>
           </div>
-        </div>
-      </article>
+        </article>
+      </div>
     </section>
   </main>
 
@@ -587,15 +846,40 @@
     const platformInput = document.getElementById("platform");
     const analyzeButton = document.getElementById("analyzeButton");
     const briefButton = document.getElementById("briefButton");
-    const resultBriefButton = document.getElementById("resultBriefButton");
+    const resultBriefButton =
+      document.getElementById("resultBriefButton");
     const output = document.getElementById("output");
+    const scanButton = document.getElementById("scanButton");
 
     let activeResult = "";
 
-    signalIds.forEach(function(id) {
+    function switchView(name) {
+      const showRadar = name === "radar";
+
+      document.getElementById("radarView").hidden = !showRadar;
+      document.getElementById("analyzerView").hidden = showRadar;
+
+      document.getElementById("radarTab")
+        .setAttribute("aria-selected", String(showRadar));
+
+      document.getElementById("analyzerTab")
+        .setAttribute("aria-selected", String(!showRadar));
+    }
+
+    document.getElementById("radarTab")
+      .addEventListener("click", function () {
+        switchView("radar");
+      });
+
+    document.getElementById("analyzerTab")
+      .addEventListener("click", function () {
+        switchView("analyzer");
+      });
+
+    signalIds.forEach(function (id) {
       const input = document.getElementById(id);
 
-      input.addEventListener("input", function() {
+      input.addEventListener("input", function () {
         document.getElementById(id + "Value").textContent = input.value;
       });
     });
@@ -608,7 +892,7 @@
 
       clearTimeout(toast.timer);
 
-      toast.timer = setTimeout(function() {
+      toast.timer = setTimeout(function () {
         box.classList.remove("show");
       }, 2200);
     }
@@ -624,30 +908,315 @@
         platform: platformInput.value
       };
 
-      signalIds.forEach(function(id) {
+      signalIds.forEach(function (id) {
         data[id] = Number(document.getElementById(id).value);
       });
 
       return data;
     }
 
-    async function json(response) {
-      const text = await response.text();
+    async function readJson(response) {
+      const responseText = await response.text();
 
       try {
-        return JSON.parse(text);
+        return JSON.parse(responseText);
       } catch (error) {
         throw new Error("The server returned an unreadable response.");
       }
     }
 
+    function setRadarMessage(heading, subtext, body) {
+      document.getElementById("radarHeading").textContent = heading;
+      document.getElementById("radarSubtext").textContent = subtext;
+      document.getElementById("radarEmpty").style.display = "grid";
+      document.getElementById("radarResults")
+        .classList.remove("visible");
+
+      const empty = document.getElementById("radarEmpty");
+
+      empty.replaceChildren();
+
+      const wrapper = document.createElement("div");
+      const icon = document.createElement("div");
+      const strong = document.createElement("strong");
+
+      icon.className = "empty-icon";
+      icon.textContent = "⌁";
+      strong.textContent = body;
+
+      wrapper.append(icon, strong);
+      empty.appendChild(wrapper);
+    }
+
+    function fact(label, value) {
+      const row = document.createElement("div");
+      const term = document.createElement("dt");
+      const description = document.createElement("dd");
+
+      row.className = "fact";
+      term.textContent = label;
+      description.textContent =
+        value || "Not enough evidence yet.";
+
+      row.append(term, description);
+
+      return row;
+    }
+
+    function loadOpportunity(item) {
+      titleInput.value = item.title || "";
+
+      if (item.platform === "Etsy") {
+        platformInput.value = "Etsy";
+      } else if (item.platform === "KDP") {
+        platformInput.value = "KDP";
+      } else {
+        platformInput.value =
+          document.getElementById("radarPlatform").value === "Etsy"
+            ? "Etsy"
+            : "KDP";
+      }
+
+      switchView("analyzer");
+      titleInput.focus();
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      toast("Loaded into Analyzer — no extra AI call yet");
+    }
+
+    function opportunityCard(item, index) {
+      const card = document.createElement("article");
+      const top = document.createElement("div");
+      const rank = document.createElement("span");
+      const nameBox = document.createElement("div");
+      const name = document.createElement("h3");
+      const market = document.createElement("div");
+      const points = document.createElement("div");
+      const pointsSmall = document.createElement("small");
+      const badge = document.createElement("span");
+      const facts = document.createElement("dl");
+      const load = document.createElement("button");
+
+      card.className = "opportunity";
+      top.className = "opportunity-top";
+
+      rank.className = "rank";
+      rank.textContent = item.rank || index + 1;
+
+      name.textContent = item.title || "Untitled opportunity";
+
+      market.className = "platform-tag";
+      market.textContent =
+        item.platform || "Marketplace undecided";
+
+      nameBox.append(name, market);
+
+      points.className = "opportunity-score";
+      points.textContent = Number.isFinite(Number(item.score))
+        ? Math.round(Number(item.score))
+        : "—";
+
+      pointsSmall.textContent = "/100";
+      points.appendChild(pointsSmall);
+
+      top.append(rank, nameBox, points);
+
+      badge.className =
+        "verdict " +
+        String(item.verdict || "VALIDATE").toLowerCase();
+
+      badge.textContent = item.verdict || "VALIDATE";
+
+      facts.className = "facts";
+
+      facts.append(
+        fact("Audience", item.audience),
+        fact("Current evidence", item.evidence),
+        fact("Competition", item.competition),
+        fact("Original angle", item.angle),
+        fact("Main risk", item.risk)
+      );
+
+      load.className = "btn secondary wide load-button";
+      load.type = "button";
+      load.textContent = "Load into Analyzer";
+
+      load.addEventListener("click", function () {
+        loadOpportunity(item);
+      });
+
+      card.append(top, badge, facts, load);
+
+      return card;
+    }
+
+    function safeWebUrl(value) {
+      try {
+        const url = new URL(value);
+
+        return url.protocol === "https:" ||
+          url.protocol === "http:"
+          ? url.href
+          : "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function renderRadar(data) {
+      const opportunities =
+        Array.isArray(data.opportunities)
+          ? data.opportunities
+          : [];
+
+      if (!opportunities.length) {
+        throw new Error("The scan returned no opportunities.");
+      }
+
+      document.getElementById("radarEmpty").style.display = "none";
+      document.getElementById("radarResults")
+        .classList.add("visible");
+
+      document.getElementById("radarHeading").textContent =
+        "Scan complete";
+
+      document.getElementById("radarSubtext").textContent =
+        "Review the evidence, then move a promising idea into the Analyzer.";
+
+      document.getElementById("radarEyebrow").textContent =
+        (data.platform || "Live") + " Opportunity Feed";
+
+      const scanned =
+        data.scannedAt
+          ? new Date(data.scannedAt)
+          : new Date();
+
+      const scannedLabel =
+        Number.isNaN(scanned.getTime())
+          ? "LIVE WEB SCAN"
+          : "SCANNED " + scanned.toLocaleString();
+
+      document.getElementById("radarMeta").textContent =
+        scannedLabel;
+
+      document.getElementById("radarSummary").textContent =
+        data.summary ||
+        "Five opportunities ranked from the current signals.";
+
+      const list =
+        document.getElementById("opportunityList");
+
+      list.replaceChildren();
+
+      opportunities.slice(0, 5).forEach(function (item, index) {
+        list.appendChild(opportunityCard(item, index));
+      });
+
+      const sources =
+        Array.isArray(data.sources)
+          ? data.sources
+          : [];
+
+      const sourceList =
+        document.getElementById("sourceList");
+
+      const sourceSection =
+        document.getElementById("sourcesSection");
+
+      sourceList.replaceChildren();
+
+      sources.forEach(function (source) {
+        const href = safeWebUrl(source.url);
+
+        if (!href) return;
+
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = source.title || href;
+
+        item.appendChild(link);
+        sourceList.appendChild(item);
+      });
+
+      sourceSection.hidden =
+        sourceList.children.length === 0;
+    }
+
+    async function scanTrends() {
+      const market =
+        document.getElementById("radarPlatform").value;
+
+      const niche =
+        document.getElementById("niche").value.trim();
+
+      loading(scanButton, true, "Scan live trends");
+
+      setRadarMessage(
+        "Scanning live signals",
+        "Searching current public web evidence now.",
+        "Trend Radar is working…"
+      );
+
+      try {
+        const response = await fetch("/api/trend-radar", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            platform: market,
+            niche: niche
+          })
+        });
+
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            data.error ||
+            "Trend scan failed"
+          );
+        }
+
+        renderRadar(data);
+      } catch (error) {
+        setRadarMessage(
+          "Scan stopped",
+          "No opportunities were saved.",
+          error.message
+        );
+      } finally {
+        loading(scanButton, false, "Scan live trends");
+      }
+    }
+
     function showResult(data) {
-      document.getElementById("emptyState").style.display = "none";
-      document.getElementById("resultState").classList.add("visible");
-      document.getElementById("outputHeading").textContent = data.heading;
-      document.getElementById("outputEyebrow").textContent = data.eyebrow;
-      document.getElementById("outputSubtext").textContent = data.subtext;
-      document.getElementById("ideaName").textContent = data.idea;
+      document.getElementById("emptyState").style.display =
+        "none";
+
+      document.getElementById("resultState")
+        .classList.add("visible");
+
+      document.getElementById("outputHeading").textContent =
+        data.heading;
+
+      document.getElementById("outputEyebrow").textContent =
+        data.eyebrow;
+
+      document.getElementById("outputSubtext").textContent =
+        data.subtext;
+
+      document.getElementById("ideaName").textContent =
+        data.idea;
 
       output.textContent = data.text;
       activeResult = data.text;
@@ -661,11 +1230,15 @@
         isBrief ? "none" : "block";
 
       if (!isBrief) {
-        const badge = document.getElementById("verdict");
+        const badge =
+          document.getElementById("verdict");
 
-        badge.textContent = data.verdict || "RESULT";
+        badge.textContent =
+          data.verdict || "RESULT";
+
         badge.className =
-          "verdict " + String(data.verdict || "").toLowerCase();
+          "verdict " +
+          String(data.verdict || "").toLowerCase();
 
         document.getElementById("score").textContent =
           data.score == null ? "—" : data.score;
@@ -682,13 +1255,17 @@
 
       recent = [item]
         .concat(
-          recent.filter(function(old) {
+          recent.filter(function (old) {
             return old.title !== item.title;
           })
         )
         .slice(0, 4);
 
-      localStorage.setItem("pfRecent", JSON.stringify(recent));
+      localStorage.setItem(
+        "pfRecent",
+        JSON.stringify(recent)
+      );
+
       renderRecent();
     }
 
@@ -700,24 +1277,34 @@
           JSON.parse(localStorage.getItem("pfRecent")) || [];
       } catch (error) {}
 
-      const section = document.getElementById("recentSection");
-      const list = document.getElementById("recentList");
+      const section =
+        document.getElementById("recentSection");
+
+      const list =
+        document.getElementById("recentList");
 
       section.hidden = recent.length === 0;
       list.replaceChildren();
 
-      recent.forEach(function(item) {
-        const button = document.createElement("button");
-        const name = document.createElement("span");
-        const score = document.createElement("b");
+      recent.forEach(function (item) {
+        const button =
+          document.createElement("button");
+
+        const name =
+          document.createElement("span");
+
+        const itemScore =
+          document.createElement("b");
 
         button.className = "recent-item";
+        button.type = "button";
+
         name.textContent = item.title;
-        score.textContent = item.score;
+        itemScore.textContent = item.score;
 
-        button.append(name, score);
+        button.append(name, itemScore);
 
-        button.addEventListener("click", function() {
+        button.addEventListener("click", function () {
           titleInput.value = item.title;
           platformInput.value = item.platform;
 
@@ -738,27 +1325,32 @@
     }
 
     async function checkHealth() {
-      const status = document.getElementById("status");
-      const text = document.getElementById("statusText");
+      const status =
+        document.getElementById("status");
+
+      const statusText =
+        document.getElementById("statusText");
 
       try {
         const response = await fetch("/api/health");
-        const data = await json(response);
+        const data = await readJson(response);
 
         if (!response.ok || !data.ok) {
           throw new Error();
         }
 
         status.className =
-          data.openaiConfigured ? "status online" : "status warn";
-
-        text.textContent =
           data.openaiConfigured
-            ? "AI connected"
+            ? "status online"
+            : "status warn";
+
+        statusText.textContent =
+          data.trendRadarAvailable
+            ? "Live search ready"
             : "Local scoring only";
       } catch (error) {
         status.className = "status";
-        text.textContent = "Backend offline";
+        statusText.textContent = "Backend offline";
       }
     }
 
@@ -771,7 +1363,11 @@
         return;
       }
 
-      loading(analyzeButton, true, "Analyze opportunity");
+      loading(
+        analyzeButton,
+        true,
+        "Analyze opportunity"
+      );
 
       showResult({
         heading: "Evaluating opportunity",
@@ -793,7 +1389,7 @@
           body: JSON.stringify(idea)
         });
 
-        const data = await json(response);
+        const data = await readJson(response);
 
         if (!response.ok) {
           throw new Error(
@@ -803,7 +1399,7 @@
           );
         }
 
-        const text =
+        const analysisText =
           data.aiAnalysis ||
           (
             data.reasoning
@@ -819,7 +1415,7 @@
           verdict: data.verdict,
           score: data.score,
           idea: idea.title,
-          text: text,
+          text: analysisText,
           mode: "analysis"
         });
 
@@ -828,7 +1424,7 @@
           platform: idea.platform,
           verdict: data.verdict,
           score: data.score,
-          text: text
+          text: analysisText
         });
       } catch (error) {
         showResult({
@@ -882,19 +1478,22 @@
       });
 
       try {
-        const response = await fetch("/api/product-brief", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            title: idea.title,
-            platform: idea.platform,
-            notes: ""
-          })
-        });
+        const response = await fetch(
+          "/api/product-brief",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              title: idea.title,
+              platform: idea.platform,
+              notes: ""
+            })
+          }
+        );
 
-        const data = await json(response);
+        const data = await readJson(response);
 
         if (!response.ok) {
           throw new Error(
@@ -937,28 +1536,56 @@
       }
     }
 
-    analyzeButton.addEventListener("click", analyze);
-    briefButton.addEventListener("click", brief);
-    resultBriefButton.addEventListener("click", brief);
+    scanButton.addEventListener(
+      "click",
+      scanTrends
+    );
 
-    document
-      .getElementById("copyButton")
-      .addEventListener("click", async function() {
+    document.getElementById("niche")
+      .addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          scanTrends();
+        }
+      });
+
+    analyzeButton.addEventListener(
+      "click",
+      analyze
+    );
+
+    briefButton.addEventListener(
+      "click",
+      brief
+    );
+
+    resultBriefButton.addEventListener(
+      "click",
+      brief
+    );
+
+    document.getElementById("copyButton")
+      .addEventListener("click", async function () {
         if (!activeResult) return;
 
         try {
-          await navigator.clipboard.writeText(activeResult);
+          await navigator.clipboard.writeText(
+            activeResult
+          );
+
           toast("Result copied");
         } catch (error) {
           toast("Copy was blocked by the browser");
         }
       });
 
-    titleInput.addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        analyze();
+    titleInput.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key === "Enter") {
+          analyze();
+        }
       }
-    });
+    );
 
     renderRecent();
     checkHealth();
