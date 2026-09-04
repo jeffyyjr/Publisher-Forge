@@ -947,8 +947,7 @@
       wrapper.append(icon, strong);
       empty.appendChild(wrapper);
     }
-
-    function fact(label, value) {
+        function fact(label, value) {
       const row = document.createElement("div");
       const term = document.createElement("dt");
       const description = document.createElement("dd");
@@ -959,71 +958,10 @@
         value || "Not enough evidence yet.";
 
       row.append(term, description);
-function loadOpportunity(item) {
-  titleInput.value = item.title || "";
+      return row;
+    }
 
-  if (item.platform === "Etsy") {
-    platformInput.value = "Etsy";
-  } else if (item.platform === "KDP") {
-    platformInput.value = "KDP";
-  } else {
-    platformInput.value =
-      document.getElementById("radarPlatform").value === "Etsy"
-        ? "Etsy"
-        : "KDP";
-  }
-
-  signalIds.forEach(function(id) {
-    const value = Number(item[id]);
-    if (!Number.isFinite(value)) return;
-
-    const normalized = Math.max(
-      0,
-      Math.min(100, Math.round(value))
-    );
-
-    document.getElementById(id).value = normalized;
-    document.getElementById(id + "Value").textContent = normalized;
-  });
-
-  switchView("analyzer");
-  titleInput.focus();
-  window.scrollTo({ top:0, behavior:"smooth" });
-  toast("Idea and scoring signals loaded");
-}
-      return function loadOpportunity(item) {
-  titleInput.value = item.title || "";
-
-  if (item.platform === "Etsy") {
-    platformInput.value = "Etsy";
-  } else if (item.platform === "KDP") {
-    platformInput.value = "KDP";
-  } else {
-    platformInput.value =
-      document.getElementById("radarPlatform").value === "Etsy"
-        ? "Etsy"
-        : "KDP";
-  }
-
-  signalIds.forEach(function(id) {
-    const value = Number(item[id]);
-    if (!Number.isFinite(value)) return;
-
-    const normalized = Math.max(
-      0,
-      Math.min(100, Math.round(value))
-    );
-
-    document.getElementById(id).value = normalized;
-    document.getElementById(id + "Value").textContent = normalized;
-  });
-
-  switchView("analyzer");
-  titleInput.focus();
-  window.scrollTo({ top:0, behavior:"smooth" });
-  toast("Idea and scoring signals loaded");
-}
-    
+    function loadOpportunity(item) {
       titleInput.value = item.title || "";
 
       if (item.platform === "Etsy") {
@@ -1037,6 +975,19 @@ function loadOpportunity(item) {
             : "KDP";
       }
 
+      signalIds.forEach(function(id) {
+        const value = Number(item[id]);
+        if (!Number.isFinite(value)) return;
+
+        const normalized = Math.max(
+          0,
+          Math.min(100, Math.round(value))
+        );
+
+        document.getElementById(id).value = normalized;
+        document.getElementById(id + "Value").textContent = normalized;
+      });
+
       switchView("analyzer");
       titleInput.focus();
 
@@ -1045,10 +996,11 @@ function loadOpportunity(item) {
         behavior: "smooth"
       });
 
-      toast("Loaded into Analyzer — no extra AI call yet");
+      toast("Idea and scoring signals loaded");
     }
 
-    function opportunityCard(item, index) {
+    
+
       const card = document.createElement("article");
       const top = document.createElement("div");
       const rank = document.createElement("span");
