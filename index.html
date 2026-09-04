@@ -999,8 +999,7 @@
       toast("Idea and scoring signals loaded");
     }
 
-    
-function opportunityCard(item, index) {
+        function opportunityCard(item, index) {
       const card = document.createElement("article");
       const top = document.createElement("div");
       const rank = document.createElement("span");
@@ -1011,7 +1010,9 @@ function opportunityCard(item, index) {
       const pointsSmall = document.createElement("small");
       const badge = document.createElement("span");
       const facts = document.createElement("dl");
+      const actions = document.createElement("div");
       const load = document.createElement("button");
+      const buildBrief = document.createElement("button");
 
       card.className = "opportunity";
       top.className = "opportunity-top";
@@ -1061,7 +1062,19 @@ function opportunityCard(item, index) {
         loadOpportunity(item);
       });
 
-      card.append(top, badge, facts, load);
+      buildBrief.className = "btn primary wide load-button";
+      buildBrief.type = "button";
+      buildBrief.textContent = "Build Product Brief";
+
+      buildBrief.addEventListener("click", function () {
+        loadOpportunity(item);
+        brief();
+      });
+
+      actions.className = "buttons";
+      actions.append(load, buildBrief);
+
+      card.append(top, badge, facts, actions);
 
       return card;
     }
