@@ -1064,6 +1064,11 @@
                 type="button" disabled>
                 Download publishing ZIP
               </button>
+
+              <button class="btn secondary" id="downloadPdfButton"
+                type="button" disabled>
+                Download printable PDF
+              </button>
             </div>
 
             <p class="approval-note" id="approvalNote">
@@ -1290,6 +1295,7 @@
       document.getElementById("qualityOutput").textContent = "";
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
       revisePackageButton.hidden = true;
       revisePackageButton.disabled = false;
     }
@@ -1342,6 +1348,8 @@
       const passed = data.verdict === "PASS";
       document.getElementById("approveProductionButton").disabled = !passed;
       document.getElementById("downloadBundleButton").disabled =
+        !(passed && activePackage && activePackage.approvedAt);
+      document.getElementById("downloadPdfButton").disabled =
         !(passed && activePackage && activePackage.approvedAt);
       revisePackageButton.hidden = passed;
       revisePackageButton.disabled = passed;
@@ -1465,8 +1473,9 @@
           document.getElementById("approveProductionButton").textContent =
             "Approved on this device";
           document.getElementById("downloadBundleButton").disabled = false;
+          document.getElementById("downloadPdfButton").disabled = false;
           document.getElementById("approvalNote").textContent =
-            "Approved locally. The publishing ZIP is unlocked; nothing was uploaded.";
+            "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
         }
       } else {
         activePackage = null;
@@ -2244,6 +2253,7 @@
         "downloadDraftButton",
         "downloadMetadataButton",
         "downloadBundleButton",
+        "downloadPdfButton",
         "runQualityButton",
         "revisePackageButton"
       ].forEach(function (id) {
@@ -2300,6 +2310,7 @@
 
       approveButton.textContent = "Approve on this device";
       document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
@@ -2407,6 +2418,7 @@
         "Quality Control is checking the brief, draft, listing, risks, and release readiness…";
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
       revisePackageButton.hidden = true;
       document.getElementById("approvalNote").textContent =
         "Approval remains locked while the independent review runs.";
@@ -2562,8 +2574,9 @@
       button.disabled = true;
       button.textContent = "Approved on this device";
       document.getElementById("downloadBundleButton").disabled = false;
+      document.getElementById("downloadPdfButton").disabled = false;
       document.getElementById("approvalNote").textContent =
-        "Approved locally. The publishing ZIP is unlocked; nothing was uploaded.";
+        "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
 
       toast("Package approved on this device");
     }
@@ -2730,6 +2743,51 @@
           toast(error.message);
         } finally {
           loading(button, false, "Download publishing ZIP");
+        }
+      });
+
+    document.getElementById("downloadPdfButton")
+      .addEventListener("click", async function () {
+        if (!activePackage || !activeQualityReview) return;
+
+        const button = document.getElementById("downloadPdfButton");
+        loading(button, true, "Download printable PDF");
+
+        try {
+          const response = await fetch("/api/export-pdf", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              title: activeProductionTitle,
+              package: activePackage,
+              qualityReview: activeQualityReview
+            })
+          });
+
+          if (!response.ok) {
+            const data = await readJson(response);
+            throw new Error(data.message || data.error || "PDF export failed");
+          }
+
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+
+          link.href = url;
+          link.download = fileSlug(activePackage.packageTitle) + "-printable.pdf";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+          }, 1000);
+          toast("Printable PDF downloaded");
+        } catch (error) {
+          toast(error.message);
+        } finally {
+          loading(button, false, "Download printable PDF");
         }
       });
 

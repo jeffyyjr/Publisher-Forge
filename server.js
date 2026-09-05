@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import JSZip from "jszip";
+import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -288,6 +289,182 @@ function parseQualityReview(response) {
   }
 }
 
+function printableText(value, limit) {
+  return text(value, limit)
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—‑]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "");
+}
+
+function printablePdf(packageData) {
+  return new Promise((resolve, reject) => {
+    const market = platform(packageData.platform);
+    const pageSize = market === "KDP" ? [432, 648] : "LETTER";
+    const margin = 54;
+    const title = printableText(packageData.packageTitle, 300) || "Untitled product";
+    const subtitle = printableText(packageData.subtitle, 500);
+    const deliverable = printableText(packageData.deliverableType, 200);
+    const markdown = text(packageData.draftMarkdown, 50000);
+    const chunks = [];
+    const doc = new PDFDocument({
+      size: pageSize,
+      margins: { top: margin, right: margin, bottom: margin, left: margin },
+      bufferPages: true,
+      info: {
+        Title: title,
+        Author: "Publisher Forge",
+        Subject: deliverable || "Approved production copy"
+      }
+    });
+
+    doc.registerFont(
+      "Inter",
+      path.join(__dirname, "node_modules/@fontsource/inter/files/inter-latin-400-normal.woff")
+    );
+    doc.registerFont(
+      "InterBold",
+      path.join(__dirname, "node_modules/@fontsource/inter/files/inter-latin-700-normal.woff")
+    );
+
+    function cleanInline(value) {
+      return printableText(value, 50000)
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+        .replace(/[*_`]/g, "")
+        .trim();
+    }
+
+    function ensureSpace(height) {
+      const bottom = doc.page.height - doc.page.margins.bottom;
+      if (doc.y + height > bottom) doc.addPage();
+    }
+
+    function renderBody(source) {
+      for (const rawLine of String(source || "").split(/\r?\n/)) {
+        const line = rawLine.trim();
+
+        if (!line) {
+          doc.moveDown(0.55);
+          continue;
+        }
+
+        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          const level = heading[1].length;
+          const fontSize = level === 1 ? 21 : level === 2 ? 16 : 13;
+          ensureSpace(level === 1 ? 90 : 145);
+          doc.moveDown(level === 1 ? 0.7 : 0.45);
+          doc.font("InterBold")
+            .fontSize(fontSize)
+            .fillColor(level === 1 ? "#C75A12" : "#202833")
+            .text(cleanInline(heading[2]), { paragraphGap: 5 });
+          continue;
+        }
+
+        const checklist = line.match(/^-\s*\[([ xX])\]\s+(.+)$/);
+        if (checklist) {
+          ensureSpace(28);
+          doc.font("Inter").fontSize(10.5).fillColor("#202833")
+            .text((checklist[1].trim() ? "[x] " : "[ ] ") + cleanInline(checklist[2]), {
+              indent: 14,
+              paragraphGap: 4,
+              lineGap: 2
+            });
+          continue;
+        }
+
+        const bullet = line.match(/^[-*]\s+(.+)$/);
+        if (bullet) {
+          ensureSpace(28);
+          doc.font("Inter").fontSize(10.5).fillColor("#202833")
+            .text("- " + cleanInline(bullet[1]), {
+              indent: 14,
+              paragraphGap: 4,
+              lineGap: 2
+            });
+          continue;
+        }
+
+        if (/^_{3,}$|^-{3,}$/.test(line)) {
+          ensureSpace(18);
+          doc.moveDown(0.35)
+            .strokeColor("#D6DBE1")
+            .moveTo(doc.page.margins.left, doc.y)
+            .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+            .stroke()
+            .moveDown(0.6);
+          continue;
+        }
+
+        doc.font("Inter").fontSize(10.5).fillColor("#202833")
+          .text(cleanInline(line), {
+            align: "left",
+            lineGap: 2.5,
+            paragraphGap: 5
+          });
+      }
+    }
+
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    doc.rect(0, 0, doc.page.width, 16).fill("#E96E1A");
+    doc.moveDown(4.5);
+    doc.font("InterBold").fontSize(11).fillColor("#C75A12")
+      .text("PUBLISHER FORGE");
+    doc.moveDown(1.8);
+    doc.font("InterBold").fontSize(market === "KDP" ? 28 : 32)
+      .fillColor("#151B23").text(title, { align: "left", lineGap: 4 });
+
+    if (subtitle) {
+      doc.moveDown(0.8);
+      doc.font("Inter").fontSize(15).fillColor("#5A6470")
+        .text(subtitle, { lineGap: 3 });
+    }
+
+    doc.moveDown(2.5);
+    doc.strokeColor("#E96E1A").lineWidth(2)
+      .moveTo(margin, doc.y)
+      .lineTo(doc.page.width - margin, doc.y)
+      .stroke();
+    doc.moveDown(1.2);
+    doc.font("InterBold").fontSize(10).fillColor("#202833")
+      .text(deliverable || "Approved production copy");
+    doc.moveDown(0.35);
+    doc.font("Inter").fontSize(9.5).fillColor("#6B7480")
+      .text(market + " production copy")
+      .text("Approved " + text(packageData.approvedAt, 100));
+
+    doc.addPage();
+    renderBody(markdown || "No product draft was included.");
+
+    const pages = doc.bufferedPageRange();
+    for (let index = pages.start; index < pages.start + pages.count; index += 1) {
+      doc.switchToPage(index);
+      const isCover = index === pages.start;
+      const originalBottomMargin = doc.page.margins.bottom;
+
+      doc.page.margins.bottom = 0;
+      doc.font("Inter").fontSize(8).fillColor("#7A838E");
+      doc.text(
+        isCover ? "Publisher Forge - Approved Copy" : "Page " + index,
+        doc.page.margins.left,
+        doc.page.height - 34,
+        {
+          width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+          align: isCover ? "left" : "center",
+          lineBreak: false
+        }
+      );
+      doc.page.margins.bottom = originalBottomMargin;
+    }
+
+    doc.end();
+  });
+}
+
 function getSources(response) {
   const found = new Map();
 
@@ -327,7 +504,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.11.0",
+    version: "0.12.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -678,6 +855,7 @@ app.post("/api/export-bundle", async (req, res) => {
       "FILES",
       "product/full-package.md — complete review package",
       "product/draft.md — product content",
+      "product/printable.pdf — formatted printable product",
       "listing/listing.json — marketplace title, description, and keywords",
       "review/quality-review.json — final Quality Control report",
       "review/production-checklist.md — remaining human production steps",
@@ -699,6 +877,7 @@ app.post("/api/export-bundle", async (req, res) => {
     zip.file("README.txt", readme);
     product.file("full-package.md", packageText);
     product.file("draft.md", draft);
+    product.file("printable.pdf", await printablePdf(packageData));
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
     review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
     review.file("production-checklist.md", checklist);
@@ -720,6 +899,46 @@ app.post("/api/export-bundle", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Publishing bundle failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/export-pdf", async (req, res) => {
+  const title = text(req.body.title, 200);
+  const packageData = req.body.package;
+  const qualityReview = req.body.qualityReview;
+
+  if (!title || !packageData || !qualityReview) {
+    return res.status(400).json({
+      error: "An approved package and passing quality review are required"
+    });
+  }
+
+  if (qualityReview.verdict !== "PASS" || !packageData.approvedAt) {
+    return res.status(409).json({
+      error: "Pass Quality Control and approve the package before exporting"
+    });
+  }
+
+  const filename = text(packageData.packageTitle || title, 100)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "publisher-forge-product";
+
+  try {
+    const pdf = await printablePdf(packageData);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition":
+        'attachment; filename="' + filename + '-printable.pdf"',
+      "Cache-Control": "no-store"
+    });
+    res.send(pdf);
+  } catch (error) {
+    res.status(500).json({
+      error: "Printable PDF failed",
       message: error.message
     });
   }
