@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+import JSZip from "jszip";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -326,7 +327,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.10.0",
+    version: "0.11.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -609,6 +610,116 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
   } catch (error) {
     res.status(502).json({
       error: "Production revision failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/export-bundle", async (req, res) => {
+  const title = text(req.body.title, 200);
+  const brief = text(req.body.brief, 12000);
+  const packageText = text(req.body.packageText, 50000);
+  const packageData = req.body.package;
+  const qualityReview = req.body.qualityReview;
+
+  if (!title || !brief || !packageText || !packageData || !qualityReview) {
+    return res.status(400).json({
+      error: "An approved package and passing quality review are required"
+    });
+  }
+
+  if (qualityReview.verdict !== "PASS" || !packageData.approvedAt) {
+    return res.status(409).json({
+      error: "Pass Quality Control and approve the package before exporting"
+    });
+  }
+
+  const bundleName = text(packageData.packageTitle || title, 100)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "publisher-forge-package";
+  const listingData = {
+    platform: platform(packageData.platform),
+    packageTitle: text(packageData.packageTitle, 300),
+    subtitle: text(packageData.subtitle, 500),
+    deliverableType: text(packageData.deliverableType, 200),
+    listingTitle: text(packageData.listingTitle, 500),
+    listingDescription: text(packageData.listingDescription, 10000),
+    keywords: Array.isArray(packageData.keywords)
+      ? packageData.keywords.map((item) => text(item, 200)).filter(Boolean)
+      : [],
+    riskFlags: Array.isArray(packageData.riskFlags)
+      ? packageData.riskFlags.map((item) => text(item, 500)).filter(Boolean)
+      : [],
+    createdAt: text(packageData.createdAt, 100),
+    revisedAt: text(packageData.revisedAt, 100),
+    approvedAt: text(packageData.approvedAt, 100)
+  };
+  const checklistItems = Array.isArray(packageData.productionChecklist)
+    ? packageData.productionChecklist.map((item) => text(item, 500)).filter(Boolean)
+    : [];
+
+  try {
+    const zip = new JSZip();
+    const product = zip.folder("product");
+    const review = zip.folder("review");
+    const listing = zip.folder("listing");
+    const readme = [
+      "PUBLISHER FORGE — APPROVED PUBLISHING BUNDLE",
+      "",
+      "Product: " + title,
+      "Marketplace: " + listingData.platform,
+      "Approved: " + listingData.approvedAt,
+      "",
+      "This bundle passed Publisher Forge Quality Control and was approved on the user's device.",
+      "Before uploading, complete the production checklist and confirm the marketplace's current requirements.",
+      "Publisher Forge does not upload or publish anything automatically.",
+      "",
+      "FILES",
+      "product/full-package.md — complete review package",
+      "product/draft.md — product content",
+      "listing/listing.json — marketplace title, description, and keywords",
+      "review/quality-review.json — final Quality Control report",
+      "review/production-checklist.md — remaining human production steps",
+      "review/approved-brief.txt — source brief used to create the package"
+    ].join("\n");
+    const draft = [
+      "# " + (listingData.packageTitle || title),
+      listingData.subtitle,
+      text(packageData.draftMarkdown, 50000)
+    ].filter(Boolean).join("\n\n");
+    const checklist = [
+      "# Production checklist",
+      "",
+      ...(checklistItems.length
+        ? checklistItems.map((item) => "- [ ] " + item)
+        : ["- [ ] Complete a final human review."])
+    ].join("\n");
+
+    zip.file("README.txt", readme);
+    product.file("full-package.md", packageText);
+    product.file("draft.md", draft);
+    listing.file("listing.json", JSON.stringify(listingData, null, 2));
+    review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
+    review.file("production-checklist.md", checklist);
+    review.file("approved-brief.txt", brief);
+
+    const archive = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 }
+    });
+
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition":
+        'attachment; filename="' + bundleName + '-publishing-bundle.zip"',
+      "Cache-Control": "no-store"
+    });
+    res.send(archive);
+  } catch (error) {
+    res.status(500).json({
+      error: "Publishing bundle failed",
       message: error.message
     });
   }

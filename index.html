@@ -1059,6 +1059,11 @@
                 type="button" disabled>
                 Approve on this device
               </button>
+
+              <button class="btn primary" id="downloadBundleButton"
+                type="button" disabled>
+                Download publishing ZIP
+              </button>
             </div>
 
             <p class="approval-note" id="approvalNote">
@@ -1284,6 +1289,7 @@
       document.getElementById("qualityMetrics").replaceChildren();
       document.getElementById("qualityOutput").textContent = "";
       document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("downloadBundleButton").disabled = true;
       revisePackageButton.hidden = true;
       revisePackageButton.disabled = false;
     }
@@ -1335,6 +1341,8 @@
 
       const passed = data.verdict === "PASS";
       document.getElementById("approveProductionButton").disabled = !passed;
+      document.getElementById("downloadBundleButton").disabled =
+        !(passed && activePackage && activePackage.approvedAt);
       revisePackageButton.hidden = passed;
       revisePackageButton.disabled = passed;
       document.getElementById("approvalNote").textContent = passed
@@ -1456,8 +1464,9 @@
           document.getElementById("approveProductionButton").disabled = true;
           document.getElementById("approveProductionButton").textContent =
             "Approved on this device";
+          document.getElementById("downloadBundleButton").disabled = false;
           document.getElementById("approvalNote").textContent =
-            "Approved locally. This still does not publish to KDP or Etsy.";
+            "Approved locally. The publishing ZIP is unlocked; nothing was uploaded.";
         }
       } else {
         activePackage = null;
@@ -2234,6 +2243,7 @@
         "copyProductionButton",
         "downloadDraftButton",
         "downloadMetadataButton",
+        "downloadBundleButton",
         "runQualityButton",
         "revisePackageButton"
       ].forEach(function (id) {
@@ -2289,6 +2299,7 @@
         document.getElementById("approveProductionButton");
 
       approveButton.textContent = "Approve on this device";
+      document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
@@ -2395,6 +2406,7 @@
       document.getElementById("qualityOutput").textContent =
         "Quality Control is checking the brief, draft, listing, risks, and release readiness…";
       document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("downloadBundleButton").disabled = true;
       revisePackageButton.hidden = true;
       document.getElementById("approvalNote").textContent =
         "Approval remains locked while the independent review runs.";
@@ -2549,8 +2561,9 @@
       badge.textContent = "APPROVED";
       button.disabled = true;
       button.textContent = "Approved on this device";
+      document.getElementById("downloadBundleButton").disabled = false;
       document.getElementById("approvalNote").textContent =
-        "Approved locally. This still does not publish to KDP or Etsy.";
+        "Approved locally. The publishing ZIP is unlocked; nothing was uploaded.";
 
       toast("Package approved on this device");
     }
@@ -2671,6 +2684,54 @@
 
     document.getElementById("approveProductionButton")
       .addEventListener("click", approveProductionPackage);
+
+    document.getElementById("downloadBundleButton")
+      .addEventListener("click", async function () {
+        if (!activePackage || !activeQualityReview) return;
+
+        const button = document.getElementById("downloadBundleButton");
+        loading(button, true, "Download publishing ZIP");
+
+        try {
+          const response = await fetch("/api/export-bundle", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              title: activeProductionTitle,
+              brief: activeProductionBrief,
+              packageText: activePackageText,
+              package: activePackage,
+              qualityReview: activeQualityReview
+            })
+          });
+
+          if (!response.ok) {
+            const data = await readJson(response);
+            throw new Error(data.message || data.error || "Bundle export failed");
+          }
+
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+
+          link.href = url;
+          link.download = fileSlug(activePackage.packageTitle) +
+            "-publishing-bundle.zip";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+          }, 1000);
+          toast("Publishing bundle downloaded");
+        } catch (error) {
+          toast(error.message);
+        } finally {
+          loading(button, false, "Download publishing ZIP");
+        }
+      });
 
     document.getElementById("copyButton")
       .addEventListener("click", async function () {

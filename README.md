@@ -14,6 +14,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Quality Control Agent with deterministic scoring and approval blocking
 - One-tap package revision followed by an automatic Quality Control recheck
 - Device-local Project Vault with automatic saving and project restoration
+- One-tap approved publishing ZIP with draft, listing, QC, brief, and checklist files
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 
