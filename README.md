@@ -11,8 +11,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - AI opportunity analysis
 - Product Brief generation
 - Production Agent for original draft content and listing metadata
+- Quality Control Agent with deterministic scoring and approval blocking
 - Downloadable Markdown drafts and JSON listing data
-- Device-local human approval gate
+- Device-local human approval gate unlocked only after a passing review
 
 ## Next production layer
 Add accounts, persistent project storage, document/PDF rendering, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.

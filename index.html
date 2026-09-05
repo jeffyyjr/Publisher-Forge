@@ -382,6 +382,42 @@
       overflow-wrap:anywhere;
     }
 
+    .output.compact { min-height:0 }
+
+    .quality-card {
+      display:none;
+      margin-top:12px;
+      padding:14px;
+      border:1px solid #3b4655;
+      border-radius:14px;
+      background:#111820;
+    }
+
+    .quality-card.visible { display:block }
+
+    .quality-metrics {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      margin-bottom:11px;
+    }
+
+    .quality-metric {
+      padding:9px 10px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:#090d12;
+      color:var(--muted);
+      font-size:.78rem;
+    }
+
+    .quality-metric strong {
+      display:block;
+      margin-top:2px;
+      color:var(--text);
+      font-size:1rem;
+    }
+
     .result-actions { margin-top:11px }
     .recent { margin-top:16px }
 
@@ -932,6 +968,18 @@
             <h3 class="idea-name" id="productionPackageTitle"></h3>
             <div class="output" id="productionOutput"></div>
 
+            <div class="quality-card" id="qualityCard">
+              <div class="score-line">
+                <span class="verdict" id="qualityVerdict">NOT REVIEWED</span>
+                <span class="score">
+                  <span id="qualityScore">—</span><small>/100</small>
+                </span>
+              </div>
+
+              <div class="quality-metrics" id="qualityMetrics"></div>
+              <div class="output compact" id="qualityOutput"></div>
+            </div>
+
             <div class="result-actions">
               <button class="btn secondary" id="copyProductionButton" type="button">
                 Copy package
@@ -945,7 +993,12 @@
                 Download listing data
               </button>
 
-              <button class="btn primary" id="approveProductionButton" type="button">
+              <button class="btn primary" id="runQualityButton" type="button">
+                Run quality check
+              </button>
+
+              <button class="btn primary" id="approveProductionButton"
+                type="button" disabled>
                 Approve on this device
               </button>
             </div>
@@ -990,11 +1043,16 @@
       document.getElementById("productionBrief");
     const productionOutput =
       document.getElementById("productionOutput");
+    const runQualityButton =
+      document.getElementById("runQualityButton");
 
     let activeResult = "";
     let activeBrief = "";
     let activePackage = null;
     let activePackageText = "";
+    let activeQualityReview = null;
+    let activeProductionTitle = "";
+    let activeProductionBrief = "";
 
     function switchView(name) {
       const views = {
@@ -1128,6 +1186,81 @@
         "## Human-review flags",
         bulletList(data.riskFlags, "No specific risks flagged; complete the standard review.")
       ].join("\n");
+    }
+
+    function formatQualityReview(data) {
+      return [
+        data.summary || "No review summary was returned.",
+        "",
+        "Strengths",
+        bulletList(data.strengths, "No strengths recorded."),
+        "",
+        "Required fixes",
+        bulletList(data.requiredFixes, "No required fixes."),
+        "",
+        "Release blockers",
+        bulletList(data.blockers, "No release blockers found.")
+      ].join("\n");
+    }
+
+    function resetQualityReview() {
+      activeQualityReview = null;
+      document.getElementById("qualityCard").classList.remove("visible");
+      document.getElementById("qualityMetrics").replaceChildren();
+      document.getElementById("qualityOutput").textContent = "";
+      document.getElementById("approveProductionButton").disabled = true;
+    }
+
+    function showQualityReview(data) {
+      activeQualityReview = data;
+
+      const badge = document.getElementById("qualityVerdict");
+      const metricLabels = {
+        briefAlignment: "Brief alignment",
+        buyerUsefulness: "Buyer usefulness",
+        originalitySafety: "Originality safety",
+        listingQuality: "Listing quality",
+        productionReadiness: "Production readiness"
+      };
+      const metrics = document.getElementById("qualityMetrics");
+
+      badge.className = "verdict" +
+        (data.verdict === "PASS"
+          ? " make"
+          : data.verdict === "BLOCKED"
+            ? " error"
+            : "");
+      badge.textContent = data.verdict || "REVISE";
+      document.getElementById("qualityScore").textContent =
+        Number.isFinite(Number(data.overallScore))
+          ? data.overallScore
+          : "—";
+      metrics.replaceChildren();
+
+      Object.keys(metricLabels).forEach(function (key) {
+        const item = document.createElement("div");
+        const value = data.metrics && data.metrics[key];
+
+        item.className = "quality-metric";
+        item.textContent = metricLabels[key];
+
+        const strong = document.createElement("strong");
+        strong.textContent = Number.isFinite(Number(value))
+          ? value + "/100"
+          : "—";
+        item.appendChild(strong);
+        metrics.appendChild(item);
+      });
+
+      document.getElementById("qualityOutput").textContent =
+        formatQualityReview(data);
+      document.getElementById("qualityCard").classList.add("visible");
+
+      const passed = data.verdict === "PASS";
+      document.getElementById("approveProductionButton").disabled = !passed;
+      document.getElementById("approvalNote").textContent = passed
+        ? "Quality check passed. Human approval is now unlocked."
+        : "Approval stays locked until Quality Control returns PASS.";
     }
 
     function fileSlug(value) {
@@ -1822,13 +1955,18 @@
         "copyProductionButton",
         "downloadDraftButton",
         "downloadMetadataButton",
-        "approveProductionButton"
+        "runQualityButton"
       ].forEach(function (id) {
         document.getElementById(id).disabled = !enabled;
       });
+
+      if (!enabled) {
+        document.getElementById("approveProductionButton").disabled = true;
+      }
     }
 
     function showProductionWorking(title) {
+      resetQualityReview();
       document.getElementById("productionEmpty").style.display = "none";
       document.getElementById("productionResult")
         .classList.add("visible");
@@ -1849,6 +1987,7 @@
     function showProductionPackage(data) {
       activePackage = data;
       activePackageText = formatProductionPackage(data);
+      resetQualityReview();
 
       document.getElementById("productionHeading").textContent =
         "Review package complete";
@@ -1868,13 +2007,17 @@
 
       approveButton.textContent = "Approve on this device";
       document.getElementById("approvalNote").textContent =
-        "Review facts, rights, formatting, and marketplace requirements before approval.";
+        "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
+      approveButton.disabled = true;
     }
 
     function showProductionError(message) {
       activePackage = null;
       activePackageText = "";
+      activeProductionTitle = "";
+      activeProductionBrief = "";
+      resetQualityReview();
 
       document.getElementById("productionHeading").textContent =
         "Production stopped";
@@ -1935,6 +2078,8 @@
           );
         }
 
+        activeProductionTitle = title;
+        activeProductionBrief = briefText;
         showProductionPackage(data);
       } catch (error) {
         showProductionError(error.message);
@@ -1943,11 +2088,78 @@
       }
     }
 
+    async function runQualityReview() {
+      if (!activePackage || !activePackageText) {
+        toast("Build a production package first");
+        return;
+      }
+
+      const qualityCard = document.getElementById("qualityCard");
+      const qualityBadge = document.getElementById("qualityVerdict");
+
+      activeQualityReview = null;
+      qualityCard.classList.add("visible");
+      qualityBadge.className = "verdict";
+      qualityBadge.textContent = "WORKING";
+      document.getElementById("qualityScore").textContent = "—";
+      document.getElementById("qualityMetrics").replaceChildren();
+      document.getElementById("qualityOutput").textContent =
+        "Quality Control is checking the brief, draft, listing, risks, and release readiness…";
+      document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("approvalNote").textContent =
+        "Approval remains locked while the independent review runs.";
+      loading(runQualityButton, true, "Run quality check");
+
+      try {
+        const response = await fetch("/api/quality-review", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: activeProductionTitle,
+            platform: activePackage.platform,
+            brief: activeProductionBrief,
+            packageText: activePackageText
+          })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || data.error || "Quality review failed"
+          );
+        }
+
+        showQualityReview(data);
+        toast(
+          data.verdict === "PASS"
+            ? "Quality check passed"
+            : "Quality check found work to do"
+        );
+      } catch (error) {
+        activeQualityReview = null;
+        qualityBadge.className = "verdict error";
+        qualityBadge.textContent = "ERROR";
+        document.getElementById("qualityOutput").textContent = error.message;
+        document.getElementById("approvalNote").textContent =
+          "Quality Control must complete before approval.";
+      } finally {
+        loading(runQualityButton, false, "Run quality check");
+      }
+    }
+
     function approveProductionPackage() {
       if (!activePackage) return;
 
+      if (!activeQualityReview || activeQualityReview.verdict !== "PASS") {
+        toast("A passing quality check is required first");
+        return;
+      }
+
       const approvedPackage = {
         ...activePackage,
+        qualityReview: activeQualityReview,
         approvedAt: new Date().toISOString()
       };
       let approved = [];
@@ -2036,6 +2248,11 @@
       buildProductionPackage
     );
 
+    runQualityButton.addEventListener(
+      "click",
+      runQualityReview
+    );
+
     document.getElementById("copyProductionButton")
       .addEventListener("click", async function () {
         if (!activePackageText) return;
@@ -2081,6 +2298,7 @@
           keywords: activePackage.keywords,
           productionChecklist: activePackage.productionChecklist,
           riskFlags: activePackage.riskFlags,
+          qualityReview: activeQualityReview,
           createdAt: activePackage.createdAt,
           approvedAt: activePackage.approvedAt || null
         };

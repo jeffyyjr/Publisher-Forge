@@ -113,6 +113,42 @@ const productionPackageSchema = {
   additionalProperties: false
 };
 
+const qualityReviewSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    briefAlignment: { type: "integer" },
+    buyerUsefulness: { type: "integer" },
+    originalitySafety: { type: "integer" },
+    listingQuality: { type: "integer" },
+    productionReadiness: { type: "integer" },
+    strengths: {
+      type: "array",
+      items: { type: "string" }
+    },
+    requiredFixes: {
+      type: "array",
+      items: { type: "string" }
+    },
+    blockers: {
+      type: "array",
+      items: { type: "string" }
+    }
+  },
+  required: [
+    "summary",
+    "briefAlignment",
+    "buyerUsefulness",
+    "originalitySafety",
+    "listingQuality",
+    "productionReadiness",
+    "strengths",
+    "requiredFixes",
+    "blockers"
+  ],
+  additionalProperties: false
+};
+
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "200kb" }));
@@ -232,6 +268,25 @@ function parseProductionPackage(response) {
   }
 }
 
+function parseQualityReview(response) {
+  if (response.status === "incomplete") {
+    const reason = response.incomplete_details?.reason || "unknown reason";
+    throw new Error("Quality Control response was incomplete: " + reason + ".");
+  }
+
+  const raw = String(response.output_text || "").trim();
+
+  if (!raw) {
+    throw new Error("Quality Control returned no review. Please try again.");
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Quality Control could not read the completed review.");
+  }
+}
+
 function getSources(response) {
   const found = new Map();
 
@@ -271,10 +326,11 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.7.0",
+    version: "0.8.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
-    productionAgentAvailable: Boolean(client)
+    productionAgentAvailable: Boolean(client),
+    qualityControlAvailable: Boolean(client)
   });
 });
 
@@ -419,6 +475,86 @@ app.post("/api/production-package", limitAI, async (req, res) => {
   } catch (error) {
     res.status(502).json({
       error: "Production package failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/quality-review", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const title = text(req.body.title, 200);
+  const market = platform(req.body.platform);
+  const brief = text(req.body.brief, 12000);
+  const packageText = text(req.body.packageText, 50000);
+
+  if (!title || !brief || !packageText) {
+    return res.status(400).json({
+      error: "A title, approved brief, and production package are required"
+    });
+  }
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, and practical. Check whether the draft is useful and complete, whether listing copy matches the product, and whether claims, trademarks, copyrighted material, unsafe promises, missing formatting work, or unsupported facts require human attention. Put only serious release-stopping concerns in blockers. Put concrete corrections needed before approval in requiredFixes. Do not claim that Amazon KDP or Etsy has approved the product.",
+      input:
+        "Review this " + market + " production package. " +
+        "Working title: " + title + ".\n\n" +
+        "APPROVED BRIEF:\n" + brief + "\n\n" +
+        "PRODUCTION PACKAGE:\n" + packageText,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_quality_review",
+          strict: true,
+          schema: qualityReviewSchema
+        }
+      },
+      max_output_tokens: 2200
+    });
+
+    const review = parseQualityReview(response);
+    const metrics = {
+      briefAlignment: score(review.briefAlignment),
+      buyerUsefulness: score(review.buyerUsefulness),
+      originalitySafety: score(review.originalitySafety),
+      listingQuality: score(review.listingQuality),
+      productionReadiness: score(review.productionReadiness)
+    };
+    const overallScore = Math.round(
+      Object.values(metrics).reduce((total, value) => total + value, 0) /
+      Object.keys(metrics).length
+    );
+    const blockers = Array.isArray(review.blockers)
+      ? review.blockers.filter(Boolean)
+      : [];
+    const requiredFixes = Array.isArray(review.requiredFixes)
+      ? review.requiredFixes.filter(Boolean)
+      : [];
+    const verdict = blockers.length
+      ? "BLOCKED"
+      : overallScore >= 80 && !requiredFixes.length
+        ? "PASS"
+        : "REVISE";
+
+    res.json({
+      reviewedAt: new Date().toISOString(),
+      platform: market,
+      overallScore,
+      verdict,
+      summary: review.summary,
+      metrics,
+      strengths: Array.isArray(review.strengths)
+        ? review.strengths.filter(Boolean)
+        : [],
+      requiredFixes,
+      blockers
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Quality review failed",
       message: error.message
     });
   }
