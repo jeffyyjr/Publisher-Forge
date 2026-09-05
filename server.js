@@ -326,11 +326,12 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.8.0",
+    version: "0.9.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
-    qualityControlAvailable: Boolean(client)
+    qualityControlAvailable: Boolean(client),
+    revisionAgentAvailable: Boolean(client)
   });
 });
 
@@ -555,6 +556,59 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
   } catch (error) {
     res.status(502).json({
       error: "Quality review failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/revise-package", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const title = text(req.body.title, 200);
+  const market = platform(req.body.platform);
+  const brief = text(req.body.brief, 12000);
+  const packageText = text(req.body.packageText, 50000);
+  const reviewText = text(req.body.reviewText, 12000);
+
+  if (!title || !brief || !packageText || !reviewText) {
+    return res.status(400).json({
+      error: "A title, approved brief, production package, and quality review are required"
+    });
+  }
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report. Preserve strong material that still serves the approved brief. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims and flag facts, rights, formatting, or design work that still needs human verification. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
+      input:
+        "Revise this " + market + " production package. " +
+        "Working title: " + title + ".\n\n" +
+        "APPROVED BRIEF:\n" + brief + "\n\n" +
+        "CURRENT PRODUCTION PACKAGE:\n" + packageText + "\n\n" +
+        "QUALITY CONTROL REPORT:\n" + reviewText,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_revised_package",
+          strict: true,
+          schema: productionPackageSchema
+        }
+      },
+      max_output_tokens: 7000
+    });
+
+    const productionPackage = parseProductionPackage(response);
+
+    res.json({
+      createdAt: new Date().toISOString(),
+      revisedAt: new Date().toISOString(),
+      platform: market,
+      ...productionPackage
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Production revision failed",
       message: error.message
     });
   }

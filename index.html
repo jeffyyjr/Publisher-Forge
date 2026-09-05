@@ -997,6 +997,11 @@
                 Run quality check
               </button>
 
+              <button class="btn secondary" id="revisePackageButton"
+                type="button" hidden>
+                Revise &amp; recheck
+              </button>
+
               <button class="btn primary" id="approveProductionButton"
                 type="button" disabled>
                 Approve on this device
@@ -1045,6 +1050,8 @@
       document.getElementById("productionOutput");
     const runQualityButton =
       document.getElementById("runQualityButton");
+    const revisePackageButton =
+      document.getElementById("revisePackageButton");
 
     let activeResult = "";
     let activeBrief = "";
@@ -1209,6 +1216,8 @@
       document.getElementById("qualityMetrics").replaceChildren();
       document.getElementById("qualityOutput").textContent = "";
       document.getElementById("approveProductionButton").disabled = true;
+      revisePackageButton.hidden = true;
+      revisePackageButton.disabled = false;
     }
 
     function showQualityReview(data) {
@@ -1258,9 +1267,11 @@
 
       const passed = data.verdict === "PASS";
       document.getElementById("approveProductionButton").disabled = !passed;
+      revisePackageButton.hidden = passed;
+      revisePackageButton.disabled = passed;
       document.getElementById("approvalNote").textContent = passed
         ? "Quality check passed. Human approval is now unlocked."
-        : "Approval stays locked until Quality Control returns PASS.";
+        : "Approval stays locked. Revise the package and Quality Control will run again.";
     }
 
     function fileSlug(value) {
@@ -1955,7 +1966,8 @@
         "copyProductionButton",
         "downloadDraftButton",
         "downloadMetadataButton",
-        "runQualityButton"
+        "runQualityButton",
+        "revisePackageButton"
       ].forEach(function (id) {
         document.getElementById(id).disabled = !enabled;
       });
@@ -2106,6 +2118,7 @@
       document.getElementById("qualityOutput").textContent =
         "Quality Control is checking the brief, draft, listing, risks, and release readiness…";
       document.getElementById("approveProductionButton").disabled = true;
+      revisePackageButton.hidden = true;
       document.getElementById("approvalNote").textContent =
         "Approval remains locked while the independent review runs.";
       loading(runQualityButton, true, "Run quality check");
@@ -2146,6 +2159,67 @@
           "Quality Control must complete before approval.";
       } finally {
         loading(runQualityButton, false, "Run quality check");
+      }
+    }
+
+    async function reviseAndRecheck() {
+      if (!activePackage || !activePackageText || !activeQualityReview) {
+        toast("Run Quality Control first");
+        return;
+      }
+
+      if (activeQualityReview.verdict === "PASS") {
+        toast("This package already passed Quality Control");
+        return;
+      }
+
+      const review = activeQualityReview;
+
+      productionActionsEnabled(false);
+      revisePackageButton.hidden = false;
+      loading(revisePackageButton, true, "Revise & recheck");
+      document.getElementById("productionVerdict").className = "verdict";
+      document.getElementById("productionVerdict").textContent = "REVISING";
+      document.getElementById("approvalNote").textContent =
+        "The Revision Agent is applying the Quality Control findings.";
+
+      try {
+        const response = await fetch("/api/revise-package", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: activeProductionTitle,
+            platform: activePackage.platform,
+            brief: activeProductionBrief,
+            packageText: activePackageText,
+            reviewText: JSON.stringify(review)
+          })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || data.error || "Production revision failed"
+          );
+        }
+
+        showProductionPackage(data);
+        toast("Revision complete. Rechecking quality…");
+        await runQualityReview();
+      } catch (error) {
+        document.getElementById("productionVerdict").className = "verdict";
+        document.getElementById("productionVerdict").textContent =
+          "NEEDS APPROVAL";
+        showQualityReview(review);
+        productionActionsEnabled(true);
+        document.getElementById("approveProductionButton").disabled = true;
+        document.getElementById("approvalNote").textContent =
+          "Revision stopped: " + error.message;
+        toast("Revision stopped");
+      } finally {
+        loading(revisePackageButton, false, "Revise & recheck");
       }
     }
 
@@ -2251,6 +2325,11 @@
     runQualityButton.addEventListener(
       "click",
       runQualityReview
+    );
+
+    revisePackageButton.addEventListener(
+      "click",
+      reviseAndRecheck
     );
 
     document.getElementById("copyProductionButton")
