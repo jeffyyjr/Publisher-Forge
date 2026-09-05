@@ -31,7 +31,7 @@
       font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
     }
 
-    button,input,select { font:inherit }
+    button,input,select,textarea { font:inherit }
     button { -webkit-tap-highlight-color:transparent }
 
     .shell {
@@ -107,7 +107,7 @@
 
     .tabs {
       display:grid;
-      grid-template-columns:1fr 1fr;
+      grid-template-columns:repeat(3,minmax(0,1fr));
       gap:5px;
       margin:18px 0 16px;
       padding:5px;
@@ -188,7 +188,7 @@
       font-weight:750;
     }
 
-    input[type=text],select {
+    input[type=text],select,textarea {
       width:100%;
       min-height:49px;
       padding:0 13px;
@@ -200,7 +200,14 @@
       font-size:1rem;
     }
 
-    input:focus,select:focus {
+    textarea {
+      min-height:260px;
+      padding:12px 13px;
+      resize:vertical;
+      line-height:1.5;
+    }
+
+    input:focus,select:focus,textarea:focus {
       border-color:var(--orange);
       box-shadow:0 0 0 3px #ff9d2e20;
     }
@@ -377,6 +384,20 @@
 
     .result-actions { margin-top:11px }
     .recent { margin-top:16px }
+
+    .package-type {
+      color:var(--muted);
+      font-size:.82rem;
+      font-weight:800;
+      text-align:right;
+    }
+
+    .approval-note {
+      margin:12px 0 0;
+      color:var(--muted);
+      font-size:.8rem;
+      text-align:center;
+    }
 
     .recent h3,.sources h3 {
       margin:0 0 9px;
@@ -566,7 +587,7 @@
 
     @media (min-width:680px) {
       .shell { padding:28px 24px 70px }
-      .tabs { width:420px }
+      .tabs { width:570px }
       .two { grid-template-columns:1.3fr .7fr }
       .buttons,.result-actions { grid-template-columns:1fr 1fr }
       .facts { grid-template-columns:1fr 1fr }
@@ -617,7 +638,12 @@
 
       <button class="tab" id="analyzerTab" type="button" role="tab"
         aria-selected="false" aria-controls="analyzerView">
-        Manual Analyzer
+        Analyzer
+      </button>
+
+      <button class="tab" id="productionTab" type="button" role="tab"
+        aria-selected="false" aria-controls="productionView">
+        Production
       </button>
     </nav>
 
@@ -824,7 +850,109 @@
               <button class="btn primary" id="resultBriefButton" type="button">
                 Build full brief
               </button>
+
+              <button class="btn primary" id="resultProductionButton"
+                type="button" hidden>
+                Send to Production
+              </button>
             </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="productionView" role="tabpanel"
+      aria-labelledby="productionTab" hidden>
+      <div class="workspace">
+        <article class="panel analyzer-panel">
+          <div class="panel-head">
+            <p class="eyebrow">Production Agent</p>
+            <h2>Build the review package</h2>
+            <p class="subtext">
+              Turn an approved brief into original product content and marketplace metadata.
+            </p>
+          </div>
+
+          <div class="form-body">
+            <div class="two">
+              <div class="field">
+                <label for="productionTitle">Product title</label>
+                <input id="productionTitle" type="text" maxlength="200"
+                  autocomplete="off" placeholder="Product working title">
+              </div>
+
+              <div class="field">
+                <label for="productionPlatform">Marketplace</label>
+                <select id="productionPlatform">
+                  <option value="KDP">Amazon KDP</option>
+                  <option value="Etsy">Etsy</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="productionBrief">Approved product brief</label>
+              <textarea id="productionBrief" maxlength="12000"
+                placeholder="Create a Product Brief first, or paste an approved brief here."></textarea>
+            </div>
+
+            <button class="btn primary wide" id="productionButton" type="button">
+              Build review package
+            </button>
+
+            <p class="radar-form-note">
+              The package stays in review until you approve it. Nothing is published automatically.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel analyzer-panel">
+          <div class="panel-head">
+            <p class="eyebrow">Human Approval Gate</p>
+            <h2 id="productionHeading">Ready for an approved brief</h2>
+            <p class="subtext" id="productionSubtext">
+              Draft content, listing copy, keywords, checks, and risk flags will appear here.
+            </p>
+          </div>
+
+          <div class="empty" id="productionEmpty">
+            <div>
+              <div class="empty-icon">⌁</div>
+              <strong>No production package yet</strong>
+              Send over a Product Brief or paste one into the Production Agent.
+            </div>
+          </div>
+
+          <div class="result" id="productionResult" aria-live="polite">
+            <div class="score-line">
+              <span class="verdict" id="productionVerdict">NEEDS APPROVAL</span>
+              <span class="package-type" id="productionType"></span>
+            </div>
+
+            <h3 class="idea-name" id="productionPackageTitle"></h3>
+            <div class="output" id="productionOutput"></div>
+
+            <div class="result-actions">
+              <button class="btn secondary" id="copyProductionButton" type="button">
+                Copy package
+              </button>
+
+              <button class="btn secondary" id="downloadDraftButton" type="button">
+                Download draft
+              </button>
+
+              <button class="btn secondary" id="downloadMetadataButton" type="button">
+                Download listing data
+              </button>
+
+              <button class="btn primary" id="approveProductionButton" type="button">
+                Approve on this device
+              </button>
+            </div>
+
+            <p class="approval-note" id="approvalNote">
+              Review facts, rights, formatting, and marketplace requirements before approval.
+            </p>
           </div>
         </article>
       </div>
@@ -848,22 +976,40 @@
     const briefButton = document.getElementById("briefButton");
     const resultBriefButton =
       document.getElementById("resultBriefButton");
+    const resultProductionButton =
+      document.getElementById("resultProductionButton");
     const output = document.getElementById("output");
     const scanButton = document.getElementById("scanButton");
+    const productionButton =
+      document.getElementById("productionButton");
+    const productionTitle =
+      document.getElementById("productionTitle");
+    const productionPlatform =
+      document.getElementById("productionPlatform");
+    const productionBrief =
+      document.getElementById("productionBrief");
+    const productionOutput =
+      document.getElementById("productionOutput");
 
     let activeResult = "";
+    let activeBrief = "";
+    let activePackage = null;
+    let activePackageText = "";
 
     function switchView(name) {
-      const showRadar = name === "radar";
+      const views = {
+        radar: ["radarView", "radarTab"],
+        analyzer: ["analyzerView", "analyzerTab"],
+        production: ["productionView", "productionTab"]
+      };
 
-      document.getElementById("radarView").hidden = !showRadar;
-      document.getElementById("analyzerView").hidden = showRadar;
+      Object.keys(views).forEach(function (viewName) {
+        const selected = viewName === name;
 
-      document.getElementById("radarTab")
-        .setAttribute("aria-selected", String(showRadar));
-
-      document.getElementById("analyzerTab")
-        .setAttribute("aria-selected", String(!showRadar));
+        document.getElementById(views[viewName][0]).hidden = !selected;
+        document.getElementById(views[viewName][1])
+          .setAttribute("aria-selected", String(selected));
+      });
     }
 
     document.getElementById("radarTab")
@@ -874,6 +1020,11 @@
     document.getElementById("analyzerTab")
       .addEventListener("click", function () {
         switchView("analyzer");
+      });
+
+    document.getElementById("productionTab")
+      .addEventListener("click", function () {
+        switchView("production");
       });
 
     signalIds.forEach(function (id) {
@@ -923,6 +1074,101 @@
       } catch (error) {
         throw new Error("The server returned an unreadable response.");
       }
+    }
+
+    function bulletList(values, emptyText) {
+      const items = Array.isArray(values)
+        ? values.filter(Boolean)
+        : [];
+
+      return (items.length ? items : [emptyText])
+        .map(function (item) {
+          return "- " + item;
+        })
+        .join("\n");
+    }
+
+    function checklist(values) {
+      const items = Array.isArray(values)
+        ? values.filter(Boolean)
+        : [];
+
+      return (items.length ? items : ["Complete a final human review."])
+        .map(function (item) {
+          return "- [ ] " + item;
+        })
+        .join("\n");
+    }
+
+    function formatProductionPackage(data) {
+      const keywordHeading =
+        data.platform === "Etsy" ? "Etsy tags" : "KDP keywords";
+
+      return [
+        "# " + (data.packageTitle || "Untitled package"),
+        data.subtitle || "",
+        "Marketplace: " + (data.platform || "Not selected"),
+        "Deliverable: " + (data.deliverableType || "Digital product"),
+        "",
+        "## Product draft",
+        data.draftMarkdown || "No draft was generated.",
+        "",
+        "## Listing title",
+        data.listingTitle || "",
+        "",
+        "## Listing description",
+        data.listingDescription || "",
+        "",
+        "## " + keywordHeading,
+        bulletList(data.keywords, "Add keywords after market review."),
+        "",
+        "## Production checklist",
+        checklist(data.productionChecklist),
+        "",
+        "## Human-review flags",
+        bulletList(data.riskFlags, "No specific risks flagged; complete the standard review.")
+      ].join("\n");
+    }
+
+    function fileSlug(value) {
+      return String(value || "publisher-forge-package")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 70) || "publisher-forge-package";
+    }
+
+    function downloadText(filename, contents, mimeType) {
+      const blob = new Blob([contents], {
+        type: mimeType || "text/plain;charset=utf-8"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    }
+
+    function openProduction(title, market, briefText) {
+      productionTitle.value = title || titleInput.value.trim();
+      productionPlatform.value = market === "Etsy" ? "Etsy" : "KDP";
+      productionBrief.value = briefText || activeBrief;
+
+      switchView("production");
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      toast("Product Brief loaded into Production");
     }
 
     function setRadarMessage(heading, subtext, body) {
@@ -1254,6 +1500,9 @@
       resultBriefButton.style.display =
         isBrief ? "none" : "block";
 
+      resultProductionButton.hidden =
+        !isBrief || !activeBrief;
+
       if (!isBrief) {
         const badge =
           document.getElementById("verdict");
@@ -1480,6 +1729,8 @@
         return;
       }
 
+      activeBrief = "";
+
       loading(
         briefButton,
         true,
@@ -1528,6 +1779,11 @@
           );
         }
 
+        activeBrief = data.brief;
+        productionTitle.value = idea.title;
+        productionPlatform.value = idea.platform;
+        productionBrief.value = data.brief;
+
         showResult({
           heading: "Product brief",
           eyebrow: "Product Architect",
@@ -1561,6 +1817,180 @@
       }
     }
 
+    function productionActionsEnabled(enabled) {
+      [
+        "copyProductionButton",
+        "downloadDraftButton",
+        "downloadMetadataButton",
+        "approveProductionButton"
+      ].forEach(function (id) {
+        document.getElementById(id).disabled = !enabled;
+      });
+    }
+
+    function showProductionWorking(title) {
+      document.getElementById("productionEmpty").style.display = "none";
+      document.getElementById("productionResult")
+        .classList.add("visible");
+      document.getElementById("productionHeading").textContent =
+        "Building review package";
+      document.getElementById("productionSubtext").textContent =
+        "Creating the draft, listing data, checks, and risk flags.";
+      document.getElementById("productionVerdict").className = "verdict";
+      document.getElementById("productionVerdict").textContent = "WORKING";
+      document.getElementById("productionType").textContent = "";
+      document.getElementById("productionPackageTitle").textContent = title;
+      productionOutput.textContent = "Production Agent is working…";
+      document.getElementById("approvalNote").textContent =
+        "Nothing will be approved or published automatically.";
+      productionActionsEnabled(false);
+    }
+
+    function showProductionPackage(data) {
+      activePackage = data;
+      activePackageText = formatProductionPackage(data);
+
+      document.getElementById("productionHeading").textContent =
+        "Review package complete";
+      document.getElementById("productionSubtext").textContent =
+        "Inspect the content and flags, then download or approve the package.";
+      document.getElementById("productionVerdict").className = "verdict";
+      document.getElementById("productionVerdict").textContent =
+        "NEEDS APPROVAL";
+      document.getElementById("productionType").textContent =
+        (data.platform || "") + " · " + (data.deliverableType || "Review package");
+      document.getElementById("productionPackageTitle").textContent =
+        data.packageTitle || "Production package";
+      productionOutput.textContent = activePackageText;
+
+      const approveButton =
+        document.getElementById("approveProductionButton");
+
+      approveButton.textContent = "Approve on this device";
+      document.getElementById("approvalNote").textContent =
+        "Review facts, rights, formatting, and marketplace requirements before approval.";
+      productionActionsEnabled(true);
+    }
+
+    function showProductionError(message) {
+      activePackage = null;
+      activePackageText = "";
+
+      document.getElementById("productionHeading").textContent =
+        "Production stopped";
+      document.getElementById("productionSubtext").textContent =
+        "The package was not generated or saved.";
+      document.getElementById("productionVerdict").className =
+        "verdict error";
+      document.getElementById("productionVerdict").textContent = "ERROR";
+      document.getElementById("productionType").textContent = "";
+      productionOutput.textContent = message;
+      document.getElementById("approvalNote").textContent =
+        "Correct the issue and try again.";
+      productionActionsEnabled(false);
+    }
+
+    async function buildProductionPackage() {
+      const title = productionTitle.value.trim();
+      const market = productionPlatform.value;
+      const briefText = productionBrief.value.trim();
+
+      if (!title) {
+        productionTitle.focus();
+        toast("Enter a product title first");
+        return;
+      }
+
+      if (!briefText) {
+        productionBrief.focus();
+        toast("Add an approved Product Brief first");
+        return;
+      }
+
+      activePackage = null;
+      activePackageText = "";
+      loading(productionButton, true, "Build review package");
+      showProductionWorking(title);
+
+      try {
+        const response = await fetch("/api/production-package", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: title,
+            platform: market,
+            brief: briefText
+          })
+        });
+
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            data.error ||
+            "Production package failed"
+          );
+        }
+
+        showProductionPackage(data);
+      } catch (error) {
+        showProductionError(error.message);
+      } finally {
+        loading(productionButton, false, "Build review package");
+      }
+    }
+
+    function approveProductionPackage() {
+      if (!activePackage) return;
+
+      const approvedPackage = {
+        ...activePackage,
+        approvedAt: new Date().toISOString()
+      };
+      let approved = [];
+
+      try {
+        approved =
+          JSON.parse(localStorage.getItem("pfApprovedPackages")) || [];
+      } catch (error) {}
+
+      approved = [approvedPackage]
+        .concat(
+          approved.filter(function (item) {
+            return item.packageTitle !== approvedPackage.packageTitle ||
+              item.platform !== approvedPackage.platform;
+          })
+        )
+        .slice(0, 5);
+
+      try {
+        localStorage.setItem(
+          "pfApprovedPackages",
+          JSON.stringify(approved)
+        );
+      } catch (error) {
+        toast("Approval could not be saved on this device");
+        return;
+      }
+
+      activePackage = approvedPackage;
+
+      const badge = document.getElementById("productionVerdict");
+      const button = document.getElementById("approveProductionButton");
+
+      badge.className = "verdict make";
+      badge.textContent = "APPROVED";
+      button.disabled = true;
+      button.textContent = "Approved on this device";
+      document.getElementById("approvalNote").textContent =
+        "Approved locally. This still does not publish to KDP or Etsy.";
+
+      toast("Package approved on this device");
+    }
+
     scanButton.addEventListener(
       "click",
       scanTrends
@@ -1587,6 +2017,85 @@
       "click",
       brief
     );
+
+    resultProductionButton.addEventListener(
+      "click",
+      function () {
+        if (!activeBrief) return;
+
+        openProduction(
+          titleInput.value.trim(),
+          platformInput.value,
+          activeBrief
+        );
+      }
+    );
+
+    productionButton.addEventListener(
+      "click",
+      buildProductionPackage
+    );
+
+    document.getElementById("copyProductionButton")
+      .addEventListener("click", async function () {
+        if (!activePackageText) return;
+
+        try {
+          await navigator.clipboard.writeText(activePackageText);
+          toast("Production package copied");
+        } catch (error) {
+          toast("Copy was blocked by the browser");
+        }
+      });
+
+    document.getElementById("downloadDraftButton")
+      .addEventListener("click", function () {
+        if (!activePackage) return;
+
+        const draft = [
+          "# " + (activePackage.packageTitle || "Untitled product"),
+          activePackage.subtitle || "",
+          activePackage.draftMarkdown || ""
+        ].filter(Boolean).join("\n\n");
+
+        downloadText(
+          fileSlug(activePackage.packageTitle) + "-draft.md",
+          draft,
+          "text/markdown;charset=utf-8"
+        );
+
+        toast("Draft downloaded");
+      });
+
+    document.getElementById("downloadMetadataButton")
+      .addEventListener("click", function () {
+        if (!activePackage) return;
+
+        const listingData = {
+          platform: activePackage.platform,
+          packageTitle: activePackage.packageTitle,
+          subtitle: activePackage.subtitle,
+          deliverableType: activePackage.deliverableType,
+          listingTitle: activePackage.listingTitle,
+          listingDescription: activePackage.listingDescription,
+          keywords: activePackage.keywords,
+          productionChecklist: activePackage.productionChecklist,
+          riskFlags: activePackage.riskFlags,
+          createdAt: activePackage.createdAt,
+          approvedAt: activePackage.approvedAt || null
+        };
+
+        downloadText(
+          fileSlug(activePackage.packageTitle) + "-listing.json",
+          JSON.stringify(listingData, null, 2),
+          "application/json;charset=utf-8"
+        );
+
+        toast("Listing data downloaded");
+      });
+
+    document.getElementById("approveProductionButton")
+      .addEventListener("click", approveProductionPackage);
 
     document.getElementById("copyButton")
       .addEventListener("click", async function () {

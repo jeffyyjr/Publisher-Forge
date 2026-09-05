@@ -77,6 +77,42 @@ const trendReportSchema = {
   additionalProperties: false
 };
 
+const productionPackageSchema = {
+  type: "object",
+  properties: {
+    packageTitle: { type: "string" },
+    subtitle: { type: "string" },
+    deliverableType: { type: "string" },
+    draftMarkdown: { type: "string" },
+    listingTitle: { type: "string" },
+    listingDescription: { type: "string" },
+    keywords: {
+      type: "array",
+      items: { type: "string" }
+    },
+    productionChecklist: {
+      type: "array",
+      items: { type: "string" }
+    },
+    riskFlags: {
+      type: "array",
+      items: { type: "string" }
+    }
+  },
+  required: [
+    "packageTitle",
+    "subtitle",
+    "deliverableType",
+    "draftMarkdown",
+    "listingTitle",
+    "listingDescription",
+    "keywords",
+    "productionChecklist",
+    "riskFlags"
+  ],
+  additionalProperties: false
+};
+
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "200kb" }));
@@ -177,6 +213,25 @@ function parseReport(response) {
   }
 }
 
+function parseProductionPackage(response) {
+  if (response.status === "incomplete") {
+    const reason = response.incomplete_details?.reason || "unknown reason";
+    throw new Error("Production Agent response was incomplete: " + reason + ".");
+  }
+
+  const raw = String(response.output_text || "").trim();
+
+  if (!raw) {
+    throw new Error("Production Agent returned no package. Please try again.");
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Production Agent could not read the completed package.");
+  }
+}
+
 function getSources(response) {
   const found = new Map();
 
@@ -216,9 +271,10 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.6.2",
+    version: "0.7.0",
     openaiConfigured: Boolean(client),
-    trendRadarAvailable: Boolean(client)
+    trendRadarAvailable: Boolean(client),
+    productionAgentAvailable: Boolean(client)
   });
 });
 
@@ -303,6 +359,66 @@ app.post("/api/product-brief", limitAI, async (req, res) => {
   } catch (error) {
     res.status(502).json({
       error: "Product brief failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/production-package", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const title = text(req.body.title, 200);
+  const market = platform(req.body.platform);
+  const brief = text(req.body.brief, 12000);
+
+  if (!title) {
+    return res.status(400).json({
+      error: "Product idea is required"
+    });
+  }
+
+  if (!brief) {
+    return res.status(400).json({
+      error: "An approved product brief is required"
+    });
+  }
+
+  const keywordTarget = market === "Etsy" ? 13 : 7;
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are the Production Agent for Publisher Forge. Turn an approved product brief into an original review package for a human publisher. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Do not invent endorsements, sales claims, medical claims, or legal guarantees. Do not say the package was published or marketplace-approved. The draft must be useful and substantial, but clearly remain subject to human editing, fact-checking, design, formatting, and approval.",
+      input:
+        "Build a production review package for this " + market + " product. " +
+        "Working title: " + title + ". Approved brief: " + brief + ". " +
+        (market === "KDP"
+          ? "Create original manuscript or interior copy in Markdown, plus KDP-oriented listing metadata."
+          : "Create the complete written content and layout directions for the digital product in Markdown, plus Etsy-oriented listing metadata.") +
+        " Return exactly " + keywordTarget + " useful keyword phrases. " +
+        "Include a practical production checklist and identify any claims, facts, intellectual-property concerns, or design work that a human must review before release.",
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_production_package",
+          strict: true,
+          schema: productionPackageSchema
+        }
+      },
+      max_output_tokens: 7000
+    });
+
+    const productionPackage = parseProductionPackage(response);
+
+    res.json({
+      createdAt: new Date().toISOString(),
+      platform: market,
+      ...productionPackage
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Production package failed",
       message: error.message
     });
   }

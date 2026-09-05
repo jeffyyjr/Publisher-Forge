@@ -1,18 +1,18 @@
 # Publisher Forge MVP
 
-A browser-based prototype for an AI publishing-agent platform.
+A browser-based AI publishing workflow for finding, evaluating, planning, and producing original Amazon KDP and Etsy product concepts.
 
 ## Run
-Open `index.html` in a browser.
+Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 
 ## Included
-- Agent creation
-- KDP/Etsy opportunity scoring
-- Research dashboard
-- Product pipeline
-- Competitor-review lesson/memory concept
-- Agent performance dashboard
-- Human approval gate
+- Live KDP/Etsy Trend Radar with cited public web sources
+- Consistent opportunity scoring and make/validate/skip decisions
+- AI opportunity analysis
+- Product Brief generation
+- Production Agent for original draft content and listing metadata
+- Downloadable Markdown drafts and JSON listing data
+- Device-local human approval gate
 
 ## Next production layer
-Connect real data sources and authenticated KDP/Etsy workflows through a backend. Keep scraping/API use compliant with each platform's current terms, and require approval before publishing until the system is proven reliable.
+Add accounts, persistent project storage, document/PDF rendering, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
