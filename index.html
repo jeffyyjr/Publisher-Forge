@@ -470,6 +470,59 @@
 
     .recent-item b { color:var(--gold) }
 
+    .vault-panel { margin-top:16px }
+
+    .vault-list {
+      display:grid;
+      gap:9px;
+    }
+
+    .vault-item {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:9px;
+      align-items:stretch;
+    }
+
+    .vault-open,.vault-delete {
+      border:1px solid var(--line);
+      border-radius:11px;
+      background:#11161d;
+      color:var(--text);
+      cursor:pointer;
+    }
+
+    .vault-open {
+      min-width:0;
+      padding:12px;
+      text-align:left;
+    }
+
+    .vault-open strong,.vault-open small { display:block }
+
+    .vault-open strong {
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .vault-open small {
+      margin-top:4px;
+      color:var(--muted);
+    }
+
+    .vault-delete {
+      width:48px;
+      color:#ff9ca7;
+      font-size:1.1rem;
+    }
+
+    .vault-empty {
+      margin:0;
+      color:var(--muted);
+      font-size:.88rem;
+    }
+
     .radar-form-note {
       margin:13px 0 0;
       color:var(--muted);
@@ -1014,6 +1067,21 @@
           </div>
         </article>
       </div>
+
+      <article class="panel vault-panel">
+        <div class="panel-head">
+          <p class="eyebrow">Project Vault</p>
+          <h2>Saved on this device</h2>
+          <p class="subtext">
+            Briefs, packages, revisions, and quality results save automatically.
+          </p>
+        </div>
+
+        <div class="form-body">
+          <p class="vault-empty" id="vaultEmpty">No saved projects yet.</p>
+          <div class="vault-list" id="vaultList"></div>
+        </div>
+      </article>
     </section>
   </main>
 
@@ -1272,6 +1340,7 @@
       document.getElementById("approvalNote").textContent = passed
         ? "Quality check passed. Human approval is now unlocked."
         : "Approval stays locked. Revise the package and Quality Control will run again.";
+      saveActiveProject();
     }
 
     function fileSlug(value) {
@@ -1300,10 +1369,209 @@
       }, 1000);
     }
 
+    function readProjectVault() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("pfProjectVault"));
+        return Array.isArray(saved) ? saved : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function projectKey(title, market) {
+      return String(market || "KDP") + "::" +
+        String(title || "Untitled project").trim().toLowerCase();
+    }
+
+    function saveProjectRecord(record) {
+      if (!record.title || !record.brief) return;
+
+      const id = projectKey(record.title, record.platform);
+      const currentProjects = readProjectVault();
+      const previous = currentProjects.find(function (item) {
+        return item.id === id;
+      });
+      const hasPackage = Object.prototype.hasOwnProperty.call(record, "package");
+      const hasReview = Object.prototype.hasOwnProperty.call(record, "qualityReview");
+      const savedProject = {
+        id: id,
+        title: record.title,
+        platform: record.platform === "Etsy" ? "Etsy" : "KDP",
+        brief: record.brief,
+        package: hasPackage
+          ? record.package || null
+          : previous && previous.package || null,
+        qualityReview: hasReview
+          ? record.qualityReview || null
+          : previous && previous.qualityReview || null,
+        savedAt: new Date().toISOString()
+      };
+      const projects = [savedProject].concat(
+        currentProjects.filter(function (item) {
+          return item.id !== savedProject.id;
+        })
+      ).slice(0, 8);
+
+      try {
+        localStorage.setItem("pfProjectVault", JSON.stringify(projects));
+        renderProjectVault();
+      } catch (error) {
+        if (!saveProjectRecord.warned) {
+          saveProjectRecord.warned = true;
+          toast("Project Vault storage is unavailable in this browser");
+        }
+      }
+    }
+
+    function saveActiveProject() {
+      saveProjectRecord({
+        title: activeProductionTitle,
+        platform: activePackage && activePackage.platform,
+        brief: activeProductionBrief,
+        package: activePackage,
+        qualityReview: activeQualityReview
+      });
+    }
+
+    function restoreProject(project) {
+      activeProductionTitle = project.title;
+      activeProductionBrief = project.brief;
+      productionTitle.value = project.title;
+      productionPlatform.value = project.platform;
+      productionBrief.value = project.brief;
+      switchView("production");
+
+      if (project.package) {
+        showProductionPackage(project.package);
+
+        if (project.qualityReview) {
+          showQualityReview(project.qualityReview);
+        }
+
+        if (project.package.approvedAt) {
+          document.getElementById("productionVerdict").className =
+            "verdict make";
+          document.getElementById("productionVerdict").textContent =
+            "APPROVED";
+          document.getElementById("approveProductionButton").disabled = true;
+          document.getElementById("approveProductionButton").textContent =
+            "Approved on this device";
+          document.getElementById("approvalNote").textContent =
+            "Approved locally. This still does not publish to KDP or Etsy.";
+        }
+      } else {
+        activePackage = null;
+        activePackageText = "";
+        resetQualityReview();
+        document.getElementById("productionEmpty").style.display = "grid";
+        document.getElementById("productionResult").classList.remove("visible");
+        document.getElementById("productionHeading").textContent =
+          "Saved brief restored";
+        document.getElementById("productionSubtext").textContent =
+          "Review it, then build the production package when ready.";
+      }
+
+      saveProjectRecord(project);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast("Project restored from this device");
+    }
+
+    function deleteProject(project) {
+      if (!window.confirm("Remove this project from this device?")) return;
+
+      const projects = readProjectVault().filter(function (item) {
+        return item.id !== project.id;
+      });
+
+      try {
+        localStorage.setItem("pfProjectVault", JSON.stringify(projects));
+      } catch (error) {
+        toast("Project could not be removed");
+        return;
+      }
+
+      renderProjectVault();
+      toast("Project removed from this device");
+    }
+
+    function renderProjectVault() {
+      const projects = readProjectVault();
+      const list = document.getElementById("vaultList");
+      const empty = document.getElementById("vaultEmpty");
+
+      list.replaceChildren();
+      empty.hidden = projects.length > 0;
+
+      projects.forEach(function (project) {
+        const row = document.createElement("div");
+        const openButton = document.createElement("button");
+        const title = document.createElement("strong");
+        const details = document.createElement("small");
+        const deleteButton = document.createElement("button");
+        const status = project.package && project.package.approvedAt
+          ? "APPROVED"
+          : project.qualityReview && project.qualityReview.verdict
+            ? project.qualityReview.verdict
+            : project.package
+              ? "NOT REVIEWED"
+              : "BRIEF";
+        const savedDate = project.savedAt
+          ? new Date(project.savedAt).toLocaleDateString()
+          : "Saved";
+
+        row.className = "vault-item";
+        openButton.className = "vault-open";
+        openButton.type = "button";
+        title.textContent = project.title;
+        details.textContent = project.platform + " · " + status + " · " + savedDate;
+        openButton.append(title, details);
+        openButton.addEventListener("click", function () {
+          restoreProject(project);
+        });
+
+        deleteButton.className = "vault-delete";
+        deleteButton.type = "button";
+        deleteButton.setAttribute("aria-label", "Remove " + project.title);
+        deleteButton.textContent = "×";
+        deleteButton.addEventListener("click", function () {
+          deleteProject(project);
+        });
+
+        row.append(openButton, deleteButton);
+        list.appendChild(row);
+      });
+    }
+
+    function scheduleDraftSave() {
+      clearTimeout(scheduleDraftSave.timer);
+      scheduleDraftSave.timer = setTimeout(function () {
+        const title = productionTitle.value.trim();
+        const market = productionPlatform.value;
+        const brief = productionBrief.value.trim();
+        const activeKey = activePackage
+          ? projectKey(activeProductionTitle, activePackage.platform)
+          : "";
+
+        if (title && brief && projectKey(title, market) !== activeKey) {
+          saveProjectRecord({
+            title: title,
+            platform: market,
+            brief: brief
+          });
+        }
+      }, 500);
+    }
+
     function openProduction(title, market, briefText) {
       productionTitle.value = title || titleInput.value.trim();
       productionPlatform.value = market === "Etsy" ? "Etsy" : "KDP";
       productionBrief.value = briefText || activeBrief;
+
+      saveProjectRecord({
+        title: productionTitle.value,
+        platform: productionPlatform.value,
+        brief: productionBrief.value
+      });
 
       switchView("production");
 
@@ -2001,6 +2269,9 @@
       activePackageText = formatProductionPackage(data);
       resetQualityReview();
 
+      document.getElementById("productionEmpty").style.display = "none";
+      document.getElementById("productionResult").classList.add("visible");
+
       document.getElementById("productionHeading").textContent =
         "Review package complete";
       document.getElementById("productionSubtext").textContent =
@@ -2022,6 +2293,7 @@
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
       approveButton.disabled = true;
+      saveActiveProject();
     }
 
     function showProductionError(message) {
@@ -2064,6 +2336,11 @@
 
       activePackage = null;
       activePackageText = "";
+      saveProjectRecord({
+        title: title,
+        platform: market,
+        brief: briefText
+      });
       loading(productionButton, true, "Build review package");
       showProductionWorking(title);
 
@@ -2263,6 +2540,7 @@
       }
 
       activePackage = approvedPackage;
+      saveActiveProject();
 
       const badge = document.getElementById("productionVerdict");
       const button = document.getElementById("approveProductionButton");
@@ -2418,7 +2696,12 @@
       }
     );
 
+    productionTitle.addEventListener("input", scheduleDraftSave);
+    productionPlatform.addEventListener("change", scheduleDraftSave);
+    productionBrief.addEventListener("input", scheduleDraftSave);
+
     renderRecent();
+    renderProjectVault();
     checkHealth();
   </script>
 </body>
