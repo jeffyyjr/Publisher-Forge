@@ -440,6 +440,68 @@
       object-fit:cover;
     }
 
+    .pricing-card {
+      margin-top:12px;
+      padding:14px;
+      border:1px solid #704719;
+      border-radius:14px;
+      background:#1b130b;
+    }
+
+    .pricing-card[hidden] { display:none }
+
+    .pricing-head {
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:11px;
+    }
+
+    .pricing-head h3 { margin:0 }
+
+    .pricing-head span {
+      color:var(--gold);
+      font-size:.76rem;
+      font-weight:850;
+      text-align:right;
+    }
+
+    .pricing-options {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+    }
+
+    .price-option {
+      padding:10px;
+      border:1px solid #704719;
+      border-radius:10px;
+      background:#0d0f13;
+      color:var(--muted);
+      font-size:.72rem;
+    }
+
+    .price-option.recommended {
+      border-color:var(--orange);
+      box-shadow:inset 0 0 0 1px #ff8a1f55;
+    }
+
+    .price-option strong {
+      display:block;
+      margin:3px 0;
+      color:var(--text);
+      font-size:1.2rem;
+    }
+
+    .pricing-summary {
+      margin:11px 0 0;
+      color:var(--muted);
+      font-size:.8rem;
+      line-height:1.5;
+    }
+
+    .pricing-warning { color:#ffb26d }
+
     .quality-metrics {
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -1089,6 +1151,15 @@
               </div>
             </div>
 
+            <div class="pricing-card" id="kdpPricingCard" hidden>
+              <div class="pricing-head">
+                <h3>KDP paperback pricing</h3>
+                <span>6×9 · black ink · Amazon.com</span>
+              </div>
+              <div class="pricing-options" id="kdpPricingOptions"></div>
+              <p class="pricing-summary" id="kdpPricingSummary"></p>
+            </div>
+
             <div class="quality-card" id="qualityCard">
               <div class="score-line">
                 <span class="verdict" id="qualityVerdict">NOT REVIEWED</span>
@@ -1211,6 +1282,7 @@
     let activeProductionTitle = "";
     let activeProductionBrief = "";
     let activeCover = null;
+    let activeKdpPricing = null;
 
     function switchView(name) {
       const views = {
@@ -1377,6 +1449,84 @@
       downloadCoverButton.hidden = true;
       generateCoverButton.textContent = "Generate cover";
       generateCoverButton.disabled = !activePackage;
+    }
+
+    function resetKdpPricing() {
+      activeKdpPricing = null;
+      document.getElementById("kdpPricingCard").hidden = true;
+      document.getElementById("kdpPricingOptions").replaceChildren();
+      document.getElementById("kdpPricingSummary").textContent = "";
+    }
+
+    function money(value) {
+      return "$" + Number(value || 0).toFixed(2);
+    }
+
+    function showKdpPricing(data) {
+      activeKdpPricing = data;
+      const options = document.getElementById("kdpPricingOptions");
+
+      options.replaceChildren();
+      (data.options || []).forEach(function (price) {
+        const item = document.createElement("div");
+        const label = document.createElement("span");
+        const amount = document.createElement("strong");
+        const royalty = document.createElement("span");
+
+        item.className = "price-option" +
+          (price.label === "Standard" ? " recommended" : "");
+        label.textContent = price.label === "Standard"
+          ? "Standard · recommended"
+          : price.label;
+        amount.textContent = money(price.price);
+        royalty.textContent = money(price.royalty) + " royalty per sale";
+        item.append(label, amount, royalty);
+        options.appendChild(item);
+      });
+
+      const examples = (data.monthlyExamples || []).map(function (item) {
+        return item.sales + " sales ≈ " + money(item.estimatedRoyalty);
+      }).join(" · ");
+      const summary = document.getElementById("kdpPricingSummary");
+      summary.className = "pricing-summary" +
+        (data.pageCountReady ? "" : " pricing-warning");
+      summary.textContent = data.pageCountReady
+        ? data.actualPageCount + " pages · estimated print cost " +
+          money(data.estimatedPrintingCost) + " · " + examples
+        : "Needs at least 24 pages before KDP upload. Current interior: " +
+          data.actualPageCount + " pages. Pricing uses the 24-page minimum.";
+      document.getElementById("kdpPricingCard").hidden = false;
+    }
+
+    async function loadKdpPricing(packageData) {
+      resetKdpPricing();
+      if (!packageData || packageData.platform !== "KDP") return;
+
+      const card = document.getElementById("kdpPricingCard");
+      const summary = document.getElementById("kdpPricingSummary");
+      const packageTitle = packageData.packageTitle;
+
+      card.hidden = false;
+      summary.textContent = "Calculating print cost and royalty from the interior…";
+
+      try {
+        const response = await fetch("/api/kdp-pricing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ package: packageData })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "Pricing estimate failed");
+        }
+
+        if (!activePackage || activePackage.packageTitle !== packageTitle) return;
+        showKdpPricing(data);
+      } catch (error) {
+        summary.className = "pricing-summary pricing-warning";
+        summary.textContent = error.message;
+      }
     }
 
     function wrapCanvasText(context, value, maxWidth) {
@@ -1738,6 +1888,7 @@
       productionBrief.value = project.brief;
       switchView("production");
       resetCover();
+      resetKdpPricing();
 
       if (project.package) {
         showProductionPackage(project.package);
@@ -2550,6 +2701,7 @@
 
     function showProductionWorking(title) {
       resetCover();
+      resetKdpPricing();
       resetQualityReview();
       document.getElementById("productionEmpty").style.display = "none";
       document.getElementById("productionResult")
@@ -2572,6 +2724,7 @@
       activePackage = data;
       activePackageText = formatProductionPackage(data);
       resetCover();
+      resetKdpPricing();
       resetQualityReview();
 
       document.getElementById("productionEmpty").style.display = "none";
@@ -2601,6 +2754,7 @@
       productionActionsEnabled(true);
       approveButton.disabled = true;
       saveActiveProject();
+      loadKdpPricing(data);
     }
 
     function showProductionError(message) {
@@ -2609,6 +2763,7 @@
       activeProductionTitle = "";
       activeProductionBrief = "";
       resetCover();
+      resetKdpPricing();
       resetQualityReview();
 
       document.getElementById("productionHeading").textContent =
@@ -2989,6 +3144,7 @@
           productionChecklist: activePackage.productionChecklist,
           riskFlags: activePackage.riskFlags,
           qualityReview: activeQualityReview,
+          kdpPricing: activeKdpPricing,
           createdAt: activePackage.createdAt,
           approvedAt: activePackage.approvedAt || null
         };

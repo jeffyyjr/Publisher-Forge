@@ -335,6 +335,7 @@ function printablePdf(packageData) {
     const deliverable = printableText(packageData.deliverableType, 200);
     const markdown = text(packageData.draftMarkdown, 50000);
     const chunks = [];
+    let finalPageCount = 0;
     const doc = new PDFDocument({
       size: pageSize,
       margins: { top: margin, right: margin, bottom: margin, left: margin },
@@ -434,13 +435,17 @@ function printablePdf(packageData) {
     }
 
     doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("end", () => {
+      const buffer = Buffer.concat(chunks);
+      buffer.pageCount = finalPageCount;
+      resolve(buffer);
+    });
     doc.on("error", reject);
 
     doc.rect(0, 0, doc.page.width, 16).fill("#E96E1A");
     doc.moveDown(4.5);
     doc.font("InterBold").fontSize(11).fillColor("#C75A12")
-      .text("PUBLISHER FORGE");
+      .text(market === "KDP" ? "PAPERBACK EDITION" : "PRINTABLE EDITION");
     doc.moveDown(1.8);
     doc.font("InterBold").fontSize(market === "KDP" ? 28 : 32)
       .fillColor("#151B23").text(title, { align: "left", lineGap: 4 });
@@ -468,6 +473,7 @@ function printablePdf(packageData) {
     renderBody(markdown || "No product draft was included.");
 
     const pages = doc.bufferedPageRange();
+    finalPageCount = pages.count;
     for (let index = pages.start; index < pages.start + pages.count; index += 1) {
       doc.switchToPage(index);
       const isCover = index === pages.start;
@@ -476,7 +482,7 @@ function printablePdf(packageData) {
       doc.page.margins.bottom = 0;
       doc.font("Inter").fontSize(8).fillColor("#7A838E");
       doc.text(
-        isCover ? "Publisher Forge - Approved Copy" : "Page " + index,
+        isCover ? title : "Page " + index,
         doc.page.margins.left,
         doc.page.height - 34,
         {
@@ -490,6 +496,110 @@ function printablePdf(packageData) {
 
     doc.end();
   });
+}
+
+function dollars(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
+
+function endingIn99(value) {
+  return dollars(Math.max(0.99, Math.ceil(Number(value) + 0.01) - 0.01));
+}
+
+function kdpPricing(pageCount) {
+  const actualPageCount = Math.max(1, Math.round(Number(pageCount) || 1));
+  const pricingPageCount = Math.max(24, actualPageCount);
+  const printingCost = pricingPageCount <= 110
+    ? 2.30
+    : dollars(1 + pricingPageCount * 0.012);
+  const fiftyRateMinimum = dollars(Math.ceil((printingCost / 0.50) * 100) / 100);
+  const sixtyRateMinimum = dollars(Math.max(9.99,
+    Math.ceil((printingCost / 0.60) * 100) / 100));
+  const minimumListPrice = fiftyRateMinimum <= 9.98
+    ? fiftyRateMinimum
+    : sixtyRateMinimum;
+  const marketTarget = pricingPageCount <= 120
+    ? 12.99
+    : pricingPageCount <= 220
+      ? 14.99
+      : 16.99;
+
+  function option(label, targetRoyalty, targetPrice) {
+    const price = endingIn99(Math.max(
+      targetPrice,
+      (printingCost + targetRoyalty) / 0.60,
+      9.99
+    ));
+    const royaltyRate = price >= 9.99 ? 0.60 : 0.50;
+    const royalty = dollars(royaltyRate * price - printingCost);
+
+    return { label, price, royaltyRate, royalty };
+  }
+
+  const options = [
+    option("Low", 1.50, 9.99),
+    option("Standard", 3.00, marketTarget),
+    option("Premium", 5.00, marketTarget + 3)
+  ];
+  const standard = options[1];
+
+  return {
+    marketplace: "Amazon.com",
+    currency: "USD",
+    format: "Paperback",
+    trimSize: "6 x 9 in",
+    ink: "Black ink",
+    paper: "White paper",
+    bleed: "No bleed",
+    actualPageCount,
+    pricingPageCount,
+    minimumPageCount: 24,
+    pageCountReady: actualPageCount >= 24,
+    estimatedPrintingCost: printingCost,
+    minimumListPrice,
+    options,
+    recommendedPrice: standard.price,
+    estimatedRoyaltyPerSale: standard.royalty,
+    monthlyExamples: [10, 50, 100].map((sales) => ({
+      sales,
+      estimatedRoyalty: dollars(sales * standard.royalty)
+    })),
+    disclaimer:
+      "Estimate for Amazon.com standard distribution using KDP's current black-ink regular-trim formula. Confirm the exact cost and royalty inside KDP before publishing.",
+    calculatedAt: new Date().toISOString()
+  };
+}
+
+function formatKdpPricing(pricing) {
+  return [
+    "KDP PAPERBACK PRICING ESTIMATE",
+    "",
+    "Format: " + pricing.format,
+    "Trim: " + pricing.trimSize,
+    "Interior: " + pricing.ink + ", " + pricing.paper,
+    "Bleed: " + pricing.bleed,
+    "Interior pages: " + pricing.actualPageCount,
+    "Estimated printing cost: $" + pricing.estimatedPrintingCost.toFixed(2),
+    "Minimum list price: $" + pricing.minimumListPrice.toFixed(2),
+    "",
+    ...pricing.options.map((item) =>
+      item.label + ": $" + item.price.toFixed(2) +
+      " | estimated royalty $" + item.royalty.toFixed(2) +
+      " per sale | " + Math.round(item.royaltyRate * 100) + "% rate"
+    ),
+    "",
+    "STANDARD PRICE MONTHLY EXAMPLES",
+    ...pricing.monthlyExamples.map((item) =>
+      item.sales + " sales: $" + item.estimatedRoyalty.toFixed(2)
+    ),
+    "",
+    pricing.pageCountReady
+      ? "Page-count check: ready for KDP's 24-page minimum."
+      : "PAGE-COUNT WARNING: this interior has " + pricing.actualPageCount +
+        " pages. Expand it to at least 24 pages before uploading to KDP.",
+    "",
+    pricing.disclaimer
+  ].join("\n");
 }
 
 function getSources(response) {
@@ -531,7 +641,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.13.1",
+    version: "0.14.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -884,6 +994,24 @@ app.post("/api/generate-cover", limitAI, async (req, res) => {
   }
 });
 
+app.post("/api/kdp-pricing", async (req, res) => {
+  const packageData = req.body.package;
+
+  if (!packageData || platform(packageData.platform) !== "KDP") {
+    return res.status(400).json({ error: "A KDP production package is required" });
+  }
+
+  try {
+    const pdf = await printablePdf(packageData);
+    res.json(kdpPricing(pdf.pageCount));
+  } catch (error) {
+    res.status(500).json({
+      error: "KDP pricing estimate failed",
+      message: error.message
+    });
+  }
+});
+
 app.post("/api/export-bundle", async (req, res) => {
   const title = text(req.body.title, 200);
   const brief = text(req.body.brief, 12000);
@@ -940,6 +1068,10 @@ app.post("/api/export-bundle", async (req, res) => {
     const product = zip.folder("product");
     const review = zip.folder("review");
     const listing = zip.folder("listing");
+    const printable = await printablePdf(packageData);
+    const pricing = listingData.platform === "KDP"
+      ? kdpPricing(printable.pageCount)
+      : null;
     const readme = [
       "PUBLISHER FORGE — APPROVED PUBLISHING BUNDLE",
       "",
@@ -955,8 +1087,18 @@ app.post("/api/export-bundle", async (req, res) => {
       "product/full-package.md — complete review package",
       "product/draft.md — product content",
       "product/printable.pdf — formatted printable product",
+      ...(pricing
+        ? ["product/kdp-paperback-interior-6x9.pdf — KDP manuscript upload file"]
+        : []),
       ...(cover ? ["product/cover.png — original generated front cover"] : []),
       "listing/listing.json — marketplace title, description, and keywords",
+      ...(pricing
+        ? [
+            "listing/kdp-pricing.txt — price, print cost, and royalty estimates",
+            "listing/kdp-pricing.json — machine-readable pricing estimates",
+            "listing/kdp-upload-guide.txt — exact paperback upload sequence"
+          ]
+        : []),
       "review/quality-review.json — final Quality Control report",
       "review/production-checklist.md — remaining human production steps",
       "review/approved-brief.txt — source brief used to create the package"
@@ -977,9 +1119,38 @@ app.post("/api/export-bundle", async (req, res) => {
     zip.file("README.txt", readme);
     product.file("full-package.md", packageText);
     product.file("draft.md", draft);
-    product.file("printable.pdf", await printablePdf(packageData));
+    product.file("printable.pdf", printable);
+    if (pricing) product.file("kdp-paperback-interior-6x9.pdf", printable);
     if (cover) product.file("cover.png", cover);
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
+    if (pricing) {
+      listing.file("kdp-pricing.txt", formatKdpPricing(pricing));
+      listing.file("kdp-pricing.json", JSON.stringify(pricing, null, 2));
+      listing.file("kdp-upload-guide.txt", [
+        "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
+        "",
+        pricing.pageCountReady
+          ? "Interior page-count check: PASS (" + pricing.actualPageCount + " pages)"
+          : "STOP: Expand the interior from " + pricing.actualPageCount +
+            " to at least 24 pages before uploading.",
+        "",
+        "1. In KDP Bookshelf, choose Create > Paperback.",
+        "2. Copy the title, subtitle, description, and keywords from listing.json.",
+        "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
+        "4. Upload product/kdp-paperback-interior-6x9.pdf as the manuscript.",
+        cover
+          ? "5. After the manuscript finishes processing, open KDP Cover Creator and upload product/cover.png as the front-cover image."
+          : "5. Generate a cover in Publisher Forge, or create one with KDP Cover Creator.",
+        "6. Open Print Previewer and resolve every warning before continuing.",
+        "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
+        "8. Start with the Standard price: $" + pricing.recommendedPrice.toFixed(2) +
+          ". Confirm KDP's displayed print cost and royalty before saving.",
+        "9. Order a proof copy if you want to inspect the physical book before publishing.",
+        "10. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
+        "",
+        "KDP Bookshelf: https://kdp.amazon.com/bookshelf"
+      ].join("\n"));
+    }
     review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
     review.file("production-checklist.md", checklist);
     review.file("approved-brief.txt", brief);
