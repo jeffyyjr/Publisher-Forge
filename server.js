@@ -152,6 +152,32 @@ const qualityReviewSchema = {
   additionalProperties: false
 };
 
+const revenueReviewSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    verdict: { type: "string", enum: ["SCALE", "ITERATE", "STOP"] },
+    diagnosis: { type: "string" },
+    nextExperiment: { type: "string" },
+    successMetric: { type: "string" },
+    stopCondition: { type: "string" },
+    actions: {
+      type: "array",
+      items: { type: "string" }
+    }
+  },
+  required: [
+    "summary",
+    "verdict",
+    "diagnosis",
+    "nextExperiment",
+    "successMetric",
+    "stopCondition",
+    "actions"
+  ],
+  additionalProperties: false
+};
+
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "24mb" }));
@@ -309,6 +335,35 @@ function parseQualityReview(response) {
   } catch (error) {
     throw new Error("Quality Control could not read the completed review.");
   }
+}
+
+function parseRevenueReview(response) {
+  if (response.status === "incomplete") {
+    const reason = response.incomplete_details?.reason || "unknown reason";
+    throw new Error("Revenue Agent response was incomplete: " + reason + ".");
+  }
+
+  const raw = String(response.output_text || "").trim();
+
+  if (!raw) {
+    throw new Error("Revenue Agent returned no review. Please try again.");
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Revenue Agent could not read the completed review.");
+  }
+}
+
+function measuredNumber(value, label, maximum = 10000000) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0 || number > maximum) {
+    throw new Error(label + " must be a number from 0 to " + maximum + ".");
+  }
+
+  return number;
 }
 
 function isHumanProductionCheck(value) {
@@ -828,7 +883,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.15.0",
+    version: "0.16.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1473,6 +1528,116 @@ app.post("/api/export-pdf", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Printable PDF failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/revenue-review", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  try {
+    const title = text(req.body.title, 200);
+    const market = platform(req.body.platform);
+    const days = measuredNumber(req.body.days, "Test days", 365);
+    const views = measuredNumber(req.body.views, "Views", 100000000);
+    const orders = measuredNumber(req.body.orders, "Orders", 10000000);
+    const grossRevenue = measuredNumber(
+      req.body.grossRevenue,
+      "Gross revenue"
+    );
+    const costs = measuredNumber(req.body.costs, "Costs");
+    const context = text(req.body.context, 4000);
+
+    if (!title) {
+      return res.status(400).json({
+        error: "Product title is required"
+      });
+    }
+
+    if (days < 1) {
+      return res.status(400).json({
+        error: "Test days must be at least 1"
+      });
+    }
+
+    if (views === 0 && orders > 0) {
+      return res.status(400).json({
+        error: "Views are required when orders are greater than zero"
+      });
+    }
+
+    if (views === 0 && orders === 0 && grossRevenue === 0 && costs === 0) {
+      return res.status(400).json({
+        error: "Enter at least one measured result"
+      });
+    }
+
+    const metrics = {
+      days: Math.round(days),
+      views: Math.round(views),
+      orders: Math.round(orders),
+      grossRevenue: dollars(grossRevenue),
+      costs: dollars(costs),
+      conversionRate: views > 0
+        ? Number(((orders / views) * 100).toFixed(2))
+        : 0,
+      netProfit: dollars(grossRevenue - costs),
+      revenuePerView: views > 0
+        ? dollars(grossRevenue / views)
+        : 0,
+      profitPerOrder: orders > 0
+        ? dollars((grossRevenue - costs) / orders)
+        : 0
+    };
+    const prompt = [
+      "Review this measured marketplace test and choose the next move.",
+      "Product: " + title,
+      "Marketplace: " + market,
+      "Test metrics: " + JSON.stringify(metrics),
+      context ? "Product/listing context: " + context : "",
+      "Use only the supplied measurements. Do not invent benchmarks, sales, or costs.",
+      "Choose SCALE only when the observed economics support careful expansion; ITERATE when one focused test can answer the biggest uncertainty; STOP when continuing the same offer is not justified.",
+      "Recommend exactly one next experiment, a measurable success metric, a stop condition, and 2 to 4 ordered actions."
+    ].filter(Boolean).join("\n");
+
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are the Revenue/Market Agent for Publisher Forge. Turn real marketplace results into cautious, measurable next actions. Protect the operator from invented certainty and uncontrolled spending.",
+      reasoning: { effort: "low" },
+      input: prompt,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_revenue_review",
+          strict: true,
+          schema: revenueReviewSchema
+        }
+      },
+      max_output_tokens: 1800
+    });
+    const review = parseRevenueReview(response);
+
+    res.json({
+      title,
+      platform: market,
+      measuredAt: new Date().toISOString(),
+      metrics,
+      summary: text(review.summary, 800),
+      verdict: review.verdict,
+      diagnosis: text(review.diagnosis, 1200),
+      nextExperiment: text(review.nextExperiment, 800),
+      successMetric: text(review.successMetric, 500),
+      stopCondition: text(review.stopCondition, 500),
+      actions: Array.isArray(review.actions)
+        ? review.actions.slice(0, 4).map((item) => text(item, 400))
+        : []
+    });
+  } catch (error) {
+    const isInputError = /must be a number/.test(error.message);
+    res.status(isInputError ? 400 : 502).json({
+      error: isInputError ? "Invalid test metrics" : "Revenue review failed",
       message: error.message
     });
   }
