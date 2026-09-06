@@ -154,7 +154,7 @@ const qualityReviewSchema = {
 
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json({ limit: "12mb" }));
+app.use(express.json({ limit: "24mb" }));
 app.use(express.static(__dirname));
 
 function text(value, limit = 300) {
@@ -222,8 +222,8 @@ function validatedCover(value) {
   const buffer = Buffer.from(value.base64, "base64");
   const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
-  if (!buffer.length || buffer.length > 8 * 1024 * 1024) {
-    throw new Error("Cover image must be 8 MB or smaller");
+  if (!buffer.length || buffer.length > 15 * 1024 * 1024) {
+    throw new Error("Cover image must be 15 MB or smaller");
   }
 
   if (buffer.length < 8 || !buffer.subarray(0, 8).equals(pngSignature)) {
@@ -570,6 +570,193 @@ function kdpPricing(pageCount) {
   };
 }
 
+function kdpCoverSpecs(pageCount) {
+  const actualPageCount = Math.max(1, Math.round(Number(pageCount) || 1));
+  const trimWidth = 6;
+  const trimHeight = 9;
+  const bleed = 0.125;
+  const spineWidth = actualPageCount * 0.002252;
+  const coverWidth = bleed + trimWidth + spineWidth + trimWidth + bleed;
+  const coverHeight = bleed + trimHeight + bleed;
+
+  return {
+    format: "Paperback",
+    trimSize: "6 x 9 in",
+    ink: "Black ink",
+    paper: "White paper",
+    pageCount: actualPageCount,
+    minimumPageCount: 24,
+    pageCountReady: actualPageCount >= 24,
+    bleedInches: bleed,
+    spineWidthInches: Number(spineWidth.toFixed(4)),
+    coverWidthInches: Number(coverWidth.toFixed(4)),
+    coverHeightInches: Number(coverHeight.toFixed(4)),
+    spineTextIncluded: actualPageCount >= 80 && spineWidth * 72 >= 18,
+    barcodeArea: {
+      widthInches: 2,
+      heightInches: 1.2,
+      placement: "Lower-right corner of back cover; reserved for Amazon"
+    },
+    disclaimer:
+      "Calculated for a left-to-right 6 x 9 inch paperback with black ink, white paper, and KDP-required cover bleed. Confirm the final file in KDP Print Previewer."
+  };
+}
+
+function formatKdpCoverSpecs(specs) {
+  return [
+    "KDP PAPERBACK COVER SPECIFICATIONS",
+    "",
+    "Format: " + specs.format,
+    "Trim: " + specs.trimSize,
+    "Interior: " + specs.ink + ", " + specs.paper,
+    "Interior pages: " + specs.pageCount,
+    "Cover width: " + specs.coverWidthInches.toFixed(4) + " in",
+    "Cover height: " + specs.coverHeightInches.toFixed(4) + " in",
+    "Spine width: " + specs.spineWidthInches.toFixed(4) + " in",
+    "Bleed: " + specs.bleedInches.toFixed(3) + " in on outside edges",
+    "Spine text: " + (specs.spineTextIncluded ? "included" : "omitted"),
+    "Barcode area: " + specs.barcodeArea.widthInches + " x " +
+      specs.barcodeArea.heightInches + " in, " + specs.barcodeArea.placement,
+    "",
+    specs.pageCountReady
+      ? "Page-count check: ready for KDP's 24-page minimum."
+      : "PAGE-COUNT WARNING: finish the interior before generating a final cover.",
+    "",
+    specs.disclaimer
+  ].join("\n");
+}
+
+function kdpWrapCoverPdf(packageData, cover, pageCount, authorName) {
+  return new Promise((resolve, reject) => {
+    const specs = kdpCoverSpecs(pageCount);
+
+    if (!specs.pageCountReady) {
+      reject(new Error(
+        "The interior needs at least 24 pages before a final KDP cover can be sized."
+      ));
+      return;
+    }
+
+    const points = 72;
+    const bleed = specs.bleedInches * points;
+    const trimWidth = 6 * points;
+    const trimHeight = 9 * points;
+    const spineWidth = specs.spineWidthInches * points;
+    const coverWidth = specs.coverWidthInches * points;
+    const coverHeight = specs.coverHeightInches * points;
+    const backRight = bleed + trimWidth;
+    const frontLeft = backRight + spineWidth;
+    const title = printableText(packageData.packageTitle, 300) || "Untitled book";
+    const subtitle = printableText(packageData.subtitle, 500);
+    const author = printableText(authorName, 160);
+    const blurb = printableText(packageData.listingDescription, 4000)
+      .replace(/\s+/g, " ")
+      .trim();
+    const chunks = [];
+    const doc = new PDFDocument({
+      size: [coverWidth, coverHeight],
+      margins: { top: 0, right: 0, bottom: 0, left: 0 },
+      info: {
+        Title: title + " paperback cover",
+        Author: author,
+        Subject: "KDP 6 x 9 paperback full cover"
+      }
+    });
+
+    doc.registerFont(
+      "Inter",
+      path.join(__dirname, "node_modules/@fontsource/inter/files/inter-latin-400-normal.woff")
+    );
+    doc.registerFont(
+      "InterBold",
+      path.join(__dirname, "node_modules/@fontsource/inter/files/inter-latin-700-normal.woff")
+    );
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => {
+      const buffer = Buffer.concat(chunks);
+      buffer.coverSpecs = specs;
+      resolve(buffer);
+    });
+    doc.on("error", reject);
+
+    // A continuous background reaches every bleed edge. The generated front
+    // artwork covers the front panel, while the back and spine stay readable.
+    doc.rect(0, 0, coverWidth, coverHeight).fill("#111820");
+    doc.rect(0, 0, backRight, 15).fill("#E96E1A");
+    doc.image(cover, frontLeft, 0, {
+      width: coverWidth - frontLeft,
+      height: coverHeight
+    });
+
+    const backX = bleed + 27;
+    const backTextWidth = trimWidth - 54;
+    doc.font("InterBold").fontSize(18).fillColor("#FFB15A")
+      .text(title, backX, bleed + 38, {
+        width: backTextWidth,
+        lineGap: 3
+      });
+
+    let backY = doc.y + 15;
+    if (subtitle) {
+      doc.font("Inter").fontSize(10).fillColor("#D7DEE7")
+        .text(subtitle, backX, backY, {
+          width: backTextWidth,
+          lineGap: 2
+        });
+      backY = doc.y + 16;
+    }
+
+    doc.strokeColor("#E96E1A").lineWidth(1.5)
+      .moveTo(backX, backY)
+      .lineTo(backX + 76, backY)
+      .stroke();
+    backY += 18;
+
+    doc.font("Inter").fontSize(9.5).fillColor("#F3F6F9")
+      .text(blurb || "A practical paperback created for focused, useful results.",
+        backX, backY, {
+          width: backTextWidth,
+          height: 310,
+          lineGap: 3,
+          ellipsis: true
+        });
+
+    if (author) {
+      doc.font("InterBold").fontSize(10).fillColor("#FFB15A")
+        .text(author, backX, coverHeight - bleed - 54, {
+          width: 190,
+          lineBreak: false
+        });
+    }
+
+    // Amazon adds its barcode here. Nothing meaningful is placed underneath.
+    const barcodeWidth = 2 * points;
+    const barcodeHeight = 1.2 * points;
+    const barcodeX = backRight - 0.25 * points - barcodeWidth;
+    const barcodeY = coverHeight - bleed - 0.25 * points - barcodeHeight;
+    doc.rect(barcodeX, barcodeY, barcodeWidth, barcodeHeight).fill("#FFFFFF");
+
+    if (specs.spineTextIncluded) {
+      const spineCenterX = backRight + spineWidth / 2;
+      const spineFontSize = Math.min(11, Math.max(7, spineWidth - 9));
+
+      doc.save();
+      doc.translate(spineCenterX, coverHeight / 2);
+      doc.rotate(90);
+      doc.font("InterBold").fontSize(spineFontSize).fillColor("#FFFFFF")
+        .text(title, -trimHeight * 0.36, -spineFontSize / 2, {
+          width: trimHeight * 0.72,
+          align: "center",
+          lineBreak: false,
+          ellipsis: true
+        });
+      doc.restore();
+    }
+
+    doc.end();
+  });
+}
+
 function formatKdpPricing(pricing) {
   return [
     "KDP PAPERBACK PRICING ESTIMATE",
@@ -641,7 +828,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.14.0",
+    version: "0.15.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1012,12 +1199,64 @@ app.post("/api/kdp-pricing", async (req, res) => {
   }
 });
 
+app.post("/api/kdp-cover", async (req, res) => {
+  const packageData = req.body.package;
+  const authorName = text(req.body.authorName, 160);
+  let cover = null;
+
+  if (!packageData || platform(packageData.platform) !== "KDP") {
+    return res.status(400).json({ error: "A KDP production package is required" });
+  }
+
+  if (!authorName) {
+    return res.status(400).json({ error: "Add an author or pen name first" });
+  }
+
+  try {
+    cover = validatedCover(req.body.cover);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (!cover) {
+    return res.status(400).json({ error: "Generate a front cover first" });
+  }
+
+  try {
+    const printable = await printablePdf(packageData);
+    const wrap = await kdpWrapCoverPdf(
+      packageData,
+      cover,
+      printable.pageCount,
+      authorName
+    );
+    const filename = text(packageData.packageTitle, 100)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "publisher-forge-book";
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition":
+        'attachment; filename="' + filename + '-kdp-cover-wrap.pdf"',
+      "Cache-Control": "no-store"
+    });
+    res.send(wrap);
+  } catch (error) {
+    res.status(409).json({
+      error: "KDP cover could not be created",
+      message: error.message
+    });
+  }
+});
+
 app.post("/api/export-bundle", async (req, res) => {
   const title = text(req.body.title, 200);
   const brief = text(req.body.brief, 12000);
   const packageText = text(req.body.packageText, 50000);
   const packageData = req.body.package;
   const qualityReview = req.body.qualityReview;
+  const authorName = text(req.body.authorName, 160);
   let cover = null;
 
   try {
@@ -1049,6 +1288,7 @@ app.post("/api/export-bundle", async (req, res) => {
     deliverableType: text(packageData.deliverableType, 200),
     listingTitle: text(packageData.listingTitle, 500),
     listingDescription: text(packageData.listingDescription, 10000),
+    authorName,
     keywords: Array.isArray(packageData.keywords)
       ? packageData.keywords.map((item) => text(item, 200)).filter(Boolean)
       : [],
@@ -1072,6 +1312,15 @@ app.post("/api/export-bundle", async (req, res) => {
     const pricing = listingData.platform === "KDP"
       ? kdpPricing(printable.pageCount)
       : null;
+    const coverSpecs = pricing ? kdpCoverSpecs(printable.pageCount) : null;
+    const wrapCover = pricing && pricing.pageCountReady && cover && authorName
+      ? await kdpWrapCoverPdf(
+          packageData,
+          cover,
+          printable.pageCount,
+          authorName
+        )
+      : null;
     const readme = [
       "PUBLISHER FORGE — APPROVED PUBLISHING BUNDLE",
       "",
@@ -1091,11 +1340,16 @@ app.post("/api/export-bundle", async (req, res) => {
         ? ["product/kdp-paperback-interior-6x9.pdf — KDP manuscript upload file"]
         : []),
       ...(cover ? ["product/cover.png — original generated front cover"] : []),
+      ...(wrapCover
+        ? ["product/kdp-paperback-cover-wrap.pdf — print-ready back, spine, and front cover"]
+        : []),
       "listing/listing.json — marketplace title, description, and keywords",
       ...(pricing
         ? [
             "listing/kdp-pricing.txt — price, print cost, and royalty estimates",
             "listing/kdp-pricing.json — machine-readable pricing estimates",
+            "listing/kdp-cover-specs.txt — calculated cover and spine measurements",
+            "listing/kdp-cover-specs.json — machine-readable cover measurements",
             "listing/kdp-upload-guide.txt — exact paperback upload sequence"
           ]
         : []),
@@ -1122,10 +1376,13 @@ app.post("/api/export-bundle", async (req, res) => {
     product.file("printable.pdf", printable);
     if (pricing) product.file("kdp-paperback-interior-6x9.pdf", printable);
     if (cover) product.file("cover.png", cover);
+    if (wrapCover) product.file("kdp-paperback-cover-wrap.pdf", wrapCover);
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
     if (pricing) {
       listing.file("kdp-pricing.txt", formatKdpPricing(pricing));
       listing.file("kdp-pricing.json", JSON.stringify(pricing, null, 2));
+      listing.file("kdp-cover-specs.txt", formatKdpCoverSpecs(coverSpecs));
+      listing.file("kdp-cover-specs.json", JSON.stringify(coverSpecs, null, 2));
       listing.file("kdp-upload-guide.txt", [
         "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
         "",
@@ -1138,15 +1395,20 @@ app.post("/api/export-bundle", async (req, res) => {
         "2. Copy the title, subtitle, description, and keywords from listing.json.",
         "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
         "4. Upload product/kdp-paperback-interior-6x9.pdf as the manuscript.",
-        cover
-          ? "5. After the manuscript finishes processing, open KDP Cover Creator and upload product/cover.png as the front-cover image."
-          : "5. Generate a cover in Publisher Forge, or create one with KDP Cover Creator.",
+        wrapCover
+          ? "5. After the manuscript finishes processing, upload product/kdp-paperback-cover-wrap.pdf as the book cover."
+          : cover && !authorName
+            ? "5. Add an author or pen name in Publisher Forge and download the bundle again to create the full cover PDF."
+            : cover && !pricing.pageCountReady
+              ? "5. Finish the 24-page minimum, then generate the final full cover from the completed interior."
+              : "5. Generate a cover in Publisher Forge, or create one with KDP Cover Creator.",
         "6. Open Print Previewer and resolve every warning before continuing.",
         "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
         "8. Start with the Standard price: $" + pricing.recommendedPrice.toFixed(2) +
           ". Confirm KDP's displayed print cost and royalty before saving.",
         "9. Order a proof copy if you want to inspect the physical book before publishing.",
-        "10. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
+        "10. Let Amazon place the barcode in the reserved white area on the back cover.",
+        "11. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
         "",
         "KDP Bookshelf: https://kdp.amazon.com/bookshelf"
       ].join("\n"));

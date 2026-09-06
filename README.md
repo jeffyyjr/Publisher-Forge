@@ -23,6 +23,8 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - AI Cover Studio with original artwork, exact title typography, PNG download, and ZIP inclusion
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
 - KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
+- Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
+- Remembered author or pen name with matching front-cover typography
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 

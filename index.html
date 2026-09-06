@@ -419,6 +419,28 @@
       gap:9px;
     }
 
+    .cover-author {
+      display:grid;
+      gap:6px;
+      margin:0 0 12px;
+      color:#d9e0e8;
+      font-size:.84rem;
+      font-weight:700;
+    }
+
+    .cover-author[hidden] { display:none }
+
+    .cover-author input {
+      width:100%;
+      min-height:46px;
+      padding:10px 12px;
+      border:1px solid #465262;
+      border-radius:10px;
+      background:#090d12;
+      color:var(--text);
+      font:inherit;
+    }
+
     .cover-preview {
       display:grid;
       place-items:center;
@@ -1133,15 +1155,24 @@
               <div>
                 <h3>Cover Studio</h3>
                 <p id="coverStatus">
-                  Generate original artwork with exact, readable title text. A new cover requires fresh human approval.
+                  Generate original artwork with exact, readable cover text. For KDP, the full back, spine, and front PDF is sized automatically.
                 </p>
+                <label class="cover-author" id="coverAuthorField" hidden>
+                  <span>Author or pen name</span>
+                  <input id="coverAuthorName" type="text" maxlength="160"
+                    autocomplete="name" placeholder="Example: Logan Cross">
+                </label>
                 <div class="cover-actions">
                   <button class="btn primary" id="generateCoverButton" type="button">
                     Generate cover
                   </button>
                   <button class="btn secondary" id="downloadCoverButton"
                     type="button" hidden>
-                    Download cover PNG
+                    Download front cover PNG
+                  </button>
+                  <button class="btn secondary" id="downloadWrapButton"
+                    type="button" hidden>
+                    Download KDP cover PDF
                   </button>
                 </div>
               </div>
@@ -1273,6 +1304,12 @@
       document.getElementById("generateCoverButton");
     const downloadCoverButton =
       document.getElementById("downloadCoverButton");
+    const downloadWrapButton =
+      document.getElementById("downloadWrapButton");
+    const coverAuthorName =
+      document.getElementById("coverAuthorName");
+    const coverAuthorField =
+      document.getElementById("coverAuthorField");
 
     let activeResult = "";
     let activeBrief = "";
@@ -1283,6 +1320,10 @@
     let activeProductionBrief = "";
     let activeCover = null;
     let activeKdpPricing = null;
+
+    try {
+      coverAuthorName.value = localStorage.getItem("pfCoverAuthorName") || "";
+    } catch (error) {}
 
     function switchView(name) {
       const views = {
@@ -1445,8 +1486,12 @@
       document.getElementById("coverPlaceholder").textContent =
         "No cover generated yet";
       document.getElementById("coverStatus").textContent =
-        "Generate original artwork with exact, readable title text. A new cover requires fresh human approval.";
+        activePackage && activePackage.platform === "KDP"
+          ? "Add the author or pen name, then generate the front artwork. The full KDP cover PDF will be sized automatically."
+          : "Generate original artwork with exact, readable cover text. A new cover requires fresh human approval.";
+      coverAuthorField.hidden = !activePackage || activePackage.platform !== "KDP";
       downloadCoverButton.hidden = true;
+      downloadWrapButton.hidden = true;
       generateCoverButton.textContent = "Generate cover";
       generateCoverButton.disabled = !activePackage;
     }
@@ -1556,8 +1601,9 @@
         image.onload = function () {
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
-          const width = 1200;
-          const height = 1800;
+          // 6.125 x 9.25 inches at 300 PPI, including KDP cover bleed.
+          const width = 1838;
+          const height = 2775;
 
           canvas.width = width;
           canvas.height = height;
@@ -1570,40 +1616,56 @@
           context.fillStyle = gradient;
           context.fillRect(0, 0, width, height * .78);
 
+          const lowerGradient = context.createLinearGradient(
+            0, height * .72, 0, height
+          );
+          lowerGradient.addColorStop(0, "rgba(5, 8, 12, 0)");
+          lowerGradient.addColorStop(1, "rgba(5, 8, 12, .72)");
+          context.fillStyle = lowerGradient;
+          context.fillRect(0, height * .7, width, height * .3);
+
           const title = activePackage.packageTitle || activeProductionTitle;
           const subtitle = activePackage.subtitle || "";
-          const padding = 92;
-          let titleSize = title.length > 55 ? 76 : 92;
+          const author = coverAuthorName.value.trim();
+          const padding = 138;
+          let titleSize = title.length > 55 ? 114 : 138;
 
           context.fillStyle = "#ffffff";
           context.textBaseline = "top";
           context.font = "800 " + titleSize + "px Inter, Arial, sans-serif";
           let titleLines = wrapCanvasText(context, title, width - padding * 2);
 
-          while (titleLines.length > 4 && titleSize > 58) {
-            titleSize -= 6;
+          while (titleLines.length > 4 && titleSize > 87) {
+            titleSize -= 9;
             context.font = "800 " + titleSize + "px Inter, Arial, sans-serif";
             titleLines = wrapCanvasText(context, title, width - padding * 2);
           }
 
           context.shadowColor = "rgba(0, 0, 0, .55)";
           context.shadowBlur = 16;
-          let y = 100;
+          let y = 150;
           titleLines.slice(0, 5).forEach(function (line) {
             context.fillText(line, padding, y);
             y += titleSize * 1.08;
           });
 
           if (subtitle) {
-            context.font = "500 38px Inter, Arial, sans-serif";
+            context.font = "500 57px Inter, Arial, sans-serif";
             context.fillStyle = "rgba(255, 255, 255, .92)";
-            y += 28;
+            y += 42;
             wrapCanvasText(context, subtitle, width - padding * 2)
               .slice(0, 4)
               .forEach(function (line) {
                 context.fillText(line, padding, y);
-                y += 49;
+                y += 74;
               });
+          }
+
+          if (author) {
+            context.textBaseline = "bottom";
+            context.font = "700 48px Inter, Arial, sans-serif";
+            context.fillStyle = "rgba(255, 255, 255, .96)";
+            context.fillText(author, padding, height - 120);
           }
 
           context.shadowBlur = 0;
@@ -1620,6 +1682,14 @@
     async function generateCover() {
       if (!activePackage) {
         toast("Build a production package first");
+        return;
+      }
+
+
+      const authorName = coverAuthorName.value.trim();
+      if (activePackage.platform === "KDP" && !authorName) {
+        coverAuthorName.focus();
+        toast("Add an author or pen name first");
         return;
       }
 
@@ -1661,7 +1731,8 @@
         activeCover = {
           mimeType: "image/png",
           base64: dataUrl.split(",")[1],
-          generatedAt: data.generatedAt
+          generatedAt: data.generatedAt,
+          authorName: authorName
         };
 
         const coverImage = document.getElementById("coverImage");
@@ -1669,8 +1740,11 @@
         coverImage.hidden = false;
         document.getElementById("coverPlaceholder").hidden = true;
         document.getElementById("coverStatus").textContent =
-          "Cover ready. Check the image and wording before approval; it will be included in the publishing ZIP.";
+          activePackage.platform === "KDP"
+            ? "Front cover ready. The full back, spine, and front PDF will use the finished interior page count."
+            : "Cover ready. Check the image and wording before approval; it will be included in the publishing ZIP.";
         downloadCoverButton.hidden = false;
+        downloadWrapButton.hidden = activePackage.platform !== "KDP";
         generateCoverButton.textContent = "Generate a new cover";
 
         if (activePackage.approvedAt) {
@@ -3086,6 +3160,21 @@
 
     generateCoverButton.addEventListener("click", generateCover);
 
+    coverAuthorName.addEventListener("input", function () {
+      try {
+        localStorage.setItem("pfCoverAuthorName", coverAuthorName.value.trim());
+      } catch (error) {}
+    });
+
+    coverAuthorName.addEventListener("change", function () {
+      if (activeCover &&
+          activeCover.authorName !== coverAuthorName.value.trim()) {
+        resetCover();
+        document.getElementById("coverStatus").textContent =
+          "Author name changed. Generate the cover again so the artwork and KDP wrap match.";
+      }
+    });
+
     downloadCoverButton.addEventListener("click", function () {
       if (!activeCover) return;
 
@@ -3096,6 +3185,55 @@
       link.click();
       link.remove();
       toast("Cover downloaded");
+    });
+
+    downloadWrapButton.addEventListener("click", async function () {
+      if (!activePackage || !activeCover) return;
+
+      const authorName = coverAuthorName.value.trim();
+      if (!authorName) {
+        coverAuthorName.focus();
+        toast("Add an author or pen name first");
+        return;
+      }
+
+      loading(downloadWrapButton, true, "Download KDP cover PDF");
+
+      try {
+        const response = await fetch("/api/kdp-cover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            package: activePackage,
+            cover: activeCover,
+            authorName: authorName
+          })
+        });
+
+        if (!response.ok) {
+          const data = await readJson(response);
+          throw new Error(data.message || data.error || "KDP cover failed");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = fileSlug(activePackage.packageTitle) +
+          "-kdp-cover-wrap.pdf";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+        toast("KDP cover PDF downloaded");
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        loading(downloadWrapButton, false, "Download KDP cover PDF");
+      }
     });
 
     document.getElementById("copyProductionButton")
@@ -3140,6 +3278,7 @@
           deliverableType: activePackage.deliverableType,
           listingTitle: activePackage.listingTitle,
           listingDescription: activePackage.listingDescription,
+          authorName: coverAuthorName.value.trim(),
           keywords: activePackage.keywords,
           productionChecklist: activePackage.productionChecklist,
           riskFlags: activePackage.riskFlags,
@@ -3180,7 +3319,8 @@
               packageText: activePackageText,
               package: activePackage,
               qualityReview: activeQualityReview,
-              cover: activeCover
+              cover: activeCover,
+              authorName: coverAuthorName.value.trim()
             })
           });
 
