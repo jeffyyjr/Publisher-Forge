@@ -12,6 +12,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -153,7 +154,7 @@ const qualityReviewSchema = {
 
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json({ limit: "200kb" }));
+app.use(express.json({ limit: "12mb" }));
 app.use(express.static(__dirname));
 
 function text(value, limit = 300) {
@@ -209,6 +210,27 @@ function requireOpenAI(res) {
   });
 
   return false;
+}
+
+function validatedCover(value) {
+  if (!value) return null;
+
+  if (value.mimeType !== "image/png" || typeof value.base64 !== "string") {
+    throw new Error("Cover must be a PNG image");
+  }
+
+  const buffer = Buffer.from(value.base64, "base64");
+  const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+  if (!buffer.length || buffer.length > 8 * 1024 * 1024) {
+    throw new Error("Cover image must be 8 MB or smaller");
+  }
+
+  if (buffer.length < 8 || !buffer.subarray(0, 8).equals(pngSignature)) {
+    throw new Error("Cover image is not a valid PNG");
+  }
+
+  return buffer;
 }
 
 function localDecision(values) {
@@ -504,12 +526,13 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.12.0",
+    version: "0.13.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
     qualityControlAvailable: Boolean(client),
-    revisionAgentAvailable: Boolean(client)
+    revisionAgentAvailable: Boolean(client),
+    coverStudioAvailable: Boolean(client)
   });
 });
 
@@ -792,12 +815,72 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
   }
 });
 
+app.post("/api/generate-cover", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const title = text(req.body.packageTitle || req.body.title, 200);
+  const subtitle = text(req.body.subtitle, 300);
+  const deliverable = text(req.body.deliverableType, 160);
+  const market = platform(req.body.platform);
+  const description = text(req.body.listingDescription, 1200);
+
+  if (!title) {
+    return res.status(400).json({ error: "A package title is required" });
+  }
+
+  const prompt = [
+    "Create original portrait cover artwork for a " + market + " digital publishing product.",
+    "Product title for creative context: " + title + ".",
+    subtitle ? "Subtitle for creative context: " + subtitle + "." : "",
+    deliverable ? "Deliverable: " + deliverable + "." : "",
+    description ? "Product purpose: " + description + "." : "",
+    "Generate flat front-cover artwork only in a polished, commercially useful editorial style.",
+    "Leave calm, uncluttered negative space across the upper half for title typography that will be added later.",
+    "Do not render any words, letters, logos, watermarks, trademarks, brand marks, celebrities, copyrighted characters, product mockups, book spines, or back covers.",
+    "Use original visual elements and avoid imitating any named artist or existing product."
+  ].filter(Boolean).join("\n");
+
+  try {
+    const result = await client.images.generate({
+      model: IMAGE_MODEL,
+      prompt,
+      size: "1024x1536",
+      quality: "medium"
+    });
+    const base64 = result.data?.[0]?.b64_json;
+
+    if (!base64) {
+      throw new Error("The image service did not return a cover image");
+    }
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      mimeType: "image/png",
+      base64
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Cover generation failed",
+      message: error.code === "moderation_blocked"
+        ? "The image request was blocked. Adjust the product wording and try again."
+        : error.message
+    });
+  }
+});
+
 app.post("/api/export-bundle", async (req, res) => {
   const title = text(req.body.title, 200);
   const brief = text(req.body.brief, 12000);
   const packageText = text(req.body.packageText, 50000);
   const packageData = req.body.package;
   const qualityReview = req.body.qualityReview;
+  let cover = null;
+
+  try {
+    cover = validatedCover(req.body.cover);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 
   if (!title || !brief || !packageText || !packageData || !qualityReview) {
     return res.status(400).json({
@@ -856,6 +939,7 @@ app.post("/api/export-bundle", async (req, res) => {
       "product/full-package.md — complete review package",
       "product/draft.md — product content",
       "product/printable.pdf — formatted printable product",
+      ...(cover ? ["product/cover.png — original generated front cover"] : []),
       "listing/listing.json — marketplace title, description, and keywords",
       "review/quality-review.json — final Quality Control report",
       "review/production-checklist.md — remaining human production steps",
@@ -878,6 +962,7 @@ app.post("/api/export-bundle", async (req, res) => {
     product.file("full-package.md", packageText);
     product.file("draft.md", draft);
     product.file("printable.pdf", await printablePdf(packageData));
+    if (cover) product.file("cover.png", cover);
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
     review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
     review.file("production-checklist.md", checklist);

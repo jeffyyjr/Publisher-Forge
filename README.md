@@ -2,6 +2,9 @@
 
 A browser-based AI publishing workflow for finding, evaluating, planning, and producing original Amazon KDP and Etsy product concepts.
 
+## Operating principle
+If AI or software can do a task reliably, automate it instead of making the operator do it manually.
+
 ## Run
 Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 
@@ -16,8 +19,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Device-local Project Vault with automatic saving and project restoration
 - One-tap approved publishing ZIP with draft, listing, QC, brief, and checklist files
 - Print-formatted PDF export with a title page, structured headings, and page numbers
+- AI Cover Studio with original artwork, exact title typography, PNG download, and ZIP inclusion
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 
 ## Next production layer
-Add accounts, persistent project storage, document/PDF rendering, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
+Build a Revenue/Market Agent directly into the pipeline: find money → evaluate opportunity → create → test → measure → learn → repeat. Then add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.

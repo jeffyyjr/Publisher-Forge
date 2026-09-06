@@ -395,6 +395,51 @@
 
     .quality-card.visible { display:block }
 
+    .cover-card {
+      display:grid;
+      gap:14px;
+      margin-top:12px;
+      padding:14px;
+      border:1px solid #3b4655;
+      border-radius:14px;
+      background:#111820;
+    }
+
+    .cover-card h3 { margin:0 0 5px }
+
+    .cover-card p {
+      margin:0 0 12px;
+      color:var(--muted);
+      font-size:.84rem;
+      line-height:1.5;
+    }
+
+    .cover-actions {
+      display:grid;
+      gap:9px;
+    }
+
+    .cover-preview {
+      display:grid;
+      place-items:center;
+      min-height:240px;
+      overflow:hidden;
+      border:1px dashed #465262;
+      border-radius:12px;
+      background:#090d12;
+      color:var(--muted);
+      font-size:.82rem;
+      text-align:center;
+    }
+
+    .cover-preview img {
+      display:block;
+      width:100%;
+      max-width:280px;
+      aspect-ratio:2/3;
+      object-fit:cover;
+    }
+
     .quality-metrics {
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -680,6 +725,7 @@
       .two { grid-template-columns:1.3fr .7fr }
       .buttons,.result-actions { grid-template-columns:1fr 1fr }
       .facts { grid-template-columns:1fr 1fr }
+      .cover-card { grid-template-columns:minmax(0,1fr) 230px }
     }
 
     @media (min-width:920px) {
@@ -1021,6 +1067,28 @@
             <h3 class="idea-name" id="productionPackageTitle"></h3>
             <div class="output" id="productionOutput"></div>
 
+            <div class="cover-card" id="coverCard">
+              <div>
+                <h3>Cover Studio</h3>
+                <p id="coverStatus">
+                  Generate original artwork with exact, readable title text. A new cover requires fresh human approval.
+                </p>
+                <div class="cover-actions">
+                  <button class="btn primary" id="generateCoverButton" type="button">
+                    Generate cover
+                  </button>
+                  <button class="btn secondary" id="downloadCoverButton"
+                    type="button" hidden>
+                    Download cover PNG
+                  </button>
+                </div>
+              </div>
+              <div class="cover-preview" id="coverPreview">
+                <span id="coverPlaceholder">No cover generated yet</span>
+                <img id="coverImage" alt="Generated product cover" hidden>
+              </div>
+            </div>
+
             <div class="quality-card" id="qualityCard">
               <div class="score-line">
                 <span class="verdict" id="qualityVerdict">NOT REVIEWED</span>
@@ -1130,6 +1198,10 @@
       document.getElementById("runQualityButton");
     const revisePackageButton =
       document.getElementById("revisePackageButton");
+    const generateCoverButton =
+      document.getElementById("generateCoverButton");
+    const downloadCoverButton =
+      document.getElementById("downloadCoverButton");
 
     let activeResult = "";
     let activeBrief = "";
@@ -1138,6 +1210,7 @@
     let activeQualityReview = null;
     let activeProductionTitle = "";
     let activeProductionBrief = "";
+    let activeCover = null;
 
     function switchView(name) {
       const views = {
@@ -1286,6 +1359,204 @@
         "Release blockers",
         bulletList(data.blockers, "No release blockers found.")
       ].join("\n");
+    }
+
+    function resetCover() {
+      activeCover = null;
+      document.getElementById("coverImage").hidden = true;
+      document.getElementById("coverImage").removeAttribute("src");
+      document.getElementById("coverPlaceholder").hidden = false;
+      document.getElementById("coverPlaceholder").textContent =
+        "No cover generated yet";
+      document.getElementById("coverStatus").textContent =
+        "Generate original artwork with exact, readable title text. A new cover requires fresh human approval.";
+      downloadCoverButton.hidden = true;
+      generateCoverButton.textContent = "Generate cover";
+      generateCoverButton.disabled = !activePackage;
+    }
+
+    function wrapCanvasText(context, value, maxWidth) {
+      const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+      const lines = [];
+      let line = "";
+
+      words.forEach(function (word) {
+        const candidate = line ? line + " " + word : word;
+
+        if (line && context.measureText(candidate).width > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = candidate;
+        }
+      });
+
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function composeCover(artBase64) {
+      return new Promise(function (resolve, reject) {
+        const image = new Image();
+
+        image.onload = function () {
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          const width = 1200;
+          const height = 1800;
+
+          canvas.width = width;
+          canvas.height = height;
+          context.drawImage(image, 0, 0, width, height);
+
+          const gradient = context.createLinearGradient(0, 0, 0, height * .72);
+          gradient.addColorStop(0, "rgba(5, 8, 12, .86)");
+          gradient.addColorStop(.62, "rgba(5, 8, 12, .36)");
+          gradient.addColorStop(1, "rgba(5, 8, 12, 0)");
+          context.fillStyle = gradient;
+          context.fillRect(0, 0, width, height * .78);
+
+          const title = activePackage.packageTitle || activeProductionTitle;
+          const subtitle = activePackage.subtitle || "";
+          const padding = 92;
+          let titleSize = title.length > 55 ? 76 : 92;
+
+          context.fillStyle = "#ffffff";
+          context.textBaseline = "top";
+          context.font = "800 " + titleSize + "px Inter, Arial, sans-serif";
+          let titleLines = wrapCanvasText(context, title, width - padding * 2);
+
+          while (titleLines.length > 4 && titleSize > 58) {
+            titleSize -= 6;
+            context.font = "800 " + titleSize + "px Inter, Arial, sans-serif";
+            titleLines = wrapCanvasText(context, title, width - padding * 2);
+          }
+
+          context.shadowColor = "rgba(0, 0, 0, .55)";
+          context.shadowBlur = 16;
+          let y = 100;
+          titleLines.slice(0, 5).forEach(function (line) {
+            context.fillText(line, padding, y);
+            y += titleSize * 1.08;
+          });
+
+          if (subtitle) {
+            context.font = "500 38px Inter, Arial, sans-serif";
+            context.fillStyle = "rgba(255, 255, 255, .92)";
+            y += 28;
+            wrapCanvasText(context, subtitle, width - padding * 2)
+              .slice(0, 4)
+              .forEach(function (line) {
+                context.fillText(line, padding, y);
+                y += 49;
+              });
+          }
+
+          context.shadowBlur = 0;
+          resolve(canvas.toDataURL("image/png"));
+        };
+
+        image.onerror = function () {
+          reject(new Error("The generated artwork could not be prepared"));
+        };
+        image.src = "data:image/png;base64," + artBase64;
+      });
+    }
+
+    async function generateCover() {
+      if (!activePackage) {
+        toast("Build a production package first");
+        return;
+      }
+
+      const hadCover = Boolean(activeCover);
+      loading(generateCoverButton, true,
+        hadCover ? "Generate a new cover" : "Generate cover");
+      document.getElementById("coverStatus").textContent =
+        "Creating original cover artwork… This can take up to two minutes.";
+      document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
+
+      if (!hadCover) {
+        document.getElementById("coverPlaceholder").hidden = false;
+        document.getElementById("coverPlaceholder").textContent =
+          "Creating original cover artwork…";
+      }
+
+      try {
+        const response = await fetch("/api/generate-cover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: activeProductionTitle,
+            platform: activePackage.platform,
+            packageTitle: activePackage.packageTitle,
+            subtitle: activePackage.subtitle,
+            deliverableType: activePackage.deliverableType,
+            listingDescription: activePackage.listingDescription
+          })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "Cover generation failed");
+        }
+
+        const dataUrl = await composeCover(data.base64);
+        activeCover = {
+          mimeType: "image/png",
+          base64: dataUrl.split(",")[1],
+          generatedAt: data.generatedAt
+        };
+
+        const coverImage = document.getElementById("coverImage");
+        coverImage.src = dataUrl;
+        coverImage.hidden = false;
+        document.getElementById("coverPlaceholder").hidden = true;
+        document.getElementById("coverStatus").textContent =
+          "Cover ready. Check the image and wording before approval; it will be included in the publishing ZIP.";
+        downloadCoverButton.hidden = false;
+        generateCoverButton.textContent = "Generate a new cover";
+
+        if (activePackage.approvedAt) {
+          delete activePackage.approvedAt;
+          document.getElementById("productionVerdict").className = "verdict";
+          document.getElementById("productionVerdict").textContent =
+            "NEEDS APPROVAL";
+          document.getElementById("approveProductionButton").disabled =
+            !activeQualityReview || activeQualityReview.verdict !== "PASS";
+          document.getElementById("approveProductionButton").textContent =
+            "Approve on this device";
+          document.getElementById("downloadBundleButton").disabled = true;
+          document.getElementById("downloadPdfButton").disabled = true;
+          saveActiveProject();
+        }
+
+        document.getElementById("approvalNote").textContent =
+          activeQualityReview && activeQualityReview.verdict === "PASS"
+            ? "Review the new cover, then approve the complete package."
+            : "Review the cover and run Quality Control before approval.";
+        toast("Cover generated");
+      } catch (error) {
+        if (!hadCover) {
+          document.getElementById("coverPlaceholder").hidden = false;
+          document.getElementById("coverPlaceholder").textContent =
+            "Cover unavailable";
+        }
+        document.getElementById("coverStatus").textContent = error.message;
+        toast(error.message);
+      } finally {
+        loading(generateCoverButton, false,
+          activeCover ? "Generate a new cover" : "Generate cover");
+        const passed = activeQualityReview &&
+          activeQualityReview.verdict === "PASS";
+        const approved = passed && activePackage && activePackage.approvedAt;
+        document.getElementById("approveProductionButton").disabled =
+          !passed || Boolean(activePackage && activePackage.approvedAt);
+        document.getElementById("downloadBundleButton").disabled = !approved;
+        document.getElementById("downloadPdfButton").disabled = !approved;
+      }
     }
 
     function resetQualityReview() {
@@ -1456,6 +1727,7 @@
       productionPlatform.value = project.platform;
       productionBrief.value = project.brief;
       switchView("production");
+      resetCover();
 
       if (project.package) {
         showProductionPackage(project.package);
@@ -2255,7 +2527,8 @@
         "downloadBundleButton",
         "downloadPdfButton",
         "runQualityButton",
-        "revisePackageButton"
+        "revisePackageButton",
+        "generateCoverButton"
       ].forEach(function (id) {
         document.getElementById(id).disabled = !enabled;
       });
@@ -2266,6 +2539,7 @@
     }
 
     function showProductionWorking(title) {
+      resetCover();
       resetQualityReview();
       document.getElementById("productionEmpty").style.display = "none";
       document.getElementById("productionResult")
@@ -2287,6 +2561,7 @@
     function showProductionPackage(data) {
       activePackage = data;
       activePackageText = formatProductionPackage(data);
+      resetCover();
       resetQualityReview();
 
       document.getElementById("productionEmpty").style.display = "none";
@@ -2323,6 +2598,7 @@
       activePackageText = "";
       activeProductionTitle = "";
       activeProductionBrief = "";
+      resetCover();
       resetQualityReview();
 
       document.getElementById("productionHeading").textContent =
@@ -2636,6 +2912,20 @@
       reviseAndRecheck
     );
 
+    generateCoverButton.addEventListener("click", generateCover);
+
+    downloadCoverButton.addEventListener("click", function () {
+      if (!activeCover) return;
+
+      const link = document.createElement("a");
+      link.href = "data:image/png;base64," + activeCover.base64;
+      link.download = fileSlug(activePackage.packageTitle) + "-cover.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast("Cover downloaded");
+    });
+
     document.getElementById("copyProductionButton")
       .addEventListener("click", async function () {
         if (!activePackageText) return;
@@ -2716,7 +3006,8 @@
               brief: activeProductionBrief,
               packageText: activePackageText,
               package: activePackage,
-              qualityReview: activeQualityReview
+              qualityReview: activeQualityReview,
+              cover: activeCover
             })
           });
 
