@@ -15,6 +15,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Product Brief generation
 - Production Agent for original draft content and listing metadata
 - Quality Control Agent with deterministic scoring and approval blocking
+- Automatic Quality Control recovery when a detailed review needs more response space
 - One-tap package revision followed by a prior-issue-aware Quality Control recheck
 - Human-only KDP/Etsy finishing checks separated from AI-fixable blockers
 - Device-local Project Vault with automatic saving and project restoration
