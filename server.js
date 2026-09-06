@@ -311,6 +311,11 @@ function parseQualityReview(response) {
   }
 }
 
+function isHumanProductionCheck(value) {
+  return /\b(cover (design|review|inspection)|final visual inspection|proofread(ing)?|trim (size|dimensions?)|bleed settings?|page dimensions?|final (file )?formatting|final layout|isbn selection|marketplace upload|upload(ing)? (the )?(files?|product)|confirm current marketplace (rules|requirements)|print proof)\b/i
+    .test(String(value || ""));
+}
+
 function printableText(value, limit) {
   return text(value, limit)
     .replace(/[‘’]/g, "'")
@@ -526,7 +531,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.13.0",
+    version: "0.13.1",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -689,6 +694,7 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
   const market = platform(req.body.platform);
   const brief = text(req.body.brief, 12000);
   const packageText = text(req.body.packageText, 50000);
+  const previousReview = text(req.body.previousReview, 12000);
 
   if (!title || !brief || !packageText) {
     return res.status(400).json({
@@ -700,12 +706,16 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, and practical. Check whether the draft is useful and complete, whether listing copy matches the product, and whether claims, trademarks, copyrighted material, unsafe promises, missing formatting work, or unsupported facts require human attention. Put only serious release-stopping concerns in blockers. Put concrete corrections needed before approval in requiredFixes. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, and practical. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, or major misalignment with the approved brief. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
         "APPROVED BRIEF:\n" + brief + "\n\n" +
-        "PRODUCTION PACKAGE:\n" + packageText,
+        "PRODUCTION PACKAGE:\n" + packageText +
+        (previousReview
+          ? "\n\nPRIOR QUALITY REPORT:\n" + previousReview +
+            "\n\nThis is a recheck. Verify each prior issue against the revised package and remove it when resolved."
+          : ""),
       text: {
         format: {
           type: "json_schema",
@@ -729,15 +739,20 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
       Object.values(metrics).reduce((total, value) => total + value, 0) /
       Object.keys(metrics).length
     );
-    const blockers = Array.isArray(review.blockers)
+    const rawBlockers = Array.isArray(review.blockers)
       ? review.blockers.filter(Boolean)
       : [];
-    const requiredFixes = Array.isArray(review.requiredFixes)
+    const rawRequiredFixes = Array.isArray(review.requiredFixes)
       ? review.requiredFixes.filter(Boolean)
       : [];
+    const humanChecks = [...rawBlockers, ...rawRequiredFixes]
+      .filter(isHumanProductionCheck);
+    const blockers = rawBlockers.filter((item) => !isHumanProductionCheck(item));
+    const requiredFixes = rawRequiredFixes
+      .filter((item) => !isHumanProductionCheck(item));
     const verdict = blockers.length
       ? "BLOCKED"
-      : overallScore >= 80 && !requiredFixes.length
+      : overallScore >= 75 && !requiredFixes.length
         ? "PASS"
         : "REVISE";
 
@@ -752,7 +767,8 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
         ? review.strengths.filter(Boolean)
         : [],
       requiredFixes,
-      blockers
+      blockers,
+      humanChecks
     });
   } catch (error) {
     res.status(502).json({
@@ -781,7 +797,7 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report. Preserve strong material that still serves the approved brief. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims and flag facts, rights, formatting, or design work that still needs human verification. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
+        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report in one pass. Preserve strong material that still serves the approved brief. Make the actual corrections inside the draft, listing title, listing description, keywords, and other relevant fields; do not merely copy an AI-fixable issue into the checklist or risk flags. For inherently human-only work such as final visual inspection, trim and bleed confirmation, proofreading, ISBN selection, or marketplace upload, include one clear checklist item without presenting it as an unresolved content defect. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
       input:
         "Revise this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +

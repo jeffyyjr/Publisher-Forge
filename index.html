@@ -1357,7 +1357,11 @@
         bulletList(data.requiredFixes, "No required fixes."),
         "",
         "Release blockers",
-        bulletList(data.blockers, "No release blockers found.")
+        bulletList(data.blockers, "No release blockers found."),
+        "",
+        "Human final checks",
+        bulletList(data.humanChecks,
+          "Use the production checklist for final human checks.")
       ].join("\n");
     }
 
@@ -1624,9 +1628,15 @@
         !(passed && activePackage && activePackage.approvedAt);
       revisePackageButton.hidden = passed;
       revisePackageButton.disabled = passed;
+      const remainingIssue = data.blockers && data.blockers[0] ||
+        data.requiredFixes && data.requiredFixes[0];
       document.getElementById("approvalNote").textContent = passed
-        ? "Quality check passed. Human approval is now unlocked."
-        : "Approval stays locked. Revise the package and Quality Control will run again.";
+        ? data.humanChecks && data.humanChecks.length
+          ? "Quality passed. Review the listed human checks before approval."
+          : "Quality check passed. Human approval is now unlocked."
+        : remainingIssue
+          ? "Still locked: " + remainingIssue
+          : "Approval stays locked until the written package passes Quality Control.";
       saveActiveProject();
     }
 
@@ -2675,11 +2685,15 @@
       }
     }
 
-    async function runQualityReview() {
+    async function runQualityReview(previousReview) {
       if (!activePackage || !activePackageText) {
         toast("Build a production package first");
         return;
       }
+
+      const priorReview = previousReview && previousReview.verdict
+        ? previousReview
+        : null;
 
       const qualityCard = document.getElementById("qualityCard");
       const qualityBadge = document.getElementById("qualityVerdict");
@@ -2710,7 +2724,10 @@
             title: activeProductionTitle,
             platform: activePackage.platform,
             brief: activeProductionBrief,
-            packageText: activePackageText
+            packageText: activePackageText,
+            previousReview: priorReview
+              ? JSON.stringify(priorReview)
+              : ""
           })
         });
         const data = await readJson(response);
@@ -2784,7 +2801,7 @@
 
         showProductionPackage(data);
         toast("Revision complete. Rechecking quality…");
-        await runQualityReview();
+        await runQualityReview(review);
       } catch (error) {
         document.getElementById("productionVerdict").className = "verdict";
         document.getElementById("productionVerdict").textContent =
