@@ -21,6 +21,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - One-tap approved publishing ZIP with draft, listing, QC, brief, and checklist files
 - Print-formatted PDF export with a title page, structured headings, and page numbers
 - AI Cover Studio with original artwork, exact title typography, PNG download, and ZIP inclusion
+- Interior Art Studio that replaces manuscript placeholders with original black-and-white illustrations embedded in the PDF and ZIP
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
 - KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
