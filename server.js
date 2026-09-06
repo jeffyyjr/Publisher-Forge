@@ -1075,7 +1075,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.3",
+    version: "0.17.4",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1328,11 +1328,12 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
       resolvedInteriorArtCount > 0 && !hasIllustrationPlaceholders &&
       /(?:unresolved|missing|replace|placeholder).*(?:artwork|illustration)|(?:artwork|illustration).*(?:unresolved|missing|replace|placeholder)/i
         .test(String(item || ""));
-    const humanChecks = [...rawBlockers, ...rawRequiredFixes]
-      .filter(isHumanProductionCheck);
+    const initialHumanChecks = [...rawBlockers, ...rawRequiredFixes]
+      .filter((item) =>
+        isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
     const blockers = rawBlockers.filter((item) =>
       !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
-    const requiredFixes = rawRequiredFixes
+    let requiredFixes = rawRequiredFixes
       .filter((item) =>
         !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
 
@@ -1342,6 +1343,15 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
         "Generate and insert every unresolved illustration placeholder before release."
       );
     }
+    const strongReview = !blockers.length && overallScore >= 85;
+    const recommendations = strongReview ? requiredFixes : [];
+    const humanChecks = [...new Set([
+      ...initialHumanChecks,
+      ...recommendations
+    ])];
+
+    if (strongReview) requiredFixes = [];
+
     const verdict = blockers.length
       ? "BLOCKED"
       : overallScore >= 75 && !requiredFixes.length
@@ -1360,7 +1370,8 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
         : [],
       requiredFixes,
       blockers,
-      humanChecks
+      humanChecks,
+      recommendations
     });
   } catch (error) {
     res.status(502).json({
