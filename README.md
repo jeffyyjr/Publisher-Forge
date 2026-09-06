@@ -25,8 +25,10 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
 - Remembered author or pen name with matching front-cover typography
+- Revenue/Market Agent with measured conversion, profit, scale/iterate/stop decisions, and one controlled next experiment
+- Device-local revenue learning history for repeat test cycles
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 
 ## Next production layer
-Build a Revenue/Market Agent directly into the pipeline: find money → evaluate opportunity → create → test → measure → learn → repeat. Then add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
+Add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
