@@ -25,6 +25,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - AI Cover Studio with original artwork, exact title typography, PNG download, and ZIP inclusion
 - Interior Art Studio that replaces up to 12 manuscript placeholders in safe automatic batches, embedding the finished black-and-white illustrations in the PDF and ZIP
 - Single-sided KDP coloring pages with clean blank reverse sides and artwork-aware Quality Control
+- Automatic page-label correction, embedded export fonts, and complete KDP black-and-white metadata
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
 - KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
