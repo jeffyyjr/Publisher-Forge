@@ -1724,7 +1724,7 @@
         generateInteriorArtButton.textContent = "Generate " +
           placeholderCount + " interior illustration" +
           (placeholderCount === 1 ? "" : "s");
-        generateInteriorArtButton.disabled = placeholderCount > 6;
+        generateInteriorArtButton.disabled = placeholderCount > 12;
       } else {
         document.getElementById("interiorArtStatus").textContent =
           packageData
@@ -2044,8 +2044,8 @@
         return;
       }
 
-      if (placeholderCount > 6) {
-        toast("Interior Art Studio supports up to 6 illustrations per package");
+      if (placeholderCount > 12) {
+        toast("Interior Art Studio supports up to 12 illustrations per package");
         return;
       }
 
@@ -2056,35 +2056,53 @@
           (placeholderCount === 1 ? "" : "s")
       );
       document.getElementById("interiorArtStatus").textContent =
-        "Creating " + placeholderCount + " original line illustration" +
+        "Preparing " + placeholderCount + " original line illustration" +
         (placeholderCount === 1 ? "" : "s") +
         "… Keep this page open; it can take several minutes.";
       interiorArtGrid.replaceChildren();
 
       try {
-        const response = await fetch("/api/generate-interior-art", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: activeProductionTitle,
-            platform: activePackage.platform,
-            packageTitle: activePackage.packageTitle,
-            draftMarkdown: sourceMarkdown
-          })
-        });
-        const data = await readJson(response);
+        let workingMarkdown = sourceMarkdown;
+        let generatedArtworks = [];
 
-        if (!response.ok) {
-          throw new Error(
-            data.message || data.error || "Interior art generation failed"
-          );
+        while (countIllustrationPlaceholders(workingMarkdown)) {
+          const remaining = countIllustrationPlaceholders(workingMarkdown);
+          const batchCount = Math.min(3, remaining);
+          const completed = placeholderCount - remaining;
+          document.getElementById("interiorArtStatus").textContent =
+            "Creating illustrations " + (completed + 1) + "–" +
+            (completed + batchCount) + " of " + placeholderCount +
+            "… Keep this page open.";
+
+          const response = await fetch("/api/generate-interior-art", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: activeProductionTitle,
+              platform: activePackage.platform,
+              packageTitle: activePackage.packageTitle,
+              draftMarkdown: workingMarkdown,
+              startIndex: completed,
+              batchSize: batchCount
+            })
+          });
+          const data = await readJson(response);
+
+          if (!response.ok) {
+            throw new Error(
+              data.message || data.error || "Interior art generation failed"
+            );
+          }
+
+          generatedArtworks = generatedArtworks.concat(data.artworks || []);
+          workingMarkdown = data.draftMarkdown;
         }
 
         if (activePackage.approvedAt) delete activePackage.approvedAt;
-        activePackage.artSourceMarkdown = data.sourceMarkdown;
-        activePackage.draftMarkdown = data.draftMarkdown;
-        activePackage.interiorArt = data.artworks;
-        activePackage.interiorArtGeneratedAt = data.generatedAt;
+        activePackage.artSourceMarkdown = sourceMarkdown;
+        activePackage.draftMarkdown = workingMarkdown;
+        activePackage.interiorArt = generatedArtworks;
+        activePackage.interiorArtGeneratedAt = new Date().toISOString();
         activePackageText = formatProductionPackage(activePackage);
         productionOutput.textContent = activePackageText;
         renderInteriorArtState(activePackage);
