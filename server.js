@@ -267,10 +267,10 @@ function extractIllustrationSlots(markdown) {
   const source = text(markdown, 50000);
   const matches = [...source.matchAll(illustrationPlaceholderPattern())];
 
-  if (matches.length > 6) {
+  if (matches.length > 12) {
     throw new Error(
       "This draft has " + matches.length +
-      " illustration placeholders. Interior Art Studio supports up to 6 per package."
+      " illustration placeholders. Interior Art Studio supports up to 12 per package."
     );
   }
 
@@ -294,8 +294,8 @@ function extractIllustrationSlots(markdown) {
 
 function validatedInteriorArt(value) {
   if (!value) return [];
-  if (!Array.isArray(value) || value.length > 6) {
-    throw new Error("Interior art must contain no more than 6 images");
+  if (!Array.isArray(value) || value.length > 12) {
+    throw new Error("Interior art must contain no more than 12 images");
   }
 
   let totalBytes = 0;
@@ -976,7 +976,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.0",
+    version: "0.17.1",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1104,7 +1104,7 @@ app.post("/api/production-package", limitAI, async (req, res) => {
         (market === "KDP"
           ? "Create original manuscript or interior copy in Markdown, plus KDP-oriented listing metadata."
           : "Create the complete written content and layout directions for the digital product in Markdown, plus Etsy-oriented listing metadata.") +
-        " If the finished product genuinely needs interior illustrations, add no more than six standalone tokens in the exact format [Illustration Placeholder: specific visual description]. Do not request extra marketing images inside the manuscript. Return exactly " + keywordTarget + " useful keyword phrases. " +
+        " If the finished product genuinely needs interior illustrations, add no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description]. Do not request extra marketing images inside the manuscript. Return exactly " + keywordTarget + " useful keyword phrases. " +
         "Include a practical production checklist and identify any claims, facts, intellectual-property concerns, or design work that a human must review before release.",
       text: {
         format: {
@@ -1251,7 +1251,7 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report in one pass. Preserve strong material that still serves the approved brief. Make the actual corrections inside the draft, listing title, listing description, keywords, and other relevant fields; do not merely copy an AI-fixable issue into the checklist or risk flags. If interior art is needed, use no more than six standalone tokens in the exact format [Illustration Placeholder: specific visual description] so Interior Art Studio can finish them automatically. Do not request separate marketing images inside the manuscript. For inherently human-only work such as final visual inspection, trim and bleed confirmation, proofreading, ISBN selection, or marketplace upload, include one clear checklist item without presenting it as an unresolved content defect. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
+        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report in one pass. Preserve strong material that still serves the approved brief. Make the actual corrections inside the draft, listing title, listing description, keywords, and other relevant fields; do not merely copy an AI-fixable issue into the checklist or risk flags. If interior art is needed, use no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description] so Interior Art Studio can finish them automatically. Do not request separate marketing images inside the manuscript. For inherently human-only work such as final visual inspection, trim and bleed confirmation, proofreading, ISBN selection, or marketplace upload, include one clear checklist item without presenting it as an unresolved content defect. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
       input:
         "Revise this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1353,6 +1353,14 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
 
   try {
     const slots = extractIllustrationSlots(draftMarkdown);
+    const startIndex = Math.max(0, Math.min(11,
+      Number.parseInt(req.body.startIndex, 10) || 0));
+    const batchSize = Math.max(1, Math.min(3,
+      Number.parseInt(req.body.batchSize, 10) || 3));
+    const batchSlots = slots.slice(0, batchSize).map((slot) => ({
+      ...slot,
+      index: startIndex + slot.index
+    }));
 
     if (!slots.length) {
       return res.status(400).json({
@@ -1362,7 +1370,7 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
 
     const artworks = [];
 
-    for (const slot of slots) {
+    for (const slot of batchSlots) {
       const prompt = [
         "Create one original black-and-white interior line illustration for a " +
           market + " publishing product titled " + title + ".",
@@ -1401,11 +1409,13 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
     let replacementIndex = 0;
     const updatedMarkdown = draftMarkdown.replace(
       illustrationPlaceholderPattern(),
-      () => {
+      (match) => {
         replacementIndex += 1;
+        if (replacementIndex > batchSlots.length) return match;
+        const artIndex = startIndex + replacementIndex;
         const filename = "interior-art-" +
-          String(replacementIndex).padStart(2, "0") + ".png";
-        return "![Interior illustration " + replacementIndex + "](" +
+          String(artIndex).padStart(2, "0") + ".png";
+        return "![Interior illustration " + artIndex + "](" +
           filename + ")";
       }
     );
@@ -1414,10 +1424,11 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
       generatedAt: new Date().toISOString(),
       sourceMarkdown: draftMarkdown,
       draftMarkdown: updatedMarkdown,
-      artworks
+      artworks,
+      remaining: Math.max(0, slots.length - batchSlots.length)
     });
   } catch (error) {
-    const inputError = /supports up to 6/.test(error.message);
+    const inputError = /supports up to 12/.test(error.message);
     res.status(inputError ? 409 : 502).json({
       error: inputError
         ? "Too many illustration placeholders"
