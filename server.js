@@ -263,6 +263,14 @@ function illustrationPlaceholderPattern() {
   return /\[(?:Illustration|Image|Artwork)\s+Placeholder(?:\s*:\s*([^\]]+))?\]/gi;
 }
 
+function productionDraftSection(packageText) {
+  const source = text(packageText, 50000);
+  const match = source.match(
+    /(?:^|\n)## Product draft\s*\n([\s\S]*?)(?=\n## Listing title(?:\n|$))/i
+  );
+  return match ? match[1] : source;
+}
+
 function extractIllustrationSlots(markdown) {
   const source = text(markdown, 50000);
   const matches = [...source.matchAll(illustrationPlaceholderPattern())];
@@ -436,7 +444,7 @@ function measuredNumber(value, label, maximum = 10000000) {
 }
 
 function isHumanProductionCheck(value) {
-  return /\b(cover (design|review|inspection)|final visual inspection|proofread(ing)?|trim (size|dimensions?)|bleed settings?|page dimensions?|final (file )?formatting|final layout|isbn selection|marketplace upload|upload(ing)? (the )?(files?|product)|confirm current marketplace (rules|requirements)|print proof)\b/i
+  return /\b(cover (design|review|inspection)|final visual inspection|proofread(ing)?|trim (size|dimensions?)|bleed settings?|page dimensions?|final (file )?formatting|final layout|final page count|unfinalized page count|page count confirmation|isbn selection|marketplace upload|upload(ing)? (the )?(files?|product)|confirm current marketplace (rules|requirements)|print proof)\b/i
     .test(String(value || ""));
 }
 
@@ -459,10 +467,13 @@ function printablePdf(packageData) {
     const deliverable = printableText(packageData.deliverableType, 200);
     const markdown = text(packageData.draftMarkdown, 50000);
     const interiorArt = validatedInteriorArt(packageData.interiorArt);
+    const singleSidedArtwork = market === "KDP" &&
+      /\b(coloring|colouring)\b/i.test([title, deliverable, markdown].join(" "));
     const artByFilename = new Map(
       interiorArt.map((item) => [item.filename, item])
     );
     const chunks = [];
+    const blankBackingPages = new Set();
     let finalPageCount = 0;
     const doc = new PDFDocument({
       size: pageSize,
@@ -497,12 +508,21 @@ function printablePdf(packageData) {
     }
 
     function renderBody(source) {
+      let needsPageAfterBlank = false;
+
       for (const rawLine of String(source || "").split(/\r?\n/)) {
         const line = rawLine.trim();
+        let openedFreshPage = false;
 
         if (!line) {
-          doc.moveDown(0.55);
+          if (!needsPageAfterBlank) doc.moveDown(0.55);
           continue;
+        }
+
+        if (needsPageAfterBlank) {
+          doc.addPage();
+          needsPageAfterBlank = false;
+          openedFreshPage = true;
         }
 
         const illustration = line.match(
@@ -513,15 +533,25 @@ function printablePdf(packageData) {
           const availableWidth = doc.page.width -
             doc.page.margins.left - doc.page.margins.right;
 
-          ensureSpace(300);
+          if (singleSidedArtwork && !openedFreshPage) doc.addPage();
+          else ensureSpace(300);
           doc.image(art.buffer, {
-            fit: [availableWidth, 250],
+            fit: [availableWidth, singleSidedArtwork ? 470 : 250],
             align: "center"
           });
           doc.moveDown(0.35);
           doc.font("Inter").fontSize(8.5).fillColor("#6B7480")
             .text(cleanInline(illustration[1]), { align: "center" });
           doc.moveDown(0.55);
+
+          if (singleSidedArtwork) {
+            doc.addPage();
+            const blankRange = doc.bufferedPageRange();
+            blankBackingPages.add(
+              blankRange.start + blankRange.count - 1
+            );
+            needsPageAfterBlank = true;
+          }
           continue;
         }
 
@@ -620,10 +650,79 @@ function printablePdf(packageData) {
     doc.addPage();
     renderBody(markdown || "No product draft was included.");
 
+    if (singleSidedArtwork) {
+      const supplementalPages = [
+        {
+          title: "Color Test Page",
+          note: "Test pencils, markers, and shading here before coloring the artwork.",
+          swatches: true
+        },
+        {
+          title: "Palette Planner",
+          note: "Plan favorite color combinations before starting a page.",
+          swatches: true
+        },
+        {
+          title: "My Favorite Pages",
+          note: "Record favorite subjects, color choices, and ideas to try again."
+        },
+        {
+          title: "Creative Notes",
+          note: "Use this space for techniques, supplies, and future coloring ideas."
+        }
+      ];
+      let supplementalIndex = 0;
+
+      while (doc.bufferedPageRange().count < 24) {
+        const page = supplementalPages[
+          supplementalIndex % supplementalPages.length
+        ];
+        supplementalIndex += 1;
+        doc.addPage();
+        doc.font("InterBold").fontSize(18).fillColor("#202833")
+          .text(page.title, { align: "center" });
+        doc.moveDown(0.6);
+        doc.font("Inter").fontSize(10).fillColor("#5A6470")
+          .text(page.note, { align: "center" });
+        doc.moveDown(1.5);
+
+        if (page.swatches) {
+          const boxWidth = 58;
+          const boxHeight = 42;
+          const gap = 14;
+          const startX = (doc.page.width - (boxWidth * 4 + gap * 3)) / 2;
+          const startY = doc.y;
+
+          for (let swatch = 0; swatch < 16; swatch += 1) {
+            const column = swatch % 4;
+            const row = Math.floor(swatch / 4);
+            doc.roundedRect(
+              startX + column * (boxWidth + gap),
+              startY + row * (boxHeight + gap),
+              boxWidth,
+              boxHeight,
+              5
+            ).lineWidth(1).strokeColor("#8A939E").stroke();
+          }
+        } else {
+          const left = doc.page.margins.left;
+          const right = doc.page.width - doc.page.margins.right;
+          let lineY = doc.y;
+
+          while (lineY < doc.page.height - 72) {
+            doc.moveTo(left, lineY).lineTo(right, lineY)
+              .lineWidth(0.7).strokeColor("#C9CFD6").stroke();
+            lineY += 28;
+          }
+        }
+      }
+    }
+
     const pages = doc.bufferedPageRange();
     finalPageCount = pages.count;
     for (let index = pages.start; index < pages.start + pages.count; index += 1) {
       doc.switchToPage(index);
+      if (blankBackingPages.has(index)) continue;
       const isCover = index === pages.start;
       const originalBottomMargin = doc.page.margins.bottom;
 
@@ -976,7 +1075,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.2",
+    version: "0.17.3",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1140,8 +1239,21 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
   const brief = text(req.body.brief, 12000);
   const packageText = text(req.body.packageText, 50000);
   const previousReview = text(req.body.previousReview, 12000);
+  const draftText = productionDraftSection(packageText);
   const hasIllustrationPlaceholders =
-    illustrationPlaceholderPattern().test(packageText);
+    illustrationPlaceholderPattern().test(draftText);
+  const resolvedInteriorArtCount = (
+    draftText.match(
+      /!\[[^\]]*Interior illustration[^\]]*\]\(interior-art-\d{2}\.png\)/gi
+    ) || []
+  ).length;
+  const packageTextForReview = resolvedInteriorArtCount &&
+      !hasIllustrationPlaceholders
+    ? packageText.replace(
+        illustrationPlaceholderPattern(),
+        "completed interior artwork"
+      )
+    : packageText;
 
   if (!title || !brief || !packageText) {
     return res.status(400).json({
@@ -1153,12 +1265,17 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const qualityRequest = {
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork, not placeholders. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge exports coloring-book illustrations single-sided with blank reverse pages, so page count and final layout confirmation are human checks rather than written-content blockers. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
         "APPROVED BRIEF:\n" + brief + "\n\n" +
-        "PRODUCTION PACKAGE:\n" + packageText +
+        "INTERIOR ART STATUS: " + resolvedInteriorArtCount +
+        " generated image references are present in the Product draft; " +
+        (hasIllustrationPlaceholders
+          ? "unresolved draft placeholders remain.\n\n"
+          : "no unresolved draft placeholders remain.\n\n") +
+        "PRODUCTION PACKAGE:\n" + packageTextForReview +
         (previousReview
           ? "\n\nPRIOR QUALITY REPORT:\n" + previousReview +
             "\n\nThis is a recheck. Verify each prior issue against the revised package and remove it when resolved."
@@ -1207,11 +1324,17 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const rawRequiredFixes = Array.isArray(review.requiredFixes)
       ? review.requiredFixes.filter(Boolean)
       : [];
+    const resolvedArtworkComplaint = (item) =>
+      resolvedInteriorArtCount > 0 && !hasIllustrationPlaceholders &&
+      /(?:unresolved|missing|replace|placeholder).*(?:artwork|illustration)|(?:artwork|illustration).*(?:unresolved|missing|replace|placeholder)/i
+        .test(String(item || ""));
     const humanChecks = [...rawBlockers, ...rawRequiredFixes]
       .filter(isHumanProductionCheck);
-    const blockers = rawBlockers.filter((item) => !isHumanProductionCheck(item));
+    const blockers = rawBlockers.filter((item) =>
+      !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
     const requiredFixes = rawRequiredFixes
-      .filter((item) => !isHumanProductionCheck(item));
+      .filter((item) =>
+        !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
 
     if (hasIllustrationPlaceholders &&
         !blockers.some((item) => /illustration placeholder/i.test(item))) {
