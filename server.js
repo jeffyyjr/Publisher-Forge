@@ -976,7 +976,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.1",
+    version: "0.17.2",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1150,10 +1150,10 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
   }
 
   try {
-    const response = await client.responses.create({
+    const qualityRequest = {
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, and practical. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork, not placeholders. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork, not placeholders. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1171,8 +1171,23 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
           schema: qualityReviewSchema
         }
       },
-      max_output_tokens: 2200
+      reasoning: { effort: "low" }
+    };
+
+    let response = await client.responses.create({
+      ...qualityRequest,
+      max_output_tokens: 4000
     });
+
+    if (response.status === "incomplete" &&
+        response.incomplete_details?.reason === "max_output_tokens") {
+      response = await client.responses.create({
+        ...qualityRequest,
+        instructions: qualityRequest.instructions +
+          " Return the minimum wording necessary to complete every required JSON field.",
+        max_output_tokens: 7000
+      });
+    }
 
     const review = parseQualityReview(response);
     const metrics = {
