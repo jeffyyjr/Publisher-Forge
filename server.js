@@ -271,6 +271,65 @@ function productionDraftSection(packageText) {
   return match ? match[1] : source;
 }
 
+function normalizePageLabels(value) {
+  const ones = {
+    one: 1, two: 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+    fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+    nineteen: 19
+  };
+  const tens = {
+    twenty: 20, thirty: 30, forty: 40, fifty: 50,
+    sixty: 60, seventy: 70, eighty: 80, ninety: 90
+  };
+  const numberWords = [
+    ...Object.keys(ones),
+    ...Object.keys(tens).flatMap((ten) => [
+      ten,
+      ...Object.keys(ones).slice(0, 9).map((one) => ten + "-" + one),
+      ...Object.keys(ones).slice(0, 9).map((one) => ten + " " + one)
+    ])
+  ].sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(
+    "\\bPage\\s+(" + numberWords.join("|") + ")\\b",
+    "gi"
+  );
+
+  return String(value || "").replace(pattern, (match, words) => {
+    const parts = words.toLowerCase().split(/[-\s]+/);
+    const number = parts.reduce(
+      (total, part) => total + (ones[part] || tens[part] || 0),
+      0
+    );
+    return number ? "Page " + number : match;
+  });
+}
+
+function normalizedPackageData(packageData) {
+  if (!packageData || typeof packageData !== "object") return packageData;
+
+  const normalized = { ...packageData };
+  for (const key of [
+    "packageTitle", "subtitle", "deliverableType", "draftMarkdown",
+    "listingTitle", "listingDescription"
+  ]) {
+    normalized[key] = normalizePageLabels(normalized[key]);
+  }
+  for (const key of ["keywords", "productionChecklist", "riskFlags"]) {
+    if (Array.isArray(normalized[key])) {
+      normalized[key] = normalized[key].map(normalizePageLabels);
+    }
+  }
+  return normalized;
+}
+
+function isAutomaticExportTask(value) {
+  const source = String(value || "");
+  return /Page\s+Fifty\b|(?:embed|outline|embedding).{0,45}fonts?|fonts?.{0,45}(?:embed|outline|embedding)|(?:set|document|confirm).{0,45}(?:black\s*(?:&|and)\s*white|B&W)|(?:black\s*(?:&|and)\s*white|B&W).{0,45}(?:setting|selection|metadata)/i
+    .test(source);
+}
+
 function extractIllustrationSlots(markdown) {
   const source = text(markdown, 50000);
   const matches = [...source.matchAll(illustrationPlaceholderPattern())];
@@ -459,14 +518,15 @@ function printableText(value, limit) {
 
 function printablePdf(packageData) {
   return new Promise((resolve, reject) => {
-    const market = platform(packageData.platform);
+    const normalizedPackage = normalizedPackageData(packageData);
+    const market = platform(normalizedPackage.platform);
     const pageSize = market === "KDP" ? [432, 648] : "LETTER";
     const margin = 54;
-    const title = printableText(packageData.packageTitle, 300) || "Untitled product";
-    const subtitle = printableText(packageData.subtitle, 500);
-    const deliverable = printableText(packageData.deliverableType, 200);
-    const markdown = text(packageData.draftMarkdown, 50000);
-    const interiorArt = validatedInteriorArt(packageData.interiorArt);
+    const title = printableText(normalizedPackage.packageTitle, 300) || "Untitled product";
+    const subtitle = printableText(normalizedPackage.subtitle, 500);
+    const deliverable = printableText(normalizedPackage.deliverableType, 200);
+    const markdown = text(normalizedPackage.draftMarkdown, 50000);
+    const interiorArt = validatedInteriorArt(normalizedPackage.interiorArt);
     const singleSidedArtwork = market === "KDP" &&
       /\b(coloring|colouring)\b/i.test([title, deliverable, markdown].join(" "));
     const artByFilename = new Map(
@@ -645,7 +705,7 @@ function printablePdf(packageData) {
     doc.moveDown(0.35);
     doc.font("Inter").fontSize(9.5).fillColor("#6B7480")
       .text(market + " production copy")
-      .text("Approved " + text(packageData.approvedAt, 100));
+      .text("Approved " + text(normalizedPackage.approvedAt, 100));
 
     doc.addPage();
     renderBody(markdown || "No product draft was included.");
@@ -1075,7 +1135,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.4",
+    version: "0.17.5",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1247,13 +1307,16 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
       /!\[[^\]]*Interior illustration[^\]]*\]\(interior-art-\d{2}\.png\)/gi
     ) || []
   ).length;
-  const packageTextForReview = resolvedInteriorArtCount &&
+  const placeholderCleanedPackageText = resolvedInteriorArtCount &&
       !hasIllustrationPlaceholders
     ? packageText.replace(
         illustrationPlaceholderPattern(),
         "completed interior artwork"
       )
     : packageText;
+  const packageTextForReview = normalizePageLabels(
+    placeholderCleanedPackageText
+  );
 
   if (!title || !brief || !packageText) {
     return res.status(400).json({
@@ -1330,12 +1393,18 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
         .test(String(item || ""));
     const initialHumanChecks = [...rawBlockers, ...rawRequiredFixes]
       .filter((item) =>
-        isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
+        isHumanProductionCheck(item) &&
+        !resolvedArtworkComplaint(item) &&
+        !isAutomaticExportTask(item));
     const blockers = rawBlockers.filter((item) =>
-      !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
+      !isHumanProductionCheck(item) &&
+      !resolvedArtworkComplaint(item) &&
+      !isAutomaticExportTask(item));
     let requiredFixes = rawRequiredFixes
       .filter((item) =>
-        !isHumanProductionCheck(item) && !resolvedArtworkComplaint(item));
+        !isHumanProductionCheck(item) &&
+        !resolvedArtworkComplaint(item) &&
+        !isAutomaticExportTask(item));
 
     if (hasIllustrationPlaceholders &&
         !blockers.some((item) => /illustration placeholder/i.test(item))) {
@@ -1590,7 +1659,7 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
 });
 
 app.post("/api/kdp-pricing", async (req, res) => {
-  const packageData = req.body.package;
+  const packageData = normalizedPackageData(req.body.package);
 
   if (!packageData || platform(packageData.platform) !== "KDP") {
     return res.status(400).json({ error: "A KDP production package is required" });
@@ -1608,7 +1677,7 @@ app.post("/api/kdp-pricing", async (req, res) => {
 });
 
 app.post("/api/kdp-cover", async (req, res) => {
-  const packageData = req.body.package;
+  const packageData = normalizedPackageData(req.body.package);
   const authorName = text(req.body.authorName, 160);
   let cover = null;
 
@@ -1661,8 +1730,10 @@ app.post("/api/kdp-cover", async (req, res) => {
 app.post("/api/export-bundle", async (req, res) => {
   const title = text(req.body.title, 200);
   const brief = text(req.body.brief, 12000);
-  const packageText = text(req.body.packageText, 50000);
-  const packageData = req.body.package;
+  const packageText = normalizePageLabels(
+    text(req.body.packageText, 50000)
+  );
+  const packageData = normalizedPackageData(req.body.package);
   const qualityReview = req.body.qualityReview;
   const authorName = text(req.body.authorName, 160);
   let cover = null;
@@ -1707,8 +1778,19 @@ app.post("/api/export-bundle", async (req, res) => {
     revisedAt: text(packageData.revisedAt, 100),
     approvedAt: text(packageData.approvedAt, 100)
   };
+  if (listingData.platform === "KDP") {
+    listingData.paperbackSettings = {
+      interiorInk: "Black & White",
+      paper: "White",
+      trimSize: "6 x 9 in",
+      bleed: "No bleed",
+      embeddedFonts: ["Inter Regular", "Inter Bold"]
+    };
+  }
   const checklistItems = Array.isArray(packageData.productionChecklist)
-    ? packageData.productionChecklist.map((item) => text(item, 500)).filter(Boolean)
+    ? packageData.productionChecklist
+        .map((item) => text(item, 500))
+        .filter((item) => item && !isAutomaticExportTask(item))
     : [];
 
   try {
@@ -1859,7 +1941,7 @@ app.post("/api/export-bundle", async (req, res) => {
 
 app.post("/api/export-pdf", async (req, res) => {
   const title = text(req.body.title, 200);
-  const packageData = req.body.package;
+  const packageData = normalizedPackageData(req.body.package);
   const qualityReview = req.body.qualityReview;
 
   if (!title || !packageData || !qualityReview) {
