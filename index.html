@@ -462,6 +462,39 @@
       object-fit:cover;
     }
 
+    .interior-art-card { grid-template-columns:1fr !important }
+
+    .interior-art-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:9px;
+    }
+
+    .interior-art-grid:empty { display:none }
+
+    .interior-art-item {
+      margin:0;
+      overflow:hidden;
+      border:1px solid #465262;
+      border-radius:10px;
+      background:#fff;
+    }
+
+    .interior-art-item img {
+      display:block;
+      width:100%;
+      aspect-ratio:1;
+      object-fit:contain;
+    }
+
+    .interior-art-item figcaption {
+      padding:7px;
+      background:#111820;
+      color:var(--muted);
+      font-size:.72rem;
+      text-align:center;
+    }
+
     .pricing-card {
       margin-top:12px;
       padding:14px;
@@ -1187,6 +1220,20 @@
               </div>
             </div>
 
+            <div class="cover-card interior-art-card" id="interiorArtCard">
+              <div>
+                <h3>Interior Art Studio</h3>
+                <p id="interiorArtStatus">
+                  Publisher Forge will detect illustration placeholders and replace them with original black-and-white line art.
+                </p>
+                <button class="btn primary wide" id="generateInteriorArtButton"
+                  type="button" disabled>
+                  Check interior artwork
+                </button>
+              </div>
+              <div class="interior-art-grid" id="interiorArtGrid"></div>
+            </div>
+
             <div class="pricing-card" id="kdpPricingCard" hidden>
               <div class="pricing-head">
                 <h3>KDP paperback pricing</h3>
@@ -1424,6 +1471,10 @@
       document.getElementById("revisePackageButton");
     const generateCoverButton =
       document.getElementById("generateCoverButton");
+    const generateInteriorArtButton =
+      document.getElementById("generateInteriorArtButton");
+    const interiorArtGrid =
+      document.getElementById("interiorArtGrid");
     const downloadCoverButton =
       document.getElementById("downloadCoverButton");
     const downloadWrapButton =
@@ -1626,6 +1677,62 @@
       downloadWrapButton.hidden = true;
       generateCoverButton.textContent = "Generate cover";
       generateCoverButton.disabled = !activePackage;
+    }
+
+    function countIllustrationPlaceholders(markdown) {
+      const matches = String(markdown || "").match(
+        /\[(?:Illustration|Image|Artwork)\s+Placeholder(?:\s*:[^\]]+)?\]/gi
+      );
+      return matches ? matches.length : 0;
+    }
+
+    function renderInteriorArtState(packageData) {
+      const artworks = packageData && Array.isArray(packageData.interiorArt)
+        ? packageData.interiorArt
+        : [];
+      const placeholderCount = packageData
+        ? countIllustrationPlaceholders(packageData.draftMarkdown)
+        : 0;
+
+      interiorArtGrid.replaceChildren();
+
+      artworks.forEach(function (art, index) {
+        const figure = document.createElement("figure");
+        const image = document.createElement("img");
+        const caption = document.createElement("figcaption");
+
+        figure.className = "interior-art-item";
+        image.src = "data:image/png;base64," + art.base64;
+        image.alt = art.alt || "Interior illustration " + (index + 1);
+        caption.textContent = "Interior art " + (index + 1);
+        figure.append(image, caption);
+        interiorArtGrid.appendChild(figure);
+      });
+
+      if (artworks.length) {
+        document.getElementById("interiorArtStatus").textContent =
+          artworks.length + " original illustration" +
+          (artworks.length === 1 ? " is" : "s are") +
+          " inserted into the printable PDF and publishing ZIP.";
+        generateInteriorArtButton.textContent = "Generate new interior art";
+        generateInteriorArtButton.disabled = false;
+      } else if (placeholderCount) {
+        document.getElementById("interiorArtStatus").textContent =
+          placeholderCount + " unresolved illustration placeholder" +
+          (placeholderCount === 1 ? " was" : "s were") +
+          " found. Generate the artwork before Quality Control.";
+        generateInteriorArtButton.textContent = "Generate " +
+          placeholderCount + " interior illustration" +
+          (placeholderCount === 1 ? "" : "s");
+        generateInteriorArtButton.disabled = placeholderCount > 6;
+      } else {
+        document.getElementById("interiorArtStatus").textContent =
+          packageData
+            ? "No illustration placeholders were found. This package does not need interior artwork."
+            : "Build a production package to check its interior artwork.";
+        generateInteriorArtButton.textContent = "No interior art needed";
+        generateInteriorArtButton.disabled = true;
+      }
     }
 
     function resetKdpPricing() {
@@ -1922,6 +2029,88 @@
       }
     }
 
+    async function generateInteriorArt() {
+      if (!activePackage) {
+        toast("Build a production package first");
+        return;
+      }
+
+      const sourceMarkdown = activePackage.artSourceMarkdown ||
+        activePackage.draftMarkdown;
+      const placeholderCount = countIllustrationPlaceholders(sourceMarkdown);
+
+      if (!placeholderCount) {
+        toast("This package has no illustration placeholders");
+        return;
+      }
+
+      if (placeholderCount > 6) {
+        toast("Interior Art Studio supports up to 6 illustrations per package");
+        return;
+      }
+
+      loading(
+        generateInteriorArtButton,
+        true,
+        "Generate " + placeholderCount + " interior illustration" +
+          (placeholderCount === 1 ? "" : "s")
+      );
+      document.getElementById("interiorArtStatus").textContent =
+        "Creating " + placeholderCount + " original line illustration" +
+        (placeholderCount === 1 ? "" : "s") +
+        "… Keep this page open; it can take several minutes.";
+      interiorArtGrid.replaceChildren();
+
+      try {
+        const response = await fetch("/api/generate-interior-art", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: activeProductionTitle,
+            platform: activePackage.platform,
+            packageTitle: activePackage.packageTitle,
+            draftMarkdown: sourceMarkdown
+          })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || data.error || "Interior art generation failed"
+          );
+        }
+
+        if (activePackage.approvedAt) delete activePackage.approvedAt;
+        activePackage.artSourceMarkdown = data.sourceMarkdown;
+        activePackage.draftMarkdown = data.draftMarkdown;
+        activePackage.interiorArt = data.artworks;
+        activePackage.interiorArtGeneratedAt = data.generatedAt;
+        activePackageText = formatProductionPackage(activePackage);
+        productionOutput.textContent = activePackageText;
+        renderInteriorArtState(activePackage);
+        resetQualityReview();
+        resetKdpPricing();
+        loadKdpPricing(activePackage);
+
+        document.getElementById("productionVerdict").className = "verdict";
+        document.getElementById("productionVerdict").textContent =
+          "NEEDS APPROVAL";
+        document.getElementById("approveProductionButton").textContent =
+          "Approve on this device";
+        document.getElementById("approvalNote").textContent =
+          "Interior art inserted. Run Quality Control again before approval.";
+        saveActiveProject();
+        toast("Interior artwork inserted");
+      } catch (error) {
+        renderInteriorArtState(activePackage);
+        document.getElementById("interiorArtStatus").textContent =
+          "Interior art stopped: " + error.message;
+        toast(error.message);
+      } finally {
+        generateInteriorArtButton.disabled = false;
+      }
+    }
+
     function resetQualityReview() {
       activeQualityReview = null;
       document.getElementById("qualityCard").classList.remove("visible");
@@ -2052,16 +2241,35 @@
       });
       const hasPackage = Object.prototype.hasOwnProperty.call(record, "package");
       const hasReview = Object.prototype.hasOwnProperty.call(record, "qualityReview");
+      const packageForStorage = hasPackage && record.package
+        ? { ...record.package }
+        : null;
+      const artWasStripped = Boolean(
+        packageForStorage && Array.isArray(packageForStorage.interiorArt) &&
+        packageForStorage.interiorArt.length
+      );
+
+      if (artWasStripped) {
+        packageForStorage.draftMarkdown =
+          packageForStorage.artSourceMarkdown || packageForStorage.draftMarkdown;
+        delete packageForStorage.interiorArt;
+        delete packageForStorage.artSourceMarkdown;
+        delete packageForStorage.interiorArtGeneratedAt;
+        delete packageForStorage.approvedAt;
+      }
+
       const savedProject = {
         id: id,
         title: record.title,
         platform: record.platform === "Etsy" ? "Etsy" : "KDP",
         brief: record.brief,
         package: hasPackage
-          ? record.package || null
+          ? packageForStorage
           : previous && previous.package || null,
         qualityReview: hasReview
-          ? record.qualityReview || null
+          ? artWasStripped
+            ? null
+            : record.qualityReview || null
           : previous && previous.qualityReview || null,
         savedAt: new Date().toISOString()
       };
@@ -2902,7 +3110,8 @@
         "downloadPdfButton",
         "runQualityButton",
         "revisePackageButton",
-        "generateCoverButton"
+        "generateCoverButton",
+        "generateInteriorArtButton"
       ].forEach(function (id) {
         document.getElementById(id).disabled = !enabled;
       });
@@ -2931,6 +3140,7 @@
       document.getElementById("approvalNote").textContent =
         "Nothing will be approved or published automatically.";
       productionActionsEnabled(false);
+      renderInteriorArtState(null);
     }
 
     function showProductionPackage(data) {
@@ -2966,6 +3176,7 @@
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
+      renderInteriorArtState(data);
       approveButton.disabled = true;
       saveActiveProject();
       loadKdpPricing(data);
@@ -2992,6 +3203,7 @@
       document.getElementById("approvalNote").textContent =
         "Correct the issue and try again.";
       productionActionsEnabled(false);
+      renderInteriorArtState(null);
     }
 
     async function buildProductionPackage() {
@@ -3421,6 +3633,14 @@
         qualityReview: activeQualityReview,
         approvedAt: new Date().toISOString()
       };
+      const approvalRecord = { ...approvedPackage };
+
+      if (Array.isArray(approvalRecord.interiorArt)) {
+        approvalRecord.interiorArtCount = approvalRecord.interiorArt.length;
+        delete approvalRecord.interiorArt;
+        delete approvalRecord.artSourceMarkdown;
+      }
+
       let approved = [];
 
       try {
@@ -3428,7 +3648,7 @@
           JSON.parse(localStorage.getItem("pfApprovedPackages")) || [];
       } catch (error) {}
 
-      approved = [approvedPackage]
+      approved = [approvalRecord]
         .concat(
           approved.filter(function (item) {
             return item.packageTitle !== approvedPackage.packageTitle ||
@@ -3522,6 +3742,7 @@
     );
 
     generateCoverButton.addEventListener("click", generateCover);
+    generateInteriorArtButton.addEventListener("click", generateInteriorArt);
 
     coverAuthorName.addEventListener("input", function () {
       try {
