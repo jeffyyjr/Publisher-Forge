@@ -107,7 +107,7 @@
 
     .tabs {
       display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
+      grid-template-columns:repeat(4,minmax(0,1fr));
       gap:5px;
       margin:18px 0 16px;
       padding:5px;
@@ -805,7 +805,7 @@
 
     @media (min-width:680px) {
       .shell { padding:28px 24px 70px }
-      .tabs { width:570px }
+      .tabs { width:760px;max-width:100% }
       .two { grid-template-columns:1.3fr .7fr }
       .buttons,.result-actions { grid-template-columns:1fr 1fr }
       .facts { grid-template-columns:1fr 1fr }
@@ -863,6 +863,11 @@
       <button class="tab" id="productionTab" type="button" role="tab"
         aria-selected="false" aria-controls="productionView">
         Production
+      </button>
+
+      <button class="tab" id="revenueTab" type="button" role="tab"
+        aria-selected="false" aria-controls="revenueView">
+        Revenue
       </button>
     </nav>
 
@@ -1230,6 +1235,11 @@
                 Approve on this device
               </button>
 
+              <button class="btn secondary" id="sendRevenueButton"
+                type="button" disabled>
+                Measure revenue
+              </button>
+
               <button class="btn primary" id="downloadBundleButton"
                 type="button" disabled>
                 Download publishing ZIP
@@ -1260,6 +1270,118 @@
         <div class="form-body">
           <p class="vault-empty" id="vaultEmpty">No saved projects yet.</p>
           <div class="vault-list" id="vaultList"></div>
+        </div>
+      </article>
+    </section>
+
+    <section id="revenueView" role="tabpanel"
+      aria-labelledby="revenueTab" hidden>
+      <div class="radar-grid">
+        <article class="panel radar-controls">
+          <div class="panel-head">
+            <p class="eyebrow">Revenue / Market Agent</p>
+            <h2>Measure the real test</h2>
+            <p class="subtext">
+              Enter marketplace results. Publisher Forge calculates the economics and chooses one controlled next experiment.
+            </p>
+          </div>
+
+          <div class="form-body">
+            <div class="field">
+              <label for="revenueTitle">Product title</label>
+              <input id="revenueTitle" type="text" maxlength="200"
+                autocomplete="off" placeholder="Product being tested">
+            </div>
+
+            <div class="two">
+              <div class="field">
+                <label for="revenuePlatform">Marketplace</label>
+                <select id="revenuePlatform">
+                  <option value="KDP">Amazon KDP</option>
+                  <option value="Etsy">Etsy</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="revenueDays">Days live</label>
+                <input id="revenueDays" type="number" min="1" max="365"
+                  step="1" inputmode="numeric" value="14">
+              </div>
+            </div>
+
+            <div class="two">
+              <div class="field">
+                <label for="revenueViews">Listing views</label>
+                <input id="revenueViews" type="number" min="0" step="1"
+                  inputmode="numeric" value="0">
+              </div>
+              <div class="field">
+                <label for="revenueOrders">Orders</label>
+                <input id="revenueOrders" type="number" min="0" step="1"
+                  inputmode="numeric" value="0">
+              </div>
+            </div>
+
+            <div class="two">
+              <div class="field">
+                <label for="revenueGross">Gross revenue ($)</label>
+                <input id="revenueGross" type="number" min="0" step="0.01"
+                  inputmode="decimal" value="0">
+              </div>
+              <div class="field">
+                <label for="revenueCosts">Fees + ads + costs ($)</label>
+                <input id="revenueCosts" type="number" min="0" step="0.01"
+                  inputmode="decimal" value="0">
+              </div>
+            </div>
+
+            <button class="btn primary wide" id="revenueButton" type="button">
+              Measure and plan next test
+            </button>
+
+            <p class="radar-form-note">
+              Use results from your marketplace dashboard. No listing is changed automatically.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <p class="eyebrow" id="revenueEyebrow">Test Review</p>
+            <h2 id="revenueHeading">Ready for measured results</h2>
+            <p class="subtext" id="revenueSubtext">
+              Conversion, profit, diagnosis, and the next experiment will appear here.
+            </p>
+          </div>
+
+          <div class="empty" id="revenueEmpty">
+            <div>
+              <div class="empty-icon">↗</div>
+              <strong>No revenue test yet</strong>
+              Enter the results from one product and one test window.
+            </div>
+          </div>
+
+          <div class="result" id="revenueResult" aria-live="polite">
+            <div class="score-line">
+              <span class="verdict" id="revenueVerdict">ITERATE</span>
+              <span class="package-type" id="revenueMeasuredAt"></span>
+            </div>
+            <h3 class="idea-name" id="revenueProduct"></h3>
+            <div class="quality-metrics" id="revenueMetrics"></div>
+            <div class="output" id="revenueOutput"></div>
+          </div>
+        </article>
+      </div>
+
+      <article class="panel vault-panel">
+        <div class="panel-head">
+          <p class="eyebrow">Learning Loop</p>
+          <h2>Recent measured tests</h2>
+          <p class="subtext">Saved on this device so each result can inform the next cycle.</p>
+        </div>
+        <div class="form-body">
+          <p class="vault-empty" id="revenueHistoryEmpty">No measured tests yet.</p>
+          <div class="vault-list" id="revenueHistory"></div>
         </div>
       </article>
     </section>
@@ -1310,6 +1432,10 @@
       document.getElementById("coverAuthorName");
     const coverAuthorField =
       document.getElementById("coverAuthorField");
+    const revenueButton =
+      document.getElementById("revenueButton");
+    const sendRevenueButton =
+      document.getElementById("sendRevenueButton");
 
     let activeResult = "";
     let activeBrief = "";
@@ -1329,7 +1455,8 @@
       const views = {
         radar: ["radarView", "radarTab"],
         analyzer: ["analyzerView", "analyzerTab"],
-        production: ["productionView", "productionTab"]
+        production: ["productionView", "productionTab"],
+        revenue: ["revenueView", "revenueTab"]
       };
 
       Object.keys(views).forEach(function (viewName) {
@@ -1354,6 +1481,11 @@
     document.getElementById("productionTab")
       .addEventListener("click", function () {
         switchView("production");
+      });
+
+    document.getElementById("revenueTab")
+      .addEventListener("click", function () {
+        switchView("revenue");
       });
 
     signalIds.forEach(function (id) {
@@ -1701,6 +1833,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      sendRevenueButton.disabled = true;
 
       if (!hadCover) {
         document.getElementById("coverPlaceholder").hidden = false;
@@ -1758,6 +1891,7 @@
             "Approve on this device";
           document.getElementById("downloadBundleButton").disabled = true;
           document.getElementById("downloadPdfButton").disabled = true;
+          sendRevenueButton.disabled = true;
           saveActiveProject();
         }
 
@@ -1784,6 +1918,7 @@
           !passed || Boolean(activePackage && activePackage.approvedAt);
         document.getElementById("downloadBundleButton").disabled = !approved;
         document.getElementById("downloadPdfButton").disabled = !approved;
+        sendRevenueButton.disabled = !approved;
       }
     }
 
@@ -1795,6 +1930,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      sendRevenueButton.disabled = true;
       revisePackageButton.hidden = true;
       revisePackageButton.disabled = false;
     }
@@ -1849,6 +1985,8 @@
       document.getElementById("downloadBundleButton").disabled =
         !(passed && activePackage && activePackage.approvedAt);
       document.getElementById("downloadPdfButton").disabled =
+        !(passed && activePackage && activePackage.approvedAt);
+      sendRevenueButton.disabled =
         !(passed && activePackage && activePackage.approvedAt);
       revisePackageButton.hidden = passed;
       revisePackageButton.disabled = passed;
@@ -1981,6 +2119,7 @@
             "Approved on this device";
           document.getElementById("downloadBundleButton").disabled = false;
           document.getElementById("downloadPdfButton").disabled = false;
+          sendRevenueButton.disabled = false;
           document.getElementById("approvalNote").textContent =
             "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
         }
@@ -2823,6 +2962,7 @@
       approveButton.textContent = "Approve on this device";
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      sendRevenueButton.disabled = true;
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
@@ -3046,6 +3186,228 @@
       }
     }
 
+    function revenueMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2
+      }).format(Number(value) || 0);
+    }
+
+    function formatRevenueReview(data) {
+      return [
+        data.summary,
+        "",
+        "DIAGNOSIS",
+        data.diagnosis,
+        "",
+        "NEXT EXPERIMENT",
+        data.nextExperiment,
+        "",
+        "SUCCESS METRIC",
+        data.successMetric,
+        "",
+        "STOP CONDITION",
+        data.stopCondition,
+        "",
+        "ACTIONS",
+        (data.actions || []).map(function (item, index) {
+          return (index + 1) + ". " + item;
+        }).join("\n")
+      ].join("\n").trim();
+    }
+
+    function renderRevenueReview(data) {
+      const verdict = document.getElementById("revenueVerdict");
+      const metrics = document.getElementById("revenueMetrics");
+      const metricData = [
+        ["Conversion", Number(data.metrics.conversionRate).toFixed(2) + "%"],
+        ["Net profit", revenueMoney(data.metrics.netProfit)],
+        ["Revenue / view", revenueMoney(data.metrics.revenuePerView)],
+        ["Profit / order", revenueMoney(data.metrics.profitPerOrder)]
+      ];
+
+      verdict.className = "verdict" +
+        (data.verdict === "SCALE"
+          ? " make"
+          : data.verdict === "STOP"
+            ? " error"
+            : "");
+      verdict.textContent = data.verdict || "ITERATE";
+      document.getElementById("revenueMeasuredAt").textContent =
+        data.platform + " · " + new Date(data.measuredAt).toLocaleDateString();
+      document.getElementById("revenueProduct").textContent = data.title;
+      document.getElementById("revenueOutput").textContent =
+        formatRevenueReview(data);
+      metrics.replaceChildren();
+
+      metricData.forEach(function (entry) {
+        const item = document.createElement("div");
+        const value = document.createElement("strong");
+
+        item.className = "quality-metric";
+        item.textContent = entry[0];
+        value.textContent = entry[1];
+        item.appendChild(value);
+        metrics.appendChild(item);
+      });
+
+      document.getElementById("revenueEmpty").style.display = "none";
+      document.getElementById("revenueResult").classList.add("visible");
+      document.getElementById("revenueHeading").textContent =
+        "Next move: " + data.verdict.toLowerCase();
+      document.getElementById("revenueSubtext").textContent =
+        data.metrics.days + "-day test · " + data.metrics.views +
+        " views · " + data.metrics.orders + " orders";
+    }
+
+    function readRevenueHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("pfRevenueTests"));
+        return Array.isArray(saved) ? saved : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveRevenueReview(data) {
+      const tests = [data].concat(readRevenueHistory()).slice(0, 8);
+
+      try {
+        localStorage.setItem("pfRevenueTests", JSON.stringify(tests));
+        renderRevenueHistory();
+      } catch (error) {
+        toast("Revenue history could not be saved on this device");
+      }
+    }
+
+    function renderRevenueHistory() {
+      const tests = readRevenueHistory();
+      const list = document.getElementById("revenueHistory");
+      const empty = document.getElementById("revenueHistoryEmpty");
+
+      list.replaceChildren();
+      empty.hidden = tests.length > 0;
+
+      tests.forEach(function (test, index) {
+        const row = document.createElement("div");
+        const openButton = document.createElement("button");
+        const title = document.createElement("strong");
+        const details = document.createElement("small");
+        const deleteButton = document.createElement("button");
+
+        row.className = "vault-item";
+        openButton.className = "vault-open";
+        openButton.type = "button";
+        title.textContent = test.title;
+        details.textContent = test.platform + " · " + test.verdict + " · " +
+          revenueMoney(test.metrics.netProfit) + " net";
+        openButton.append(title, details);
+        openButton.addEventListener("click", function () {
+          document.getElementById("revenueTitle").value = test.title;
+          document.getElementById("revenuePlatform").value = test.platform;
+          document.getElementById("revenueDays").value = test.metrics.days;
+          document.getElementById("revenueViews").value = test.metrics.views;
+          document.getElementById("revenueOrders").value = test.metrics.orders;
+          document.getElementById("revenueGross").value =
+            test.metrics.grossRevenue;
+          document.getElementById("revenueCosts").value = test.metrics.costs;
+          renderRevenueReview(test);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        deleteButton.className = "vault-delete";
+        deleteButton.type = "button";
+        deleteButton.setAttribute("aria-label", "Remove revenue test for " + test.title);
+        deleteButton.textContent = "×";
+        deleteButton.addEventListener("click", function () {
+          if (!window.confirm("Remove this measured test from this device?")) return;
+          const updated = readRevenueHistory().filter(function (_, itemIndex) {
+            return itemIndex !== index;
+          });
+          localStorage.setItem("pfRevenueTests", JSON.stringify(updated));
+          renderRevenueHistory();
+          toast("Measured test removed");
+        });
+
+        row.append(openButton, deleteButton);
+        list.appendChild(row);
+      });
+    }
+
+    async function runRevenueReview() {
+      const payload = {
+        title: document.getElementById("revenueTitle").value.trim(),
+        platform: document.getElementById("revenuePlatform").value,
+        days: Number(document.getElementById("revenueDays").value),
+        views: Number(document.getElementById("revenueViews").value),
+        orders: Number(document.getElementById("revenueOrders").value),
+        grossRevenue: Number(document.getElementById("revenueGross").value),
+        costs: Number(document.getElementById("revenueCosts").value)
+      };
+
+      if (!payload.title) {
+        document.getElementById("revenueTitle").focus();
+        toast("Add the product title first");
+        return;
+      }
+
+      if (activePackage && activePackage.packageTitle === payload.title) {
+        payload.context = JSON.stringify({
+          listingTitle: activePackage.listingTitle,
+          listingDescription: activePackage.listingDescription,
+          keywords: activePackage.keywords
+        });
+      }
+
+      loading(revenueButton, true, "Measure and plan next test");
+      document.getElementById("revenueEmpty").style.display = "none";
+      document.getElementById("revenueResult").classList.add("visible");
+      document.getElementById("revenueVerdict").className = "verdict";
+      document.getElementById("revenueVerdict").textContent = "WORKING";
+      document.getElementById("revenueProduct").textContent = payload.title;
+      document.getElementById("revenueMetrics").replaceChildren();
+      document.getElementById("revenueOutput").textContent =
+        "Revenue Agent is calculating the economics and planning one controlled next test…";
+
+      try {
+        const response = await fetch("/api/revenue-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "Revenue review failed");
+        }
+
+        renderRevenueReview(data);
+        saveRevenueReview(data);
+        toast("Revenue test measured");
+      } catch (error) {
+        document.getElementById("revenueVerdict").className = "verdict error";
+        document.getElementById("revenueVerdict").textContent = "ERROR";
+        document.getElementById("revenueOutput").textContent = error.message;
+      } finally {
+        loading(revenueButton, false, "Measure and plan next test");
+      }
+    }
+
+    function openRevenueFromApproved() {
+      if (!activePackage || !activePackage.approvedAt) {
+        toast("Approve the production package first");
+        return;
+      }
+
+      document.getElementById("revenueTitle").value =
+        activePackage.packageTitle || activeProductionTitle;
+      document.getElementById("revenuePlatform").value = activePackage.platform;
+      switchView("revenue");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast("Approved product ready to measure");
+    }
+
     function approveProductionPackage() {
       if (!activePackage) return;
 
@@ -3097,6 +3459,7 @@
       button.textContent = "Approved on this device";
       document.getElementById("downloadBundleButton").disabled = false;
       document.getElementById("downloadPdfButton").disabled = false;
+      sendRevenueButton.disabled = false;
       document.getElementById("approvalNote").textContent =
         "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
 
@@ -3300,6 +3663,9 @@
     document.getElementById("approveProductionButton")
       .addEventListener("click", approveProductionPackage);
 
+    sendRevenueButton.addEventListener("click", openRevenueFromApproved);
+    revenueButton.addEventListener("click", runRevenueReview);
+
     document.getElementById("downloadBundleButton")
       .addEventListener("click", async function () {
         if (!activePackage || !activeQualityReview) return;
@@ -3425,6 +3791,7 @@
 
     renderRecent();
     renderProjectVault();
+    renderRevenueHistory();
     checkHealth();
   </script>
 </body>
