@@ -41,8 +41,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 ## Forge product suite roadmap
 - **Publisher Forge — active:** Research, create, quality-check, package, publish, and learn from Amazon KDP and Etsy products.
 - **Shopify Forge — planned:** Reuse the opportunity and production engine for original Shopify products, beginning with digital downloads. Generate product pages, pricing, SEO, and creative assets; require approval before publishing; measure traffic, conversion, revenue, costs, and profit.
-- **Clip Forge — planned as a separate module:** Turn owned or client-authorized long videos into vertical 9:16 YouTube Shorts and TikTok clips. Transcribe, identify hooks, cut clips, add captions and titles, require approval before publishing, and learn from views, retention, clicks, and revenue.
-- **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every Forge module and recommends SCALE, ITERATE, or STOP.
+- **Clip Forge — planned inside the same app:** Turn owned or client-authorized long videos into vertical 9:16 YouTube Shorts and TikTok clips. Transcribe, identify hooks, cut clips, add captions and titles, require approval before publishing, and learn from views, retention, clicks, and revenue.
+- **One app, three pipelines:** Publisher, Shopify, and Clips share one dashboard, account, Project Vault, Revenue/Market Agent, and Agent Memory. Each pipeline keeps its own production engine behind the scenes.
+- **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every pipeline and recommends SCALE, ITERATE, or STOP.
 
 ## Next production layer
 Add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
