@@ -324,6 +324,132 @@ function normalizedPackageData(packageData) {
   return normalized;
 }
 
+function publishingAuthor(value) {
+  const requested = text(value, 160);
+  return !requested || /^(?:Maxx? Powers|Marina Solano)$/i.test(requested)
+    ? "Logan Cross"
+    : requested;
+}
+
+function isColoringBookPackage(packageData) {
+  return platform(packageData?.platform) === "KDP" &&
+    /\b(coloring|colouring)\b/i.test([
+      packageData?.packageTitle,
+      packageData?.subtitle,
+      packageData?.deliverableType,
+      packageData?.draftMarkdown
+    ].join(" "));
+}
+
+function cleanPublishingClaims(value, authorName, artworkCount) {
+  return normalizePageLabels(value)
+    .replace(/\bMarina Solano\b/gi, authorName)
+    .replace(/\bMaxx? Powers\b/gi, authorName)
+    .replace(/\bHarbor\s*&\s*Hearth Press\b/gi, "Independently published")
+    .replace(/commissioned artwork/gi, "AI-assisted artwork")
+    .replace(
+      /\b80\s+(?:complete\s+)?(?:interior\s+)?(?:plates?|coloring pages?|illustrations?)\b/gi,
+      artworkCount + " original illustrations"
+    );
+}
+
+function cleanPublishingObject(value, authorName, artworkCount) {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      cleanPublishingObject(item, authorName, artworkCount)
+    );
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        cleanPublishingObject(item, authorName, artworkCount)
+      ])
+    );
+  }
+  return typeof value === "string"
+    ? cleanPublishingClaims(value, authorName, artworkCount)
+    : value;
+}
+
+function coloringBookInterior(packageData, authorName) {
+  const artwork = Array.isArray(packageData.interiorArt)
+    ? packageData.interiorArt
+    : [];
+  const year = new Date().getUTCFullYear();
+  const artPages = artwork.map((item, index) => {
+    const number = index + 1;
+    return "![Coloring page " + number + "](interior-art/interior-art-" +
+      String(number).padStart(2, "0") + ".png)";
+  });
+
+  return [
+    "## Copyright",
+    "Text, selection, and arrangement copyright (c) " + year +
+      " " + authorName + ". All rights reserved.",
+    "Published independently.",
+    "Illustrations in this edition were created using generative AI tools. No outside artist or publisher is credited.",
+    "This book is for recreational coloring and creative practice. It is not medical or clinical advice.",
+    "",
+    "---",
+    "",
+    "## How to use this book",
+    "Choose any page, test colors on the color-test page, and place a protective sheet behind the picture when using markers.",
+    "Each illustration is printed on one side with a blank reverse to reduce bleed-through.",
+    "",
+    "---",
+    "",
+    "## Coloring pages",
+    "",
+    ...artPages
+  ].join("\n");
+}
+
+function publicationReadyPackage(packageData, requestedAuthor) {
+  const normalized = normalizedPackageData(packageData);
+  if (!normalized) return normalized;
+
+  const authorName = publishingAuthor(requestedAuthor || normalized.authorName);
+  const artworkCount = Array.isArray(normalized.interiorArt)
+    ? normalized.interiorArt.length
+    : 0;
+  const ready = { ...normalized, authorName };
+
+  for (const key of ["packageTitle", "subtitle", "listingTitle"]) {
+    ready[key] = cleanPublishingClaims(
+      ready[key], authorName, artworkCount
+    );
+  }
+
+  if (isColoringBookPackage(ready) && artworkCount) {
+    ready.deliverableType = "KDP paperback coloring book";
+    ready.draftMarkdown = coloringBookInterior(ready, authorName);
+    ready.listingTitle = ready.packageTitle;
+    ready.listingDescription = [
+      ready.packageTitle + " is an easy-to-use adult coloring book featuring " +
+        artworkCount + " original black-and-white illustrations.",
+      "The KDP-ready 6 x 9 interior prints every illustration on one side with a blank reverse page, plus color-test and notes pages.",
+      "Created for relaxed recreational coloring and creative practice."
+    ].join(" ");
+    ready.productionChecklist = [
+      "Upload the supplied KDP interior PDF.",
+      "Upload the supplied KDP cover-wrap PDF.",
+      "Open KDP Print Previewer once and make sure the pages and cover look right.",
+      "Answer KDP's AI-content question accurately for the generated illustrations."
+    ];
+    ready.riskFlags = [];
+  } else {
+    ready.draftMarkdown = cleanPublishingClaims(
+      ready.draftMarkdown, authorName, artworkCount
+    );
+    ready.listingDescription = cleanPublishingClaims(
+      ready.listingDescription, authorName, artworkCount
+    );
+  }
+
+  return ready;
+}
+
 function isAutomaticExportTask(value) {
   const source = String(value || "");
   return /Page\s+Fifty\b|(?:embed|outline|embedding).{0,45}fonts?|fonts?.{0,45}(?:embed|outline|embedding)|(?:set|document|confirm).{0,45}(?:black\s*(?:&|and)\s*white|B&W)|(?:black\s*(?:&|and)\s*white|B&W).{0,45}(?:setting|selection|metadata)|cover PDF|spine width|300\s*DPI|required bleed|PDF\/X|PDF validation|embedded images|single[- ]side ordering|placeholder image links?|font licenses?|OFL\.txt/i
@@ -518,7 +644,10 @@ function printableText(value, limit) {
 
 function printablePdf(packageData) {
   return new Promise((resolve, reject) => {
-    const normalizedPackage = normalizedPackageData(packageData);
+    const normalizedPackage = publicationReadyPackage(
+      packageData,
+      packageData?.authorName
+    );
     const market = platform(normalizedPackage.platform);
     const pageSize = market === "KDP" ? [432, 648] : "LETTER";
     const margin = 54;
@@ -541,7 +670,7 @@ function printablePdf(packageData) {
       bufferPages: true,
       info: {
         Title: title,
-        Author: "Publisher Forge",
+        Author: normalizedPackage.authorName,
         Subject: deliverable || "Approved production copy"
       }
     });
@@ -586,7 +715,7 @@ function printablePdf(packageData) {
         }
 
         const illustration = line.match(
-          /^!\[([^\]]+)\]\((interior-art-\d{2}\.png)\)$/i
+          /^!\[([^\]]+)\]\((?:interior-art\/)?(interior-art-\d{2}\.png)\)$/i
         );
         if (illustration && artByFilename.has(illustration[2])) {
           const art = artByFilename.get(illustration[2]);
@@ -702,6 +831,11 @@ function printablePdf(packageData) {
     doc.moveDown(1.2);
     doc.font("InterBold").fontSize(10).fillColor("#202833")
       .text(deliverable || "Approved production copy");
+    if (normalizedPackage.authorName) {
+      doc.moveDown(0.4);
+      doc.font("Inter").fontSize(10).fillColor("#202833")
+        .text("By " + normalizedPackage.authorName);
+    }
     doc.moveDown(0.35);
     doc.font("Inter").fontSize(9.5).fillColor("#6B7480")
       .text(market + " production copy")
@@ -995,6 +1129,24 @@ function kdpWrapCoverPdf(packageData, cover, pageCount, authorName) {
       height: coverHeight
     });
 
+    // The browser-generated cover may contain a stale author baked into the
+    // bottom edge. Replace that area server-side with the verified pen name.
+    doc.save();
+    doc.fillOpacity(0.88)
+      .rect(frontLeft, coverHeight - 58, coverWidth - frontLeft, 58)
+      .fill("#0A0D11");
+    doc.fillOpacity(1)
+      .font("InterBold")
+      .fontSize(12)
+      .fillColor("#FFFFFF")
+      .text(author, frontLeft + 20, coverHeight - 42, {
+        width: coverWidth - frontLeft - 40,
+        align: "left",
+        lineBreak: false,
+        ellipsis: true
+      });
+    doc.restore();
+
     const backX = bleed + 27;
     const backTextWidth = trimWidth - 54;
     doc.font("InterBold").fontSize(18).fillColor("#FFB15A")
@@ -1135,7 +1287,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.7",
+    version: "0.18.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1256,7 +1408,7 @@ app.post("/api/production-package", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the Production Agent for Publisher Forge. Turn an approved product brief into an original review package for a human publisher. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Do not invent endorsements, sales claims, medical claims, or legal guarantees. Do not say the package was published or marketplace-approved. The draft must be useful and substantial, but clearly remain subject to human editing, fact-checking, design, formatting, and approval.",
+        "You are the Production Agent for Publisher Forge. Turn an approved product brief into an original review package for a human publisher. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Never invent an author, illustrator, publisher, press, imprint, commissioned-art claim, font, license, delivered filename, or completed page count. If front matter genuinely needs an author and none was supplied, write [AUTHOR NAME]. Claim only artwork, pages, and files that are actually present in your returned package. Do not invent endorsements, sales claims, medical claims, or legal guarantees. Do not say the package was published or marketplace-approved. The draft must be useful and substantial, but clearly remain subject to human editing, fact-checking, design, formatting, and approval.",
       input:
         "Build a production review package for this " + market + " product. " +
         "Working title: " + title + ". Approved brief: " + brief + ". " +
@@ -1264,7 +1416,7 @@ app.post("/api/production-package", limitAI, async (req, res) => {
           ? "Create original manuscript or interior copy in Markdown, plus KDP-oriented listing metadata."
           : "Create the complete written content and layout directions for the digital product in Markdown, plus Etsy-oriented listing metadata.") +
         " If the finished product genuinely needs interior illustrations, add no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description]. Do not request extra marketing images inside the manuscript. Return exactly " + keywordTarget + " useful keyword phrases. " +
-        "Include a practical production checklist and identify any claims, facts, intellectual-property concerns, or design work that a human must review before release.",
+        "Do not describe files that Publisher Forge has not generated and do not assign credit to an unnamed person or company. Include a practical production checklist and identify any claims, facts, intellectual-property concerns, or design work that a human must review before release.",
       text: {
         format: {
           type: "json_schema",
@@ -1328,7 +1480,7 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const qualityRequest = {
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge automatically handles page numbering, embedded fonts and licenses, image embedding, resolution checks, single-sided coloring-page order, KDP page minimums, margins, bleed, spine width, cover PDF generation, and black-and-white metadata. Never assign those software tasks to the user. Put only concrete content corrections in requiredFixes. The only human final check is opening the marketplace preview once to make sure the finished book looks right. Do not block or require revision for that preview. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, major misalignment with the approved brief, invented author/illustrator/publisher attribution, a false commissioned-art or license claim, or unsupported claims about delivered filenames, artwork totals, or page counts. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge automatically handles page numbering, embedded fonts and licenses, image embedding, resolution checks, single-sided coloring-page order, KDP page minimums, margins, bleed, spine width, cover PDF generation, and black-and-white metadata. Never assign those software tasks to the user. Put only concrete content corrections in requiredFixes. The only human final check is opening the marketplace preview once to make sure the finished book looks right. Do not block or require revision for that preview. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1470,7 +1622,7 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report in one pass. Preserve strong material that still serves the approved brief. Make the actual corrections inside the draft, listing title, listing description, keywords, and other relevant fields; do not merely copy an AI-fixable issue into the checklist or risk flags. If interior art is needed, use no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description] so Interior Art Studio can finish them automatically. Do not request separate marketing images inside the manuscript. For inherently human-only work such as final visual inspection, trim and bleed confirmation, proofreading, ISBN selection, or marketplace upload, include one clear checklist item without presenting it as an unresolved content defect. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
+        "You are the Production Revision Agent for Publisher Forge. Rewrite the complete production package to resolve every concrete required fix and release blocker in the independent Quality Control report in one pass. Preserve strong material that still serves the approved brief, including every existing Markdown reference to an interior-art PNG. Make the actual corrections inside the draft, listing title, listing description, keywords, and other relevant fields; do not merely copy an AI-fixable issue into the checklist or risk flags. Never invent an author, illustrator, publisher, press, imprint, commissioned-art claim, font, license, delivered filename, or completed page count. If front matter genuinely needs an author and none was supplied, write [AUTHOR NAME]. Claim only artwork, pages, and files actually present in the package. If interior art is needed, use no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description] so Interior Art Studio can finish them automatically. Do not request separate marketing images inside the manuscript. For inherently human-only work such as final visual inspection, trim and bleed confirmation, proofreading, ISBN selection, or marketplace upload, include one clear checklist item without presenting it as an unresolved content defect. Never copy existing books, listings, brands, trademarks, characters, artwork, or protected text. Remove or qualify unsupported claims. Return a complete replacement package, not a patch or commentary. Do not say the package was published, marketplace-approved, or quality-approved. A separate Quality Control pass and human approval are still required.",
       input:
         "Revise this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1660,7 +1812,10 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
 });
 
 app.post("/api/kdp-pricing", async (req, res) => {
-  const packageData = normalizedPackageData(req.body.package);
+  const packageData = publicationReadyPackage(
+    req.body.package,
+    req.body.package?.authorName
+  );
 
   if (!packageData || platform(packageData.platform) !== "KDP") {
     return res.status(400).json({ error: "A KDP production package is required" });
@@ -1678,8 +1833,8 @@ app.post("/api/kdp-pricing", async (req, res) => {
 });
 
 app.post("/api/kdp-cover", async (req, res) => {
-  const packageData = normalizedPackageData(req.body.package);
-  const authorName = text(req.body.authorName, 160);
+  const authorName = publishingAuthor(req.body.authorName);
+  const packageData = publicationReadyPackage(req.body.package, authorName);
   let cover = null;
 
   if (!packageData || platform(packageData.platform) !== "KDP") {
@@ -1731,12 +1886,17 @@ app.post("/api/kdp-cover", async (req, res) => {
 app.post("/api/export-bundle", async (req, res) => {
   const title = text(req.body.title, 200);
   const brief = text(req.body.brief, 12000);
-  const packageText = normalizePageLabels(
-    text(req.body.packageText, 50000)
+  const packageText = text(req.body.packageText, 50000);
+  const authorName = publishingAuthor(req.body.authorName);
+  const packageData = publicationReadyPackage(req.body.package, authorName);
+  const artworkCount = Array.isArray(packageData?.interiorArt)
+    ? packageData.interiorArt.length
+    : 0;
+  const qualityReview = cleanPublishingObject(
+    req.body.qualityReview,
+    authorName,
+    artworkCount
   );
-  const packageData = normalizedPackageData(req.body.package);
-  const qualityReview = req.body.qualityReview;
-  const authorName = text(req.body.authorName, 160);
   let cover = null;
 
   try {
@@ -1806,7 +1966,7 @@ app.post("/api/export-bundle", async (req, res) => {
       ? kdpPricing(printable.pageCount)
       : null;
     const coverSpecs = pricing ? kdpCoverSpecs(printable.pageCount) : null;
-    const wrapCover = pricing && pricing.pageCountReady && cover && authorName
+    const wrapCover = pricing && pricing.pageCountReady && cover
       ? await kdpWrapCoverPdf(
           packageData,
           cover,
@@ -1817,7 +1977,7 @@ app.post("/api/export-bundle", async (req, res) => {
     const readme = [
       "PUBLISHER FORGE — APPROVED PUBLISHING BUNDLE",
       "",
-      "Product: " + title,
+      "Product: " + (listingData.packageTitle || title),
       "Marketplace: " + listingData.platform,
       "Approved: " + listingData.approvedAt,
       "",
@@ -1832,7 +1992,9 @@ app.post("/api/export-bundle", async (req, res) => {
       ...(pricing
         ? ["product/kdp-paperback-interior-6x9.pdf — KDP manuscript upload file"]
         : []),
-      ...(cover ? ["product/cover.png — original generated front cover"] : []),
+      ...(cover && !pricing
+        ? ["product/cover.png — original generated front cover"]
+        : []),
       ...(interiorArt.length
         ? [
             "product/interior-art/ — original generated interior PNG files (" +
@@ -1861,6 +2023,27 @@ app.post("/api/export-bundle", async (req, res) => {
       listingData.subtitle,
       text(packageData.draftMarkdown, 50000)
     ].filter(Boolean).join("\n\n");
+    const fullPackage = [
+      "# " + (listingData.packageTitle || title),
+      listingData.subtitle,
+      "Marketplace: " + listingData.platform,
+      "Author: " + authorName,
+      "",
+      "## Product draft",
+      text(packageData.draftMarkdown, 50000),
+      "",
+      "## Listing title",
+      listingData.listingTitle,
+      "",
+      "## Listing description",
+      listingData.listingDescription,
+      "",
+      "## Keywords",
+      ...listingData.keywords.map((item) => "- " + item),
+      "",
+      "## Production checklist",
+      ...checklistItems.map((item) => "- " + item)
+    ].filter((item) => item !== undefined && item !== null).join("\n");
     const checklist = [
       "# Production checklist",
       "",
@@ -1870,11 +2053,11 @@ app.post("/api/export-bundle", async (req, res) => {
     ].join("\n");
 
     zip.file("README.txt", readme);
-    product.file("full-package.md", packageText);
+    product.file("full-package.md", fullPackage);
     product.file("draft.md", draft);
     product.file("printable.pdf", printable);
     if (pricing) product.file("kdp-paperback-interior-6x9.pdf", printable);
-    if (cover) product.file("cover.png", cover);
+    if (cover && !pricing) product.file("cover.png", cover);
     interiorArt.forEach((item) => {
       interiorArtFolder.file(item.filename, item.buffer);
     });
@@ -1942,7 +2125,10 @@ app.post("/api/export-bundle", async (req, res) => {
 
 app.post("/api/export-pdf", async (req, res) => {
   const title = text(req.body.title, 200);
-  const packageData = normalizedPackageData(req.body.package);
+  const packageData = publicationReadyPackage(
+    req.body.package,
+    req.body.package?.authorName
+  );
   const qualityReview = req.body.qualityReview;
 
   if (!title || !packageData || !qualityReview) {
