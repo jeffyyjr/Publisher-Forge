@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
-import { app, createFixedWindowLimiter } from "../server.js";
+import {
+  app,
+  createFixedWindowLimiter,
+  inlineScriptSources
+} from "../server.js";
 
 let server;
 let baseUrl;
@@ -22,12 +26,10 @@ after(async () => {
 
 test("the browser application script parses", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  const scripts = [...html.matchAll(
-    /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi
-  )];
+  const scripts = inlineScriptSources(html);
 
   assert.ok(scripts.length > 0);
-  for (const match of scripts) new Function(match[1]);
+  for (const source of scripts) new Function(source);
 });
 
 test("root responses carry the required browser security headers", async () => {
