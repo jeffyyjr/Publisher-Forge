@@ -1501,12 +1501,12 @@
     try {
       const savedAuthor = (localStorage.getItem("pfCoverAuthorName") || "").trim();
       coverAuthorName.value = !savedAuthor ||
-          /^(?:Maxx? Powers|Marina Solano)$/i.test(savedAuthor)
-        ? "Logan Cross"
+          /^(?:Maxx? Powers|Logan Cross|Marina Solano)$/i.test(savedAuthor)
+        ? "Maxx Powers"
         : savedAuthor;
       localStorage.setItem("pfCoverAuthorName", coverAuthorName.value);
     } catch (error) {
-      coverAuthorName.value = "Logan Cross";
+      coverAuthorName.value = "Maxx Powers";
     }
 
     function switchView(name) {
