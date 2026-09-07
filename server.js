@@ -326,7 +326,7 @@ function normalizedPackageData(packageData) {
 
 function isAutomaticExportTask(value) {
   const source = String(value || "");
-  return /Page\s+Fifty\b|(?:embed|outline|embedding).{0,45}fonts?|fonts?.{0,45}(?:embed|outline|embedding)|(?:set|document|confirm).{0,45}(?:black\s*(?:&|and)\s*white|B&W)|(?:black\s*(?:&|and)\s*white|B&W).{0,45}(?:setting|selection|metadata)/i
+  return /Page\s+Fifty\b|(?:embed|outline|embedding).{0,45}fonts?|fonts?.{0,45}(?:embed|outline|embedding)|(?:set|document|confirm).{0,45}(?:black\s*(?:&|and)\s*white|B&W)|(?:black\s*(?:&|and)\s*white|B&W).{0,45}(?:setting|selection|metadata)|cover PDF|spine width|300\s*DPI|required bleed|PDF\/X|PDF validation|embedded images|single[- ]side ordering|placeholder image links?|font licenses?|OFL\.txt/i
     .test(source);
 }
 
@@ -1135,7 +1135,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.5",
+    version: "0.17.6",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1328,7 +1328,7 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const qualityRequest = {
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge exports coloring-book illustrations single-sided with blank reverse pages, so page count and final layout confirmation are human checks rather than written-content blockers. Put only concrete text or metadata corrections that the Production Revision Agent can actually perform in requiredFixes. Do not block or require revision merely because a human still needs to inspect the cover, proofread, confirm trim or bleed, format final files, verify current marketplace rules, choose an ISBN, or upload the product when those tasks are already disclosed in the production checklist or risk flags. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, or major misalignment with the approved brief. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge automatically handles page numbering, embedded fonts and licenses, image embedding, resolution checks, single-sided coloring-page order, KDP page minimums, margins, bleed, spine width, cover PDF generation, and black-and-white metadata. Never assign those software tasks to the user. Put only concrete content corrections in requiredFixes. The only human final check is opening the marketplace preview once to make sure the finished book looks right. Do not block or require revision for that preview. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1414,10 +1414,6 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     }
     const strongReview = !blockers.length && overallScore >= 85;
     const recommendations = strongReview ? requiredFixes : [];
-    const humanChecks = [...new Set([
-      ...initialHumanChecks,
-      ...recommendations
-    ])];
 
     if (strongReview) requiredFixes = [];
 
@@ -1426,6 +1422,11 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
       : overallScore >= 75 && !requiredFixes.length
         ? "PASS"
         : "REVISE";
+    const humanChecks = verdict === "PASS"
+      ? [market === "KDP"
+          ? "Open Amazon KDP's Print Previewer once and make sure the cover and pages look right before publishing."
+          : "Open the finished files once and make sure they look right before listing them."]
+      : [...new Set(initialHumanChecks)];
 
     res.json({
       reviewedAt: new Date().toISOString(),
