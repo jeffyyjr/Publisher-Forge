@@ -180,7 +180,7 @@ const revenueReviewSchema = {
 
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json({ limit: "24mb" }));
+app.use(express.json({ limit: "80mb" }));
 app.use(express.static(__dirname));
 
 function text(value, limit = 300) {
@@ -1135,7 +1135,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.17.6",
+    version: "0.17.7",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -2175,6 +2175,21 @@ app.post("/api/trend-radar", limitAI, async (req, res) => {
       message: error.message
     });
   }
+});
+
+app.use((error, req, res, next) => {
+  if (error?.type === "entity.too.large" || error?.status === 413) {
+    return res.status(413).json({
+      error: "Publishing package is too large",
+      message: "The artwork package exceeded the download limit. Generate fewer or smaller images and try again."
+    });
+  }
+
+  console.error(error);
+  res.status(500).json({
+    error: "Publisher Forge server error",
+    message: "The server could not finish that request. Please try again."
+  });
 });
 
 app.listen(PORT, () => {
