@@ -1584,7 +1584,11 @@
       try {
         return JSON.parse(responseText);
       } catch (error) {
-        throw new Error("The server returned an unreadable response.");
+        throw new Error(
+          response.status === 413
+            ? "The artwork package was too large to download."
+            : "The download server stopped unexpectedly. Please try again."
+        );
       }
     }
 
