@@ -1,6 +1,6 @@
 # Publisher Forge MVP
 
-A browser-based AI product workflow for finding, evaluating, planning, producing, and measuring original Amazon KDP, Etsy, and Shopify product concepts.
+A browser-based AI product workflow for finding, evaluating, planning, producing, remixing, and measuring original Amazon KDP, Etsy, Shopify, TikTok, and YouTube Shorts opportunities.
 
 ## Operating principle
 If AI or software can do a task reliably, automate it instead of making the operator do it manually.
@@ -37,14 +37,18 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Device-local revenue learning history for repeat test cycles
 - Shopify beta path across research, analysis, production, Quality Control, Project Vault, ZIP export, and Revenue
 - Shopify draft product JSON and guided listing handoff inside approved publishing bundles
+- Viral Remix beta with live trend research, an original six-scene script, and automatic 9:16 video assembly
+- Reusable-footage search limited to Wikimedia Commons videos whose metadata verifies Public Domain, CC0, or CC BY rights
+- Automatic license recheck before rendering, original voiceover, burned captions, posting copy, source credits, license manifest, and downloadable video ZIP
+- Strict rejection of unknown, ordinary social-platform, noncommercial, no-derivatives, and share-alike footage licenses
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 
 ## Forge product suite roadmap
 - **Publisher Forge — active:** Research, create, quality-check, package, publish, and learn from Amazon KDP and Etsy products.
 - **Shopify Forge — beta:** Reuses the opportunity and production engine for original Shopify digital products, product-page copy, SEO, tags, creative assets, approval, packaging, and measured results.
-- **Clip Forge — planned inside the same app:** Turn owned or client-authorized long videos into vertical 9:16 YouTube Shorts and TikTok clips. Transcribe, identify hooks, cut clips, add captions and titles, require approval before publishing, and learn from views, retention, clicks, and revenue.
-- **One app, three pipelines:** Publisher, Shopify, and Clips share one dashboard, account, Project Vault, Revenue/Market Agent, and Agent Memory. Each pipeline keeps its own production engine behind the scenes.
+- **Viral Remix — beta inside the same app:** Study current public trend signals, match the angle with metadata-verified reusable footage, write an original script, cut a vertical 9:16 video, add narration and captions, preserve source credits, and require approval before publishing.
+- **One app, three pipelines:** Publisher, Shopify, and Viral Remix share one dashboard, Project Vault, Revenue/Market Agent, and learning loop. Each pipeline keeps its own production engine behind the scenes.
 - **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every pipeline and recommends SCALE, ITERATE, or STOP.
 
 ## Next production layer
