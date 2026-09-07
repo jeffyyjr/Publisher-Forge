@@ -31,7 +31,10 @@ const trendReportSchema = {
         type: "object",
         properties: {
           title: { type: "string" },
-          platform: { type: "string", enum: ["KDP", "Etsy", "Both"] },
+          platform: {
+            type: "string",
+            enum: ["KDP", "Etsy", "Shopify", "Both"]
+          },
           audience: { type: "string" },
           evidence: { type: "string" },
           competitionNote: { type: "string" },
@@ -196,8 +199,8 @@ function score(value, fallback = 50) {
 
 function platform(value, allowBoth = false) {
   const allowed = allowBoth
-    ? ["KDP", "Etsy", "Both"]
-    : ["KDP", "Etsy"];
+    ? ["KDP", "Etsy", "Shopify", "Both"]
+    : ["KDP", "Etsy", "Shopify"];
 
   return allowed.includes(value)
     ? value
@@ -1295,7 +1298,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.18.2",
+    version: "0.19.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
@@ -1330,7 +1333,7 @@ app.post("/api/analyze", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You evaluate original KDP and Etsy product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
+        "You evaluate original Amazon KDP, Etsy, and Shopify product opportunities. Never copy books, listings, brands, trademarks, characters, artwork, or protected text. Be practical and concise.",
       input:
         "Evaluate this " + market + " idea: " + title + ". " +
         "The local score is " + decision.score + "/100 and the local verdict is " +
@@ -1410,7 +1413,11 @@ app.post("/api/production-package", limitAI, async (req, res) => {
     });
   }
 
-  const keywordTarget = market === "Etsy" ? 13 : 7;
+  const keywordTarget = market === "Etsy"
+    ? 13
+    : market === "Shopify"
+      ? 10
+      : 7;
 
   try {
     const response = await client.responses.create({
@@ -1422,7 +1429,9 @@ app.post("/api/production-package", limitAI, async (req, res) => {
         "Working title: " + title + ". Approved brief: " + brief + ". " +
         (market === "KDP"
           ? "Create original manuscript or interior copy in Markdown, plus KDP-oriented listing metadata."
-          : "Create the complete written content and layout directions for the digital product in Markdown, plus Etsy-oriented listing metadata.") +
+          : market === "Etsy"
+            ? "Create the complete written content and layout directions for the digital product in Markdown, plus Etsy-oriented listing metadata."
+            : "Create the complete original digital product content and layout directions in Markdown, plus a conversion-focused Shopify product title, product-page description, product type, SEO angle, and tags. Treat the returned keyword phrases as Shopify tags.") +
         " If the finished product genuinely needs interior illustrations, add no more than twelve standalone tokens in the exact format [Illustration Placeholder: specific visual description]. Do not request extra marketing images inside the manuscript. Return exactly " + keywordTarget + " useful keyword phrases. " +
         "Do not describe files that Publisher Forge has not generated and do not assign credit to an unnamed person or company. Include a practical production checklist and identify any claims, facts, intellectual-property concerns, or design work that a human must review before release.",
       text: {
@@ -1488,7 +1497,7 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
     const qualityRequest = {
       model: MODEL,
       instructions:
-        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, major misalignment with the approved brief, invented author/illustrator/publisher attribution, a false commissioned-art or license claim, or unsupported claims about delivered filenames, artwork totals, or page counts. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge automatically handles page numbering, embedded fonts and licenses, image embedding, resolution checks, single-sided coloring-page order, KDP page minimums, margins, bleed, spine width, cover PDF generation, and black-and-white metadata. Never assign those software tasks to the user. Put only concrete content corrections in requiredFixes. The only human final check is opening the marketplace preview once to make sure the finished book looks right. Do not block or require revision for that preview. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP or Etsy has approved the product.",
+        "You are the independent Quality Control Agent for Publisher Forge. Audit the written production package against its approved brief and intended marketplace. Score each category from 0 to 100. Be strict, specific, practical, and concise. Keep the summary under 80 words and return no more than four short items in each array. PASS means the written package is ready for human production review; it does not mean the marketplace approved it. Put only serious unresolved release-stopping content concerns in blockers, such as copied or infringing material, unsafe promises, a substantially empty draft, unresolved illustration placeholders inside the Product draft, major misalignment with the approved brief, invented author/illustrator/publisher attribution, a false commissioned-art or license claim, or unsupported claims about delivered filenames, artwork totals, or page counts. Markdown references to interior-art PNG files count as resolved artwork. Do not infer that artwork is missing from stale checklist or risk wording outside the Product draft. Publisher Forge automatically handles page numbering, embedded fonts and licenses, image embedding, resolution checks, single-sided coloring-page order, KDP page minimums, margins, bleed, spine width, cover PDF generation, and black-and-white metadata. Never assign those software tasks to the user. Put only concrete content corrections in requiredFixes. The only human final check is opening the marketplace preview once to make sure the finished product looks right. Do not block or require revision for that preview. Do not repeat a prior issue that the revised package resolved. If the written content and metadata are useful, aligned, original, and safe, return empty blockers and requiredFixes arrays. Do not claim that Amazon KDP, Etsy, or Shopify has approved the product.",
       input:
         "Review this " + market + " production package. " +
         "Working title: " + title + ".\n\n" +
@@ -1678,12 +1687,12 @@ app.post("/api/generate-cover", limitAI, async (req, res) => {
   }
 
   const prompt = [
-    "Create original portrait cover artwork for a " + market + " digital publishing product.",
+    "Create original portrait product artwork for a " + market + " product.",
     "Product title for creative context: " + title + ".",
     subtitle ? "Subtitle for creative context: " + subtitle + "." : "",
     deliverable ? "Deliverable: " + deliverable + "." : "",
     description ? "Product purpose: " + description + "." : "",
-    "Generate flat front-cover artwork only in a polished, commercially useful editorial style.",
+    "Generate flat front-cover or primary product artwork only in a polished, commercially useful editorial style.",
     "Leave calm, uncluttered negative space across the upper half for title typography that will be added later.",
     "Do not render any words, letters, logos, watermarks, trademarks, brand marks, celebrities, copyrighted characters, product mockups, book spines, or back covers.",
     "Use original visual elements and avoid imitating any named artist or existing product."
@@ -1956,6 +1965,19 @@ app.post("/api/export-bundle", async (req, res) => {
       embeddedFonts: ["Inter Regular", "Inter Bold"]
     };
   }
+  const shopifyProduct = listingData.platform === "Shopify"
+    ? {
+        status: "draft",
+        title: listingData.listingTitle || listingData.packageTitle,
+        description: listingData.listingDescription,
+        productType: listingData.deliverableType,
+        tags: listingData.keywords,
+        seo: {
+          title: text(listingData.listingTitle, 70),
+          description: text(listingData.listingDescription, 320)
+        }
+      }
+    : null;
   const checklistItems = Array.isArray(packageData.productionChecklist)
     ? packageData.productionChecklist
         .map((item) => text(item, 500))
@@ -2022,6 +2044,12 @@ app.post("/api/export-bundle", async (req, res) => {
             "listing/kdp-upload-guide.txt — exact paperback upload sequence"
           ]
         : []),
+      ...(shopifyProduct
+        ? [
+            "listing/shopify-product.json — ready-to-copy draft product data",
+            "listing/shopify-upload-guide.txt — guided Shopify draft-listing sequence"
+          ]
+        : []),
       "review/quality-review.json — final Quality Control report",
       "review/production-checklist.md — remaining human production steps",
       "review/approved-brief.txt — source brief used to create the package"
@@ -2071,6 +2099,26 @@ app.post("/api/export-bundle", async (req, res) => {
     });
     if (wrapCover) product.file("kdp-paperback-cover-wrap.pdf", wrapCover);
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
+    if (shopifyProduct) {
+      listing.file(
+        "shopify-product.json",
+        JSON.stringify(shopifyProduct, null, 2)
+      );
+      listing.file("shopify-upload-guide.txt", [
+        "PUBLISHER FORGE — SHOPIFY PRODUCT DRAFT GUIDE",
+        "",
+        "1. In Shopify, create a new product and keep its status as Draft.",
+        "2. Copy the title, description, product type, and tags from shopify-product.json.",
+        cover
+          ? "3. Add product/cover.png as the primary product image."
+          : "3. Generate product artwork in Publisher Forge before making the listing active.",
+        "4. Add product/printable.pdf or the finished digital deliverable to your configured digital-delivery workflow.",
+        "5. Set the price, inventory behavior, tax settings, and delivery settings for the actual offer.",
+        "6. Preview the product page once on mobile and desktop.",
+        "7. Keep the product in Draft until rights, claims, files, price, and checkout behavior are correct.",
+        "8. Activate it yourself only after the final preview passes."
+      ].join("\n"));
+    }
     if (pricing) {
       listing.file("kdp-pricing.txt", formatKdpPricing(pricing));
       listing.file("kdp-pricing.json", JSON.stringify(pricing, null, 2));
@@ -2338,7 +2386,9 @@ app.post("/api/trend-radar", limitAI, async (req, res) => {
 
         return {
           title: text(item.title, 160),
-          platform: platform(item.platform, true),
+          platform: market === "Both"
+            ? platform(item.platform, true)
+            : market,
           audience: text(item.audience, 250),
           evidence: text(item.evidence, 600),
           competitionNote: text(item.competitionNote, 250),
