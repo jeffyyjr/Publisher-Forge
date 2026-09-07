@@ -274,9 +274,11 @@ async function filesBelow(directory, extension) {
 }
 
 async function readJson(file, maxBytes = 20 * 1024 * 1024) {
-  const stat = await fs.stat(file);
-  if (stat.size > maxBytes) throw new Error(path.basename(file) + " is too large to normalize.");
-  return JSON.parse(await fs.readFile(file, "utf8"));
+  const contents = await fs.readFile(file);
+  if (contents.byteLength > maxBytes) {
+    throw new Error(path.basename(file) + " is too large to normalize.");
+  }
+  return JSON.parse(contents.toString("utf8"));
 }
 
 function applyAcceptedRisks(findings, acceptedDocument, policy, now = new Date()) {
