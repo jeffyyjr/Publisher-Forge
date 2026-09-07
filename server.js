@@ -4,6 +4,13 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import JSZip from "jszip";
 import PDFDocument from "pdfkit";
+import ffmpegPath from "ffmpeg-static";
+import { createWriteStream } from "fs";
+import { promises as fs } from "fs";
+import { spawn } from "child_process";
+import { Readable, Transform } from "stream";
+import { pipeline } from "stream/promises";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -13,6 +20,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -20,6 +28,8 @@ const client = process.env.OPENAI_API_KEY
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const requestLog = new Map();
+const videoRequestLog = new Map();
+let activeVideoRenders = 0;
 
 const trendReportSchema = {
   type: "object",
@@ -181,6 +191,59 @@ const revenueReviewSchema = {
   additionalProperties: false
 };
 
+const viralRemixSchema = {
+  type: "object",
+  properties: {
+    trendTitle: { type: "string" },
+    trendSummary: { type: "string" },
+    whyNow: { type: "string" },
+    audience: { type: "string" },
+    hook: { type: "string" },
+    narration: { type: "string" },
+    postCaption: { type: "string" },
+    hashtags: {
+      type: "array",
+      minItems: 5,
+      maxItems: 10,
+      items: { type: "string" }
+    },
+    searchTerms: {
+      type: "array",
+      minItems: 6,
+      maxItems: 6,
+      items: { type: "string" }
+    },
+    scenes: {
+      type: "array",
+      minItems: 6,
+      maxItems: 6,
+      items: {
+        type: "object",
+        properties: {
+          searchTerm: { type: "string" },
+          narration: { type: "string" },
+          onScreenText: { type: "string" }
+        },
+        required: ["searchTerm", "narration", "onScreenText"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: [
+    "trendTitle",
+    "trendSummary",
+    "whyNow",
+    "audience",
+    "hook",
+    "narration",
+    "postCaption",
+    "hashtags",
+    "searchTerms",
+    "scenes"
+  ],
+  additionalProperties: false
+};
+
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "80mb" }));
@@ -209,6 +272,679 @@ function platform(value, allowBoth = false) {
       : "KDP";
 }
 
+function viralPlatform(value) {
+  return ["TikTok", "YouTube Shorts", "Both"].includes(value)
+    ? value
+    : "Both";
+}
+
+function revenueChannel(value) {
+  return [
+    "KDP",
+    "Etsy",
+    "Shopify",
+    "TikTok",
+    "YouTube Shorts",
+    "Viral Remix"
+  ].includes(value)
+    ? value
+    : "KDP";
+}
+
+function viralDuration(value) {
+  const seconds = Number(value);
+  return [30, 45, 60].includes(seconds) ? seconds : 45;
+}
+
+function plainCommonsText(value, limit = 500) {
+  return text(
+    String(value || "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;|&#160;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;|&#34;/gi, "\"")
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/\s+/g, " "),
+    limit
+  );
+}
+
+function commonsMetadata(metadata, key, limit = 500) {
+  return plainCommonsText(metadata?.[key]?.value, limit);
+}
+
+function reusableLicense(value) {
+  const raw = plainCommonsText(value, 80);
+  const normalized = raw.toUpperCase().replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+
+  if (/\bPUBLIC DOMAIN\b/.test(normalized) || normalized === "PDM") {
+    return {
+      name: "Public Domain",
+      className: "public-domain",
+      attributionRequired: false,
+      fallbackUrl: "https://creativecommons.org/publicdomain/mark/1.0/"
+    };
+  }
+
+  if (/\bCC0\b/.test(normalized)) {
+    return {
+      name: "CC0",
+      className: "cc0",
+      attributionRequired: false,
+      fallbackUrl: "https://creativecommons.org/publicdomain/zero/1.0/"
+    };
+  }
+
+  if (/^CC BY(?: \d(?:\.\d)?)?$/.test(normalized)) {
+    const version = normalized.match(/(\d(?:\.\d)?)/)?.[1] || "4.0";
+    return {
+      name: raw || "CC BY",
+      className: "cc-by",
+      attributionRequired: true,
+      fallbackUrl: "https://creativecommons.org/licenses/by/" + version + "/"
+    };
+  }
+
+  return null;
+}
+
+function safeWebUrl(value, allowedHosts) {
+  try {
+    const raw = String(value || "");
+    const url = new URL(raw.startsWith("//") ? "https:" + raw : raw);
+    if (url.protocol !== "https:") return "";
+    if (allowedHosts && !allowedHosts.has(url.hostname)) return "";
+    return url.href;
+  } catch (error) {
+    return "";
+  }
+}
+
+function bestCommonsDerivative(info) {
+  const maxBytes = 32 * 1024 * 1024;
+  const duration = Number(info?.duration) || 0;
+  const allowedHosts = new Set(["upload.wikimedia.org"]);
+  const derivatives = Array.isArray(info?.derivatives)
+    ? info.derivatives
+    : [];
+  const candidates = derivatives.map((item) => {
+    const url = safeWebUrl(item.src, allowedHosts);
+    const width = Number(item.width) || 0;
+    const height = Number(item.height) || 0;
+    const bandwidth = Number(item.bandwidth) || 0;
+    const estimatedBytes = bandwidth && duration
+      ? Math.ceil((bandwidth * duration) / 8)
+      : 0;
+    const type = String(item.type || "").toLowerCase();
+
+    return {
+      url,
+      width,
+      height,
+      bandwidth,
+      estimatedBytes,
+      type,
+      maxDimension: Math.max(width, height),
+      isTranscode: Boolean(item.transcodekey)
+    };
+  }).filter((item) =>
+    item.url &&
+    item.maxDimension >= 426 &&
+    item.type.startsWith("video/") &&
+    (!item.estimatedBytes || item.estimatedBytes <= maxBytes)
+  );
+
+  candidates.sort((a, b) => {
+    const aTarget = Math.abs(Math.min(a.maxDimension, 1280) - 854);
+    const bTarget = Math.abs(Math.min(b.maxDimension, 1280) - 854);
+    const aPenalty = a.isTranscode ? 0 : 600;
+    const bPenalty = b.isTranscode ? 0 : 600;
+    return (aTarget + aPenalty) - (bTarget + bPenalty);
+  });
+
+  return candidates[0] || null;
+}
+
+function normalizeCommonsVideo(page, searchTerm = "") {
+  const info = page?.videoinfo?.[0];
+  if (!page?.title || !info) return null;
+
+  const metadata = info.extmetadata || {};
+  const license = reusableLicense(
+    commonsMetadata(metadata, "LicenseShortName", 80) ||
+    commonsMetadata(metadata, "UsageTerms", 80)
+  );
+  const derivative = bestCommonsDerivative(info);
+  const restrictions = commonsMetadata(metadata, "Restrictions", 300);
+
+  if (!license || !derivative || restrictions) return null;
+
+  const sourceUrl = safeWebUrl(
+    info.descriptionurl,
+    new Set(["commons.wikimedia.org"])
+  );
+  const posterUrl = safeWebUrl(
+    info.thumburl,
+    new Set(["thumb.wikimedia.org", "upload.wikimedia.org"])
+  );
+
+  if (!sourceUrl) return null;
+
+  const title = plainCommonsText(
+    commonsMetadata(metadata, "ObjectName", 220) ||
+      page.title.replace(/^File:/i, "")
+        .replace(/\.(?:webm|ogv|ogg|mp4|mov|mpeg)$/i, ""),
+    220
+  );
+  const creator = commonsMetadata(metadata, "Artist", 220) ||
+    "Wikimedia Commons contributor";
+  const licenseUrl = safeWebUrl(
+    metadata?.LicenseUrl?.value,
+    null
+  ) || license.fallbackUrl;
+  const assessments = commonsMetadata(metadata, "Assessments", 200);
+  const resolution = derivative.width + "×" + derivative.height;
+  const qualityScore =
+    (license.className === "public-domain" ? 30 :
+      license.className === "cc0" ? 27 : 22) +
+    (/featured/i.test(assessments) ? 18 : 0) +
+    Math.min(24, Math.round(derivative.maxDimension / 45)) +
+    (Number(info.duration) >= 8 ? 12 : 0);
+
+  return {
+    id: String(page.pageid || page.title),
+    commonsTitle: page.title,
+    title,
+    description: commonsMetadata(metadata, "ImageDescription", 500),
+    creator,
+    license: license.name,
+    licenseClass: license.className,
+    licenseUrl,
+    attributionRequired: license.attributionRequired,
+    attribution: title + " — " + creator + " — " + license.name,
+    sourceUrl,
+    mediaUrl: derivative.url,
+    posterUrl,
+    durationSeconds: Math.round(Number(info.duration) || 0),
+    width: derivative.width,
+    height: derivative.height,
+    resolution,
+    estimatedBytes: derivative.estimatedBytes,
+    searchTerm: text(searchTerm, 120),
+    qualityScore
+  };
+}
+
+async function queryCommonsVideos(searchTerm) {
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: text(searchTerm, 120) + " filetype:video",
+    gsrnamespace: "6",
+    gsrlimit: "10",
+    gsrwhat: "text",
+    prop: "videoinfo",
+    viprop: "url|mime|size|extmetadata|derivatives",
+    viurlwidth: "640",
+    format: "json",
+    formatversion: "2",
+    origin: "*"
+  });
+  const response = await fetch(
+    "https://commons.wikimedia.org/w/api.php?" + params.toString(),
+    {
+      headers: {
+        "User-Agent": "PublisherForge/0.20 (https://github.com/jeffyyjr/Publisher-Forge)"
+      },
+      signal: AbortSignal.timeout(20000)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Reusable-footage search returned " + response.status + ".");
+  }
+
+  const data = await response.json();
+  return (data?.query?.pages || [])
+    .map((page) => normalizeCommonsVideo(page, searchTerm))
+    .filter(Boolean);
+}
+
+async function findReusableVideos(searchTerms, count = 6) {
+  const terms = [...new Set(
+    (Array.isArray(searchTerms) ? searchTerms : [])
+      .map((item) => text(item, 120))
+      .filter(Boolean)
+  )].slice(0, 7);
+
+  if (!terms.length) {
+    throw new Error("No reusable-footage search terms were generated.");
+  }
+
+  const results = await Promise.allSettled(
+    terms.map((term) => queryCommonsVideos(term))
+  );
+  const groups = [];
+
+  results.forEach((result, termIndex) => {
+    if (result.status !== "fulfilled") return;
+
+    const group = result.value.map((item, itemIndex) => ({
+        ...item,
+        qualityScore: item.qualityScore +
+          Math.max(0, 14 - termIndex * 2 - itemIndex)
+      }))
+      .sort((a, b) => b.qualityScore - a.qualityScore);
+
+    if (group.length) groups.push(group);
+  });
+
+  const selected = [];
+  const selectedTitles = new Set();
+
+  groups.forEach((group) => {
+    if (selected.length >= count) return;
+    const candidate = group.find((item) =>
+      !selectedTitles.has(item.commonsTitle)
+    );
+    if (!candidate) return;
+    selected.push(candidate);
+    selectedTitles.add(candidate.commonsTitle);
+  });
+
+  const remaining = groups.flat()
+    .filter((item) => !selectedTitles.has(item.commonsTitle))
+    .sort((a, b) => b.qualityScore - a.qualityScore)
+    .slice(0, Math.max(0, count - selected.length));
+  const videos = selected.concat(remaining)
+    .slice(0, count)
+    .map(({ qualityScore, ...item }) => item);
+
+  if (videos.length < 3) {
+    throw new Error(
+      "Fewer than three license-verified videos matched this topic. Try a broader topic."
+    );
+  }
+
+  return videos;
+}
+
+async function reverifyCommonsVideos(titles) {
+  const safeTitles = [...new Set(
+    (Array.isArray(titles) ? titles : [])
+      .map((item) => text(item, 260))
+      .filter((item) => /^File:[^|]{1,250}$/i.test(item))
+  )].slice(0, 6);
+
+  if (safeTitles.length < 3) {
+    throw new Error("Choose at least three license-verified source videos.");
+  }
+
+  const params = new URLSearchParams({
+    action: "query",
+    titles: safeTitles.join("|"),
+    prop: "videoinfo",
+    viprop: "url|mime|size|extmetadata|derivatives",
+    viurlwidth: "640",
+    format: "json",
+    formatversion: "2",
+    origin: "*"
+  });
+  const response = await fetch(
+    "https://commons.wikimedia.org/w/api.php?" + params.toString(),
+    {
+      headers: {
+        "User-Agent": "PublisherForge/0.20 (https://github.com/jeffyyjr/Publisher-Forge)"
+      },
+      signal: AbortSignal.timeout(25000)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not recheck the footage licenses.");
+  }
+
+  const data = await response.json();
+  const verified = new Map(
+    (data?.query?.pages || [])
+      .map((page) => normalizeCommonsVideo(page))
+      .filter(Boolean)
+      .map((item) => [item.commonsTitle, item])
+  );
+  const ordered = safeTitles.map((title) => verified.get(title)).filter(Boolean);
+
+  if (ordered.length !== safeTitles.length) {
+    throw new Error(
+      "One or more source licenses changed or could not be verified. Run a new scan."
+    );
+  }
+
+  return ordered;
+}
+
+function parseViralRemix(response) {
+  if (response.status === "incomplete") {
+    const reason = response.incomplete_details?.reason || "unknown reason";
+    throw new Error("Viral Remix response was incomplete: " + reason + ".");
+  }
+
+  const raw = String(response.output_text || "").trim();
+  if (!raw) {
+    throw new Error("Viral Remix returned no plan. Please try again.");
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Viral Remix could not read the completed plan.");
+  }
+}
+
+function trimNarration(value, duration) {
+  const words = text(value, 5000).split(/\s+/).filter(Boolean);
+  const maximum = Math.max(55, Math.floor(duration * 2.25));
+  const trimmed = words.slice(0, maximum).join(" ");
+  return trimmed && !/[.!?]$/.test(trimmed) ? trimmed + "." : trimmed;
+}
+
+function normalizedRemixPlan(value, duration) {
+  const plan = value && typeof value === "object" ? value : {};
+  const scenes = Array.isArray(plan.scenes)
+    ? plan.scenes.slice(0, 6).map((scene) => ({
+        searchTerm: text(scene?.searchTerm, 120),
+        narration: text(scene?.narration, 700),
+        onScreenText: text(scene?.onScreenText, 180)
+      }))
+    : [];
+
+  return {
+    trendTitle: text(plan.trendTitle, 180) || "Original short-form remix",
+    trendSummary: text(plan.trendSummary, 800),
+    whyNow: text(plan.whyNow, 800),
+    audience: text(plan.audience, 300),
+    hook: text(plan.hook, 280),
+    narration: trimNarration(
+      plan.narration || scenes.map((scene) => scene.narration).join(" "),
+      duration
+    ),
+    postCaption: text(plan.postCaption, 1000),
+    hashtags: Array.isArray(plan.hashtags)
+      ? plan.hashtags.slice(0, 10).map((item) => text(item, 80)).filter(Boolean)
+      : [],
+    searchTerms: Array.isArray(plan.searchTerms)
+      ? plan.searchTerms.slice(0, 6).map((item) => text(item, 120)).filter(Boolean)
+      : [],
+    scenes
+  };
+}
+
+function srtTimestamp(seconds) {
+  const milliseconds = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(milliseconds / 3600000);
+  const minutes = Math.floor((milliseconds % 3600000) / 60000);
+  const secs = Math.floor((milliseconds % 60000) / 1000);
+  const millis = milliseconds % 1000;
+  return [hours, minutes, secs].map((item) => String(item).padStart(2, "0"))
+    .join(":") + "," + String(millis).padStart(3, "0");
+}
+
+function remixCaptions(plan, duration, count) {
+  const sceneDuration = duration / count;
+  const scenes = Array.from({ length: count }, (_, index) => {
+    const scene = plan.scenes[index] || {};
+    return text(
+      scene.onScreenText || (index === 0 ? plan.hook : scene.narration),
+      180
+    ) || plan.trendTitle;
+  });
+
+  return scenes.map((caption, index) => [
+    index + 1,
+    srtTimestamp(index * sceneDuration) + " --> " +
+      srtTimestamp((index + 1) * sceneDuration - 0.08),
+    caption.replace(/\r?\n/g, " ").replace(/[{}\\]/g, ""),
+    ""
+  ].join("\n")).join("\n");
+}
+
+function subtitleBurnFilter(captionPath) {
+  return "subtitles=" + captionPath.replace(/:/g, "\\:") +
+    ":force_style='FontName=DejaVu Sans,FontSize=20," +
+    "PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000," +
+    "BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=105'";
+}
+
+function safeFilename(value) {
+  return text(value, 120).toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "viral-remix";
+}
+
+function sourceCredits(sources) {
+  return sources.map((source, index) => [
+    String(index + 1) + ". " + source.title,
+    "Creator: " + source.creator,
+    "License: " + source.license + " — " + source.licenseUrl,
+    "Source: " + source.sourceUrl
+  ].join("\n")).join("\n\n");
+}
+
+function postingCopy(plan, sources) {
+  const hashtags = plan.hashtags.map((item) =>
+    item.startsWith("#") ? item : "#" + item.replace(/\s+/g, "")
+  ).join(" ");
+
+  return [
+    plan.postCaption,
+    hashtags,
+    "Production note: original AI-generated narration over licensed reusable footage.",
+    "",
+    "FOOTAGE CREDITS",
+    sourceCredits(sources)
+  ].filter((item) => item !== "").join("\n\n");
+}
+
+function runFfmpeg(args, timeoutMs = 240000) {
+  const binary = ffmpegPath || process.env.FFMPEG_PATH || "ffmpeg";
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      error ? reject(error) : resolve();
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error("Video rendering took too long. Try the 30-second format."));
+    }, timeoutMs);
+
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString()).slice(-5000);
+    });
+    child.on("error", (error) => {
+      finish(new Error("Video renderer could not start: " + error.message));
+    });
+    child.on("close", (code) => {
+      finish(code === 0
+        ? null
+        : new Error("Video renderer stopped: " + (stderr.trim() || "FFmpeg error"))
+      );
+    });
+  });
+}
+
+async function downloadCommonsVideo(source, destination) {
+  const allowedHosts = new Set(["upload.wikimedia.org"]);
+  const url = safeWebUrl(source.mediaUrl, allowedHosts);
+  if (!url) throw new Error("A source video URL was not trusted.");
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "PublisherForge/0.20 (https://github.com/jeffyyjr/Publisher-Forge)"
+    },
+    signal: AbortSignal.timeout(90000)
+  });
+  const finalUrl = safeWebUrl(response.url, allowedHosts);
+
+  if (!response.ok || !response.body || !finalUrl) {
+    throw new Error("A verified source video could not be downloaded.");
+  }
+
+  const maximum = 36 * 1024 * 1024;
+  const declared = Number(response.headers.get("content-length")) || 0;
+  if (declared > maximum) {
+    throw new Error("A source video exceeded the safe download size.");
+  }
+
+  let received = 0;
+  const limiter = new Transform({
+    transform(chunk, encoding, callback) {
+      received += chunk.length;
+      if (received > maximum) {
+        callback(new Error("A source video exceeded the safe download size."));
+        return;
+      }
+      callback(null, chunk);
+    }
+  });
+
+  await pipeline(
+    Readable.fromWeb(response.body),
+    limiter,
+    createWriteStream(destination)
+  );
+}
+
+async function generateNarration(plan, destination) {
+  const response = await client.audio.speech.create({
+    model: TTS_MODEL,
+    voice: "alloy",
+    input: plan.narration,
+    response_format: "mp3"
+  });
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  if (!buffer.length) {
+    throw new Error("The original narration audio was empty.");
+  }
+
+  await fs.writeFile(destination, buffer);
+}
+
+async function renderViralRemix(
+  plan,
+  sources,
+  duration,
+  tempDirectory,
+  narrationProvider = generateNarration
+) {
+  const sceneDuration = duration / sources.length;
+  const orderedPlan = {
+    ...plan,
+    scenes: sources.map((source, index) => {
+      const wanted = String(source.searchTerm || "").toLowerCase();
+      return plan.scenes.find((scene) =>
+        String(scene.searchTerm || "").toLowerCase() === wanted
+      ) || plan.scenes[index] || {};
+    })
+  };
+  const segmentPaths = [];
+
+  for (let index = 0; index < sources.length; index += 1) {
+    const source = sources[index];
+    const extension = path.extname(new URL(source.mediaUrl).pathname) || ".webm";
+    const inputPath = path.join(
+      tempDirectory,
+      "source-" + String(index + 1).padStart(2, "0") + extension
+    );
+    const outputPath = path.join(
+      tempDirectory,
+      "segment-" + String(index + 1).padStart(2, "0") + ".mp4"
+    );
+    const segmentCaptionPath = path.join(
+      tempDirectory,
+      "segment-" + String(index + 1).padStart(2, "0") + ".srt"
+    );
+    const available = Math.max(0, Number(source.durationSeconds) - sceneDuration);
+    const offset = available > 1 ? Math.min(available, index * 4.25) : 0;
+    const scene = orderedPlan.scenes[index] || {};
+    const segmentCaption = text(
+      scene.onScreenText || (index === 0 ? plan.hook : scene.narration),
+      180
+    ).replace(/\r?\n/g, " ").replace(/[{}\\]/g, "") || plan.trendTitle;
+    const segmentSrt = [
+      "1",
+      "00:00:00,000 --> " + srtTimestamp(sceneDuration - 0.08),
+      segmentCaption,
+      ""
+    ].join("\n");
+
+    await downloadCommonsVideo(source, inputPath);
+    await fs.writeFile(segmentCaptionPath, segmentSrt, "utf8");
+    await runFfmpeg([
+      "-hide_banner", "-loglevel", "error", "-y",
+      "-stream_loop", "-1",
+      "-ss", offset.toFixed(2),
+      "-i", inputPath,
+      "-t", sceneDuration.toFixed(3),
+      "-an",
+      "-vf",
+      "scale=720:1280:force_original_aspect_ratio=increase," +
+        "crop=720:1280,setsar=1,fps=24," +
+        subtitleBurnFilter(segmentCaptionPath),
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-crf", "25",
+      "-pix_fmt", "yuv420p",
+      outputPath
+    ]);
+    segmentPaths.push(outputPath);
+  }
+
+  const concatPath = path.join(tempDirectory, "segments.txt");
+  const baseVideoPath = path.join(tempDirectory, "base.mp4");
+  const captionPath = path.join(tempDirectory, "captions.srt");
+  const narrationPath = path.join(tempDirectory, "narration.mp3");
+  const finalPath = path.join(tempDirectory, "viral-remix.mp4");
+  const concatText = segmentPaths.map((item) =>
+    "file '" + item.replace(/'/g, "'\\''") + "'"
+  ).join("\n");
+  const captions = remixCaptions(orderedPlan, duration, sources.length);
+
+  await fs.writeFile(concatPath, concatText, "utf8");
+  await fs.writeFile(captionPath, captions, "utf8");
+  await narrationProvider(plan, narrationPath);
+  await runFfmpeg([
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-f", "concat", "-safe", "0", "-i", concatPath,
+    "-c", "copy", baseVideoPath
+  ]);
+
+  await runFfmpeg([
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-i", baseVideoPath,
+    "-i", narrationPath,
+    "-map", "0:v:0",
+    "-map", "1:a:0",
+    "-filter:a", "apad",
+    "-t", String(duration),
+    "-c:v", "copy",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-movflags", "+faststart",
+    finalPath
+  ]);
+
+  return { finalPath, captionPath, captions };
+}
+
 function limitAI(req, res, next) {
   const key = req.ip || "unknown";
   const now = Date.now();
@@ -224,6 +960,28 @@ function limitAI(req, res, next) {
     return res.status(429).json({
       error: "Too many requests",
       message: "Wait a few minutes and try again."
+    });
+  }
+
+  current.count += 1;
+  next();
+}
+
+function limitVideoRender(req, res, next) {
+  const key = req.ip || "unknown";
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const current = videoRequestLog.get(key);
+
+  if (!current || now - current.started > windowMs) {
+    videoRequestLog.set(key, { started: now, count: 1 });
+    return next();
+  }
+
+  if (current.count >= 3) {
+    return res.status(429).json({
+      error: "Hourly video limit reached",
+      message: "This beta can render three videos per hour. Try again later."
     });
   }
 
@@ -1298,13 +2056,15 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.19.0",
+    version: "0.20.0",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
     qualityControlAvailable: Boolean(client),
     revisionAgentAvailable: Boolean(client),
-    coverStudioAvailable: Boolean(client)
+    coverStudioAvailable: Boolean(client),
+    viralRemixAvailable: Boolean(client && (ffmpegPath || process.env.FFMPEG_PATH)),
+    reusableFootageProvider: "Wikimedia Commons"
   });
 });
 
@@ -2227,7 +2987,7 @@ app.post("/api/revenue-review", limitAI, async (req, res) => {
 
   try {
     const title = text(req.body.title, 200);
-    const market = platform(req.body.platform);
+    const market = revenueChannel(req.body.platform);
     const days = measuredNumber(req.body.days, "Test days", 365);
     const views = measuredNumber(req.body.views, "Views", 100000000);
     const orders = measuredNumber(req.body.orders, "Orders", 10000000);
@@ -2280,9 +3040,9 @@ app.post("/api/revenue-review", limitAI, async (req, res) => {
         : 0
     };
     const prompt = [
-      "Review this measured marketplace test and choose the next move.",
-      "Product: " + title,
-      "Marketplace: " + market,
+      "Review this measured product or short-form content test and choose the next move.",
+      "Product or video: " + title,
+      "Channel: " + market,
       "Test metrics: " + JSON.stringify(metrics),
       context ? "Product/listing context: " + context : "",
       "Use only the supplied measurements. Do not invent benchmarks, sales, or costs.",
@@ -2293,7 +3053,7 @@ app.post("/api/revenue-review", limitAI, async (req, res) => {
     const response = await client.responses.create({
       model: MODEL,
       instructions:
-        "You are the Revenue/Market Agent for Publisher Forge. Turn real marketplace results into cautious, measurable next actions. Protect the operator from invented certainty and uncontrolled spending.",
+        "You are the Revenue/Market Agent for Publisher Forge. Turn real marketplace or short-form video results into cautious, measurable next actions. Protect the operator from invented certainty and uncontrolled spending.",
       reasoning: { effort: "low" },
       input: prompt,
       text: {
@@ -2331,6 +3091,239 @@ app.post("/api/revenue-review", limitAI, async (req, res) => {
     });
   }
 });
+
+app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
+  if (!requireOpenAI(res)) return;
+
+  const selectedPlatform = viralPlatform(req.body.platform);
+  const duration = viralDuration(req.body.duration);
+  const topic = text(req.body.topic, 180);
+  const today = new Date().toISOString().slice(0, 10);
+  const wordTarget = duration === 30 ? "55 to 65" :
+    duration === 60 ? "115 to 130" : "82 to 96";
+  const prompt = [
+    "Today is " + today + ".",
+    "Search the live web for a current high-interest topic and short-form format pattern suitable for " +
+      (selectedPlatform === "Both" ? "TikTok and YouTube Shorts" : selectedPlatform) + ".",
+    topic
+      ? "Build around this requested topic: " + topic + "."
+      : "Choose a broad, brand-safe topic with clear current momentum and useful evergreen value.",
+    "Use current public evidence, but do not copy, quote, summarize, name, or imitate a specific creator or viral video.",
+    "Avoid celebrities, copyrighted characters, private people, breaking tragedies, medical or financial claims, dangerous stunts, political persuasion, and content centered on children.",
+    "Create a genuinely original " + duration + "-second narrated video concept with " + wordTarget + " narration words and exactly six scenes.",
+    "Make each search term a simple two-to-four-word visual phrase likely to find reusable video on Wikimedia Commons.",
+    "The six on-screen text lines must be short, specific, and form a complete story. Return exactly six unique search terms and six scenes."
+  ].join(" ");
+
+  try {
+    const response = await client.responses.create({
+      model: MODEL,
+      instructions:
+        "You are Viral Remix for Publisher Forge. Use trend research only as market intelligence. Create original narration, structure, and captions. Never reproduce a source video's script, sequence, branding, or protected expression.",
+      tools: [{ type: "web_search" }],
+      tool_choice: "required",
+      include: ["web_search_call.action.sources"],
+      reasoning: { effort: "low" },
+      input: prompt,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "publisher_forge_viral_remix",
+          strict: true,
+          schema: viralRemixSchema
+        }
+      },
+      max_output_tokens: 4200
+    });
+    const rawPlan = parseViralRemix(response);
+    const plan = normalizedRemixPlan(rawPlan, duration);
+    const searchTerms = [
+      ...plan.scenes.map((scene) => scene.searchTerm),
+      ...plan.searchTerms
+    ];
+
+    if (!plan.narration || plan.scenes.length < 3) {
+      throw new Error("The original remix script was incomplete. Please try again.");
+    }
+
+    const videos = await findReusableVideos(searchTerms, 6);
+    const rightsCheckedAt = new Date().toISOString();
+
+    res.json({
+      status: "READY_TO_RENDER",
+      scannedAt: rightsCheckedAt,
+      rightsCheckedAt,
+      platform: selectedPlatform,
+      duration,
+      topic,
+      plan,
+      videos,
+      trendSources: getSources(response),
+      rightsPolicy: {
+        accepted: ["Public Domain", "CC0", "CC BY"],
+        rejected: ["Unknown", "Standard social-platform license", "CC BY-NC", "CC BY-ND", "CC BY-SA"],
+        note:
+          "Trend research supplies the idea. Only metadata-verified reusable footage is downloaded, and every license is rechecked before rendering."
+      },
+      humanApprovalRequired: true
+    });
+  } catch (error) {
+    res.status(502).json({
+      error: "Viral Remix scan failed",
+      message: error.message
+    });
+  }
+});
+
+app.post(
+  "/api/viral-remix/render",
+  limitAI,
+  limitVideoRender,
+  async (req, res) => {
+  if (!requireOpenAI(res)) return;
+  if (!ffmpegPath && !process.env.FFMPEG_PATH) {
+    return res.status(503).json({
+      error: "Video renderer is unavailable",
+      message: "The server does not have a video renderer configured."
+    });
+  }
+  if (activeVideoRenders >= 1) {
+    return res.status(429).json({
+      error: "Video renderer is busy",
+      message: "Another remix is rendering. Try again in a few minutes."
+    });
+  }
+
+  const selectedPlatform = viralPlatform(req.body.platform);
+  const duration = viralDuration(req.body.duration);
+  const plan = normalizedRemixPlan(req.body.plan, duration);
+  const requestedVideos = Array.isArray(req.body.videos)
+    ? req.body.videos.slice(0, 6)
+    : [];
+  const titles = requestedVideos.length
+    ? requestedVideos.map((item) => item?.commonsTitle)
+    : [];
+
+  if (!plan.narration || plan.scenes.length < 3) {
+    return res.status(400).json({
+      error: "Remix plan is incomplete",
+      message: "Run a fresh Viral Remix scan before rendering."
+    });
+  }
+
+  activeVideoRenders += 1;
+  const tempPrefix = path.join(os.tmpdir(), "publisher-forge-viral-");
+  let tempDirectory = "";
+
+  try {
+    const requestedTerms = new Map(requestedVideos.map((item) => [
+      text(item?.commonsTitle, 260),
+      text(item?.searchTerm, 120)
+    ]));
+    const sources = (await reverifyCommonsVideos(titles)).map((source) => ({
+      ...source,
+      searchTerm: requestedTerms.get(source.commonsTitle) || ""
+    }));
+    tempDirectory = await fs.mkdtemp(tempPrefix);
+    const rendered = await renderViralRemix(
+      plan,
+      sources,
+      duration,
+      tempDirectory
+    );
+    const createdAt = new Date().toISOString();
+    const slug = safeFilename(plan.trendTitle);
+    const videoFilename = slug + "-vertical.mp4";
+    const postText = postingCopy(plan, sources);
+    const manifest = {
+      product: "Publisher Forge Viral Remix",
+      version: "0.20.0",
+      createdAt,
+      platform: selectedPlatform,
+      durationSeconds: duration,
+      output: {
+        filename: videoFilename,
+        aspectRatio: "9:16",
+        resolution: "720×1280",
+        narration: "Original AI-generated voiceover",
+        captions: "Burned into the MP4 and included as SRT"
+      },
+      plan,
+      rights: {
+        checkedAt: createdAt,
+        acceptedLicenses: ["Public Domain", "CC0", "CC BY"],
+        allSourcesReverified: true,
+        sources
+      },
+      approval: {
+        requiredBeforePublishing: true,
+        note:
+          "Preview the finished video and paste posting-copy.txt with it so source credits travel with the post."
+      }
+    };
+    const readme = [
+      "PUBLISHER FORGE — VIRAL REMIX BETA",
+      "",
+      "READY FILE",
+      videoFilename + " — original vertical video with narration and burned captions",
+      "",
+      "BEFORE POSTING",
+      "1. Watch the MP4 once and confirm every visual fits the narration.",
+      "2. Paste posting-copy.txt into the platform caption or description.",
+      "3. Keep the source credits intact, especially for CC BY footage.",
+      "4. Use the platform's AI or synthetic-media disclosure when its rules require it.",
+      "5. Publish only after your approval; Publisher Forge does not auto-post.",
+      "",
+      "RIGHTS NOTE",
+      "Every included source was rechecked as Public Domain, CC0, or CC BY immediately before rendering. This metadata check does not clear separate privacy, publicity, trademark, endorsement, or local-law issues visible in the footage.",
+      "",
+      "FILES",
+      "captions.srt — editable caption timing",
+      "posting-copy.txt — original post copy, hashtags, and source credits",
+      "source-licenses.txt — full source and license record",
+      "remix-manifest.json — plan, output details, and rights audit"
+    ].join("\n");
+    const zip = new JSZip();
+
+    zip.file(
+      videoFilename,
+      await fs.readFile(rendered.finalPath),
+      { compression: "STORE" }
+    );
+    zip.file("captions.srt", rendered.captions);
+    zip.file("posting-copy.txt", postText);
+    zip.file("source-licenses.txt", sourceCredits(sources));
+    zip.file("remix-manifest.json", JSON.stringify(manifest, null, 2));
+    zip.file("README-FIRST.txt", readme);
+
+    const archive = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 4 }
+    });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="' + slug + '-viral-remix.zip"'
+    );
+    res.setHeader("X-Publisher-Forge-Rights-Checked", createdAt);
+    res.send(archive);
+  } catch (error) {
+    const rightsError = /license|verified source|recheck/i.test(error.message);
+    res.status(rightsError ? 409 : 502).json({
+      error: rightsError ? "Footage rights check stopped" : "Viral Remix render failed",
+      message: error.message
+    });
+  } finally {
+    activeVideoRenders = Math.max(0, activeVideoRenders - 1);
+    if (tempDirectory && tempDirectory.startsWith(tempPrefix)) {
+      await fs.rm(tempDirectory, { recursive: true, force: true })
+        .catch(() => {});
+    }
+  }
+  }
+);
 
 app.post("/api/trend-radar", limitAI, async (req, res) => {
   if (!requireOpenAI(res)) return;
@@ -2436,6 +3429,19 @@ app.use((error, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log("Publisher Forge running on port " + PORT);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log("Publisher Forge running on port " + PORT);
+  });
+}
+
+export {
+  app,
+  findReusableVideos,
+  reverifyCommonsVideos,
+  renderViralRemix,
+  revenueChannel,
+  normalizedRemixPlan,
+  remixCaptions,
+  runFfmpeg
+};

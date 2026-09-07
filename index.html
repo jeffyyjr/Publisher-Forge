@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b0f">
-  <meta name="description" content="Find, build, and measure original product opportunities for Amazon KDP, Etsy, and Shopify.">
+  <meta name="description" content="Find, build, package, remix, and measure original products and short-form videos.">
   <title>Publisher Forge</title>
   <style>
     :root {
@@ -160,7 +160,7 @@
 
     .tabs {
       display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
+      grid-template-columns:repeat(2,minmax(0,1fr));
       gap:5px;
       margin:18px 0 16px;
       padding:5px;
@@ -241,7 +241,7 @@
       font-weight:750;
     }
 
-    input[type=text],select,textarea {
+    input[type=text],input[type=number],select,textarea {
       width:100%;
       min-height:49px;
       padding:0 13px;
@@ -866,6 +866,139 @@
       overflow-wrap:anywhere;
     }
 
+    .remix-status-line {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .rights-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      padding:6px 9px;
+      border:1px solid #55dd8a55;
+      border-radius:999px;
+      background:#55dd8a12;
+      color:#7aeca5;
+      font-size:.72rem;
+      font-weight:850;
+    }
+
+    .rights-badge:before {
+      content:"✓";
+      font-weight:900;
+    }
+
+    .remix-plan {
+      display:grid;
+      gap:10px;
+      margin:12px 0;
+    }
+
+    .remix-plan-card,.rights-card {
+      padding:13px;
+      border:1px solid var(--line);
+      border-radius:13px;
+      background:#0b0f14;
+    }
+
+    .remix-plan-card span,.rights-card span {
+      display:block;
+      margin-bottom:4px;
+      color:var(--muted);
+      font-size:.72rem;
+      font-weight:850;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .remix-plan-card strong {
+      display:block;
+      color:var(--text);
+      font-size:.92rem;
+      line-height:1.45;
+    }
+
+    .remix-script {
+      min-height:0;
+      margin:12px 0;
+    }
+
+    .clip-grid {
+      display:grid;
+      gap:10px;
+      margin:12px 0;
+    }
+
+    .clip-card {
+      overflow:hidden;
+      border:1px solid #3b4655;
+      border-radius:13px;
+      background:#10161d;
+    }
+
+    .clip-card video,.clip-card img {
+      display:block;
+      width:100%;
+      aspect-ratio:16/9;
+      border:0;
+      background:#07090d;
+      object-fit:cover;
+    }
+
+    .clip-card-body { padding:11px }
+
+    .clip-card h3 {
+      margin:0 0 4px;
+      font-size:.9rem;
+      line-height:1.35;
+    }
+
+    .clip-card p {
+      margin:0;
+      color:var(--muted);
+      font-size:.76rem;
+      line-height:1.45;
+    }
+
+    .clip-license {
+      display:inline-block;
+      margin-top:8px;
+      padding:3px 7px;
+      border:1px solid #55dd8a44;
+      border-radius:999px;
+      color:#7aeca5;
+      font-size:.68rem;
+      font-weight:850;
+    }
+
+    .clip-card a {
+      display:inline-block;
+      margin-top:8px;
+      color:var(--gold);
+      font-size:.76rem;
+      font-weight:800;
+    }
+
+    .rights-card {
+      margin:12px 0;
+      border-color:#55dd8a33;
+      background:#0d1814;
+      color:#dce7e1;
+      font-size:.82rem;
+      line-height:1.55;
+    }
+
+    .remix-progress {
+      margin:10px 0 0;
+      color:var(--muted);
+      font-size:.8rem;
+      text-align:center;
+    }
+
     .toast {
       position:fixed;
       left:50%;
@@ -891,11 +1024,17 @@
 
     @media (min-width:680px) {
       .shell { padding:28px 24px 70px }
-      .tabs { width:760px;max-width:100% }
+      .tabs {
+        width:940px;
+        max-width:100%;
+        grid-template-columns:repeat(5,minmax(0,1fr));
+      }
       .two { grid-template-columns:1.3fr .7fr }
       .buttons,.result-actions { grid-template-columns:1fr 1fr }
       .facts { grid-template-columns:1fr 1fr }
       .cover-card { grid-template-columns:minmax(0,1fr) 230px }
+      .remix-plan { grid-template-columns:repeat(2,minmax(0,1fr)) }
+      .clip-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
     }
 
     @media (min-width:920px) {
@@ -915,6 +1054,8 @@
         position:sticky;
         top:20px;
       }
+
+      .clip-grid { grid-template-columns:repeat(3,minmax(0,1fr)) }
     }
   </style>
 </head>
@@ -945,8 +1086,8 @@
         <small>Digital products</small>
       </div>
       <div class="forge-line beta">
-        <div class="forge-line-head"><strong>Clips</strong><b>NEXT</b></div>
-        <small>Shorts + TikTok</small>
+        <div class="forge-line-head"><strong>Viral Remix</strong><b>BETA</b></div>
+        <small>Rights-safe video</small>
       </div>
     </section>
 
@@ -964,6 +1105,11 @@
       <button class="tab" id="productionTab" type="button" role="tab"
         aria-selected="false" aria-controls="productionView">
         Production
+      </button>
+
+      <button class="tab" id="viralTab" type="button" role="tab"
+        aria-selected="false" aria-controls="viralView">
+        Viral Remix
       </button>
 
       <button class="tab" id="revenueTab" type="button" role="tab"
@@ -1392,6 +1538,132 @@
       </article>
     </section>
 
+    <section id="viralView" role="tabpanel"
+      aria-labelledby="viralTab" hidden>
+      <div class="radar-grid">
+        <article class="panel radar-controls">
+          <div class="panel-head">
+            <p class="eyebrow">Viral Remix · Beta</p>
+            <h2>Build a rights-safe short</h2>
+            <p class="subtext">
+              Match a current viral angle with reusable footage, original narration, and captions.
+            </p>
+          </div>
+
+          <div class="form-body">
+            <div class="field">
+              <label for="viralTopic">
+                Topic
+                <span style="color:var(--muted);font-weight:500">(optional)</span>
+              </label>
+              <input id="viralTopic" type="text" maxlength="180"
+                autocomplete="off" placeholder="Example: deep ocean discoveries">
+            </div>
+
+            <div class="field">
+              <label for="viralPlatform">Destination</label>
+              <select id="viralPlatform">
+                <option value="Both">TikTok + YouTube Shorts</option>
+                <option value="TikTok">TikTok</option>
+                <option value="YouTube Shorts">YouTube Shorts</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="viralDuration">Length</label>
+              <select id="viralDuration">
+                <option value="30">30 seconds · fastest</option>
+                <option value="45" selected>45 seconds · balanced</option>
+                <option value="60">60 seconds · detailed</option>
+              </select>
+            </div>
+
+            <button class="btn primary wide" id="viralScanButton" type="button">
+              Find viral angle + safe clips
+            </button>
+
+            <p class="radar-form-note">
+              Viral posts supply trend signals only. Downloads are limited to Public Domain, CC0, and CC BY footage with verified source records.
+            </p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <p class="eyebrow" id="viralEyebrow">Remix Workspace</p>
+            <h2 id="viralHeading">Ready to find a viral angle</h2>
+            <p class="subtext" id="viralSubtext">
+              Publisher Forge will research the angle, select reusable clips, and write a new video.
+            </p>
+          </div>
+
+          <div class="empty" id="viralEmpty">
+            <div>
+              <div class="empty-icon">▶</div>
+              <strong>No remix yet</strong>
+              Six license-verified clip choices and an original script will appear here.
+            </div>
+          </div>
+
+          <div class="result" id="viralResult" aria-live="polite">
+            <div class="remix-status-line">
+              <span class="rights-badge">Rights gate passed</span>
+              <span class="package-type" id="viralClipCount"></span>
+            </div>
+
+            <h3 class="idea-name" id="viralTitle"></h3>
+
+            <div class="remix-plan">
+              <div class="remix-plan-card">
+                <span>Why now</span>
+                <strong id="viralWhyNow"></strong>
+              </div>
+              <div class="remix-plan-card">
+                <span>Hook</span>
+                <strong id="viralHook"></strong>
+              </div>
+            </div>
+
+            <div class="output remix-script" id="viralScript"></div>
+
+            <div class="panel-head" style="padding:12px 0;border:0">
+              <p class="eyebrow">Selected reusable footage</p>
+              <h2>Clips ready for the edit</h2>
+            </div>
+            <div class="clip-grid" id="viralClipList"></div>
+
+            <div class="rights-card" id="viralRightsNote">
+              <span>Rights check</span>
+              Licenses are verified again immediately before the video renders. Source credits are added to the posting copy automatically.
+            </div>
+
+            <div class="result-actions">
+              <button class="btn primary" id="viralRenderButton" type="button"
+                disabled>
+                Create remix video ZIP
+              </button>
+              <button class="btn secondary" id="viralCopyButton" type="button"
+                disabled>
+                Copy post + credits
+              </button>
+              <button class="btn secondary" id="viralRevenueButton" type="button"
+                disabled>
+                Measure video results
+              </button>
+            </div>
+            <p class="remix-progress" id="viralProgress">
+              Nothing is posted automatically. Preview the MP4 once before publishing.
+            </p>
+
+            <div class="sources" id="viralTrendSources" hidden>
+              <h3>Trend evidence</h3>
+              <ol class="source-list" id="viralTrendSourceList"></ol>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="revenueView" role="tabpanel"
       aria-labelledby="revenueTab" hidden>
       <div class="radar-grid">
@@ -1413,11 +1685,14 @@
 
             <div class="two">
               <div class="field">
-                <label for="revenuePlatform">Marketplace</label>
+                <label for="revenuePlatform">Channel</label>
                 <select id="revenuePlatform">
                   <option value="KDP">Amazon KDP</option>
                   <option value="Etsy">Etsy</option>
                   <option value="Shopify">Shopify</option>
+                  <option value="TikTok">TikTok</option>
+                  <option value="YouTube Shorts">YouTube Shorts</option>
+                  <option value="Viral Remix">Viral Remix · both channels</option>
                 </select>
               </div>
               <div class="field">
@@ -1429,12 +1704,12 @@
 
             <div class="two">
               <div class="field">
-                <label for="revenueViews">Listing views</label>
+                <label for="revenueViews">Views</label>
                 <input id="revenueViews" type="number" min="0" step="1"
                   inputmode="numeric" value="0">
               </div>
               <div class="field">
-                <label for="revenueOrders">Orders</label>
+                <label for="revenueOrders">Orders / attributed sales</label>
                 <input id="revenueOrders" type="number" min="0" step="1"
                   inputmode="numeric" value="0">
               </div>
@@ -1458,7 +1733,7 @@
             </button>
 
             <p class="radar-form-note">
-              Use results from your marketplace dashboard. No listing is changed automatically.
+              Use results from your marketplace or platform dashboard. Nothing is changed automatically.
             </p>
           </div>
         </article>
@@ -1559,6 +1834,14 @@
       document.getElementById("revenueButton");
     const sendRevenueButton =
       document.getElementById("sendRevenueButton");
+    const viralScanButton =
+      document.getElementById("viralScanButton");
+    const viralRenderButton =
+      document.getElementById("viralRenderButton");
+    const viralCopyButton =
+      document.getElementById("viralCopyButton");
+    const viralRevenueButton =
+      document.getElementById("viralRevenueButton");
 
     let activeResult = "";
     let activeBrief = "";
@@ -1569,6 +1852,8 @@
     let activeProductionBrief = "";
     let activeCover = null;
     let activeKdpPricing = null;
+    let activeViralRemix = null;
+    let activeViralPost = "";
 
     try {
       const savedAuthor = (localStorage.getItem("pfCoverAuthorName") || "").trim();
@@ -1586,6 +1871,7 @@
         radar: ["radarView", "radarTab"],
         analyzer: ["analyzerView", "analyzerTab"],
         production: ["productionView", "productionTab"],
+        viral: ["viralView", "viralTab"],
         revenue: ["revenueView", "revenueTab"]
       };
 
@@ -1611,6 +1897,11 @@
     document.getElementById("productionTab")
       .addEventListener("click", function () {
         switchView("production");
+      });
+
+    document.getElementById("viralTab")
+      .addEventListener("click", function () {
+        switchView("viral");
       });
 
     document.getElementById("revenueTab")
@@ -2729,6 +3020,315 @@
       }
     }
 
+    function viralPostText(data) {
+      const plan = data.plan || {};
+      const hashtags = (plan.hashtags || []).map(function (item) {
+        const tag = String(item || "").trim();
+        return tag.startsWith("#")
+          ? tag
+          : "#" + tag.replace(/\s+/g, "");
+      }).filter(Boolean).join(" ");
+      const credits = (data.videos || []).map(function (source, index) {
+        return [
+          (index + 1) + ". " + source.title,
+          "Creator: " + source.creator,
+          "License: " + source.license + " — " + source.licenseUrl,
+          "Source: " + source.sourceUrl
+        ].join("\n");
+      }).join("\n\n");
+
+      return [
+        plan.postCaption || "",
+        hashtags,
+        "Production note: original AI-generated narration over licensed reusable footage.",
+        "",
+        "FOOTAGE CREDITS",
+        credits
+      ].join("\n\n").trim();
+    }
+
+    function formatViralScript(data) {
+      const plan = data.plan || {};
+      const scenes = (plan.scenes || []).map(function (scene, index) {
+        return (index + 1) + ". " + (scene.onScreenText || "Scene") +
+          "\n   " + (scene.narration || "");
+      }).join("\n\n");
+
+      return [
+        "ORIGINAL NARRATION",
+        plan.narration || "No narration was generated.",
+        "",
+        "SCENE PLAN",
+        scenes
+      ].join("\n").trim();
+    }
+
+    function setViralMessage(heading, subtext, body) {
+      document.getElementById("viralHeading").textContent = heading;
+      document.getElementById("viralSubtext").textContent = subtext;
+      document.getElementById("viralEmpty").style.display = "grid";
+      document.getElementById("viralResult").classList.remove("visible");
+      viralRenderButton.disabled = true;
+      viralCopyButton.disabled = true;
+      viralRevenueButton.disabled = true;
+
+      const empty = document.getElementById("viralEmpty");
+      const wrapper = document.createElement("div");
+      const icon = document.createElement("div");
+      const strong = document.createElement("strong");
+
+      empty.replaceChildren();
+      icon.className = "empty-icon";
+      icon.textContent = "▶";
+      strong.textContent = body;
+      wrapper.append(icon, strong);
+      empty.appendChild(wrapper);
+    }
+
+    function viralClipCard(source, index) {
+      const card = document.createElement("article");
+      const player = document.createElement("video");
+      const body = document.createElement("div");
+      const heading = document.createElement("h3");
+      const details = document.createElement("p");
+      const license = document.createElement("span");
+      const link = document.createElement("a");
+      const mediaUrl = safeWebUrl(source.mediaUrl);
+      const posterUrl = safeWebUrl(source.posterUrl);
+      const sourceUrl = safeWebUrl(source.sourceUrl);
+
+      card.className = "clip-card";
+      player.controls = true;
+      player.preload = "metadata";
+      player.muted = true;
+      player.setAttribute("playsinline", "");
+      player.setAttribute("aria-label", "Preview clip " + (index + 1));
+      if (mediaUrl) player.src = mediaUrl;
+      if (posterUrl) player.poster = posterUrl;
+
+      body.className = "clip-card-body";
+      heading.textContent = (index + 1) + ". " +
+        (source.title || "Reusable video");
+      details.textContent = [
+        source.creator,
+        source.resolution,
+        source.durationSeconds ? source.durationSeconds + "s source" : ""
+      ].filter(Boolean).join(" · ");
+      license.className = "clip-license";
+      license.textContent = source.license +
+        (source.attributionRequired ? " · credit included" : " · reusable");
+      link.href = sourceUrl || "#";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open source + license";
+      if (!sourceUrl) link.hidden = true;
+
+      body.append(heading, details, license, document.createElement("br"), link);
+      card.append(player, body);
+      return card;
+    }
+
+    function renderViralRemix(data, restored) {
+      const videos = Array.isArray(data.videos) ? data.videos : [];
+      if (videos.length < 3 || !data.plan) {
+        throw new Error("The scan returned too few verified clips.");
+      }
+
+      activeViralRemix = data;
+      activeViralPost = viralPostText(data);
+      document.getElementById("viralEmpty").style.display = "none";
+      document.getElementById("viralResult").classList.add("visible");
+      document.getElementById("viralEyebrow").textContent =
+        restored ? "Saved Remix · Recheck Required" : "Viral Remix · Ready";
+      document.getElementById("viralHeading").textContent =
+        "Original short ready to render";
+      document.getElementById("viralSubtext").textContent =
+        data.plan.trendSummary || "Current angle matched with reusable footage.";
+      document.getElementById("viralTitle").textContent =
+        data.plan.trendTitle || "Viral Remix";
+      document.getElementById("viralWhyNow").textContent =
+        data.plan.whyNow || "Current public interest supports this angle.";
+      document.getElementById("viralHook").textContent =
+        data.plan.hook || "A fresh original opening.";
+      document.getElementById("viralScript").textContent =
+        formatViralScript(data);
+      document.getElementById("viralClipCount").textContent =
+        videos.length + " clips · " + data.duration + "s · " + data.platform;
+
+      const clipList = document.getElementById("viralClipList");
+      clipList.replaceChildren();
+      videos.forEach(function (source, index) {
+        clipList.appendChild(viralClipCard(source, index));
+      });
+
+      const checked = data.rightsCheckedAt
+        ? new Date(data.rightsCheckedAt).toLocaleString()
+        : "this scan";
+      document.getElementById("viralRightsNote").replaceChildren();
+      const rightsLabel = document.createElement("span");
+      rightsLabel.textContent = "Rights gate passed";
+      document.getElementById("viralRightsNote").append(
+        rightsLabel,
+        document.createTextNode(
+          "Verified " + checked + ". Licenses will be checked again before rendering. Source credits are included automatically; review visible people, logos, and claims before publishing."
+        )
+      );
+
+      const sourceList = document.getElementById("viralTrendSourceList");
+      const sourceSection = document.getElementById("viralTrendSources");
+      sourceList.replaceChildren();
+      (data.trendSources || []).forEach(function (source) {
+        const href = safeWebUrl(source.url);
+        if (!href) return;
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = source.title || href;
+        item.appendChild(link);
+        sourceList.appendChild(item);
+      });
+      sourceSection.hidden = sourceList.children.length === 0;
+
+      viralRenderButton.disabled = false;
+      viralCopyButton.disabled = false;
+      viralRevenueButton.disabled = false;
+      document.getElementById("viralProgress").textContent = restored
+        ? "Saved scan restored. Every source will be rechecked before rendering."
+        : "Ready. Creating the video downloads, cuts, narrates, captions, and packages the remix automatically.";
+
+      if (!restored) {
+        try {
+          localStorage.setItem("pfViralRemixDraft", JSON.stringify(data));
+        } catch (error) {}
+      }
+    }
+
+    async function scanViralRemix() {
+      const payload = {
+        topic: document.getElementById("viralTopic").value.trim(),
+        platform: document.getElementById("viralPlatform").value,
+        duration: Number(document.getElementById("viralDuration").value)
+      };
+
+      activeViralRemix = null;
+      activeViralPost = "";
+      loading(viralScanButton, true, "Find viral angle + safe clips");
+      setViralMessage(
+        "Researching the angle",
+        "Checking current public trends, then searching reusable footage.",
+        "Viral Remix is finding and verifying the clips…"
+      );
+
+      try {
+        const response = await fetch("/api/viral-remix/scout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "Viral Remix scan failed");
+        }
+
+        renderViralRemix(data, false);
+        toast(data.videos.length + " reusable clips verified");
+      } catch (error) {
+        setViralMessage(
+          "Remix scan stopped",
+          "No footage was downloaded or saved.",
+          error.message
+        );
+      } finally {
+        loading(viralScanButton, false, "Find viral angle + safe clips");
+      }
+    }
+
+    async function downloadViralRemix() {
+      if (!activeViralRemix) {
+        toast("Run a Viral Remix scan first");
+        return;
+      }
+
+      loading(viralRenderButton, true, "Create remix video ZIP");
+      document.getElementById("viralProgress").textContent =
+        "Rechecking licenses, downloading clips, recording narration, and rendering the vertical MP4…";
+
+      try {
+        const response = await fetch("/api/viral-remix/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: activeViralRemix.platform,
+            duration: activeViralRemix.duration,
+            plan: activeViralRemix.plan,
+            videos: activeViralRemix.videos
+          })
+        });
+
+        if (!response.ok) {
+          const data = await readJson(response);
+          throw new Error(data.message || data.error || "Video render failed");
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("content-disposition") || "";
+        const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+        const filename = filenameMatch
+          ? filenameMatch[1]
+          : fileSlug(activeViralRemix.plan.trendTitle) + "-viral-remix.zip";
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+        document.getElementById("viralProgress").textContent =
+          "Remix package downloaded. Preview the MP4 and paste the included posting copy when you publish.";
+        toast("Viral Remix video downloaded");
+      } catch (error) {
+        document.getElementById("viralProgress").textContent = error.message;
+        toast("Video render stopped");
+      } finally {
+        loading(viralRenderButton, false, "Create remix video ZIP");
+      }
+    }
+
+    function restoreViralRemix() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("pfViralRemixDraft"));
+        if (saved && saved.plan && Array.isArray(saved.videos) &&
+            saved.videos.length >= 3) {
+          renderViralRemix(saved, true);
+        }
+      } catch (error) {}
+    }
+
+    function openRevenueFromViral() {
+      if (!activeViralRemix) {
+        toast("Run a Viral Remix scan first");
+        return;
+      }
+
+      document.getElementById("revenueTitle").value =
+        activeViralRemix.plan.trendTitle || "Viral Remix";
+      document.getElementById("revenuePlatform").value =
+        activeViralRemix.platform === "Both"
+          ? "Viral Remix"
+          : activeViralRemix.platform;
+      document.getElementById("revenueDays").value = 7;
+      switchView("revenue");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast("Video loaded into the Revenue Agent");
+    }
+
     function renderRadar(data) {
       const opportunities =
         Array.isArray(data.opportunities)
@@ -3010,8 +3610,10 @@
             : "status warn";
 
         statusText.textContent =
-          data.trendRadarAvailable
-            ? "Live search ready"
+          data.viralRemixAvailable
+            ? "All studios ready"
+            : data.trendRadarAvailable
+              ? "Live search ready"
             : "Local scoring only";
       } catch (error) {
         status.className = "status";
@@ -3793,6 +4395,24 @@
       toast("Package approved on this device");
     }
 
+    viralScanButton.addEventListener("click", scanViralRemix);
+    viralRenderButton.addEventListener("click", downloadViralRemix);
+    viralRevenueButton.addEventListener("click", openRevenueFromViral);
+    viralCopyButton.addEventListener("click", async function () {
+      if (!activeViralPost) return;
+
+      try {
+        await navigator.clipboard.writeText(activeViralPost);
+        toast("Post copy and source credits copied");
+      } catch (error) {
+        toast("Copy was blocked by the browser");
+      }
+    });
+    document.getElementById("viralTopic")
+      .addEventListener("keydown", function (event) {
+        if (event.key === "Enter") scanViralRemix();
+      });
+
     scanButton.addEventListener(
       "click",
       scanTrends
@@ -4120,6 +4740,7 @@
     renderRecent();
     renderProjectVault();
     renderRevenueHistory();
+    restoreViralRemix();
     checkHealth();
   </script>
 </body>
