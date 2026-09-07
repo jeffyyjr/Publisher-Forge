@@ -1655,9 +1655,9 @@
         "Release blockers",
         bulletList(data.blockers, "No release blockers found."),
         "",
-        "Human final checks",
+        "Your final check",
         bulletList(data.humanChecks,
-          "Use the production checklist for final human checks.")
+          "Open the finished files once and make sure they look right before publishing.")
       ].join("\n");
     }
 
@@ -2201,7 +2201,7 @@
         data.requiredFixes && data.requiredFixes[0];
       document.getElementById("approvalNote").textContent = passed
         ? data.humanChecks && data.humanChecks.length
-          ? "Quality passed. Review the listed human checks before approval."
+          ? "Quality passed. Approval is unlocked; preview the finished files before publishing."
           : "Quality check passed. Human approval is now unlocked."
         : remainingIssue
           ? "Still locked: " + remainingIssue
