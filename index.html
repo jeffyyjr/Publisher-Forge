@@ -1499,8 +1499,15 @@
     let activeKdpPricing = null;
 
     try {
-      coverAuthorName.value = localStorage.getItem("pfCoverAuthorName") || "";
-    } catch (error) {}
+      const savedAuthor = (localStorage.getItem("pfCoverAuthorName") || "").trim();
+      coverAuthorName.value = !savedAuthor ||
+          /^(?:Maxx? Powers|Marina Solano)$/i.test(savedAuthor)
+        ? "Logan Cross"
+        : savedAuthor;
+      localStorage.setItem("pfCoverAuthorName", coverAuthorName.value);
+    } catch (error) {
+      coverAuthorName.value = "Logan Cross";
+    }
 
     function switchView(name) {
       const views = {
