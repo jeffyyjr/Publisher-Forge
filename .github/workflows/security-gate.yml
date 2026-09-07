@@ -87,8 +87,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Block newly introduced high-risk dependencies
-        uses: actions/dependency-review-action@v5.0.0
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
         with:
-          fail-on-severity: high
-          show-openssf-scorecard: true
+          node-version: 22
+          cache: npm
+
+      - name: Verify the locked dependency tree
+        run: npm ci --ignore-scripts
+
+      - name: Block high and critical dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
