@@ -810,7 +810,14 @@ function printablePdf(packageData) {
     });
     doc.on("error", reject);
 
-    doc.rect(0, 0, doc.page.width, 16).fill("#E96E1A");
+    // Keep decorative title-page artwork inside KDP's printable safe area.
+    doc.roundedRect(
+      margin,
+      margin - 18,
+      doc.page.width - margin * 2,
+      6,
+      3
+    ).fill("#E96E1A");
     doc.moveDown(4.5);
     doc.font("InterBold").fontSize(11).fillColor("#C75A12")
       .text(market === "KDP" ? "PAPERBACK EDITION" : "PRINTABLE EDITION");
@@ -1288,7 +1295,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.18.1",
+    version: "0.18.2",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
