@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "gateVersion": "0.1.0",
+  "blockSeverities": ["critical", "high"],
+  "failClosedOnScannerError": true,
+  "allowCriticalExceptions": false,
+  "staging": {
+    "requireHttps": true,
+    "productionOrigins": [
+      "https://publisher-forge.onrender.com"
+    ],
+    "zapPromoteRules": [
+      "10010",
+      "10011",
+      "10020",
+      "10021",
+      "10023",
+      "10024",
+      "10025",
+      "10035",
+      "10038",
+      "10040",
+      "10098",
+      "90022"
+    ]
+  },
+  "mobile": {
+    "status": "activate-when-mobile-builds-exist",
+    "scanner": "MobSF",
+    "standard": "OWASP MASVS/MASTG v2",
+    "artifacts": [".apk", ".aab", ".ipa"]
+  }
+}

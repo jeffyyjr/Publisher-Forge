@@ -1,0 +1,100 @@
+name: Security Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-scan:
+    name: Repository scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out proposed release
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4.37.9
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Prepare normalized evidence directory
+        run: mkdir -p security-artifacts
+
+      - name: Scan Git history for secrets
+        run: >-
+          docker run --rm
+          -v "${GITHUB_WORKSPACE}:/repo"
+          ghcr.io/gitleaks/gitleaks:v8.30.1
+          git --redact --report-format sarif
+          --report-path /repo/security-artifacts/gitleaks.sarif
+          --exit-code 0 /repo
+
+      - name: Analyze JavaScript with CodeQL
+        uses: github/codeql-action/analyze@v4.37.9
+        with:
+          output: security-artifacts/codeql
+          upload: never
+          upload-database: false
+
+      - name: Normalize findings and decide the release
+        run: npm run security:gate -- --sarif-dir security-artifacts
+
+      - name: Preserve the security report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: publisher-forge-security-report-${{ github.run_id }}
+          path: security-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  dependency-change-review:
+    name: Dependency change review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out proposed release
+        uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify the locked dependency tree
+        run: npm ci --ignore-scripts
+
+      - name: Block high and critical dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high

@@ -107,7 +107,7 @@
 
     .forge-lines {
       display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
+      grid-template-columns:repeat(2,minmax(0,1fr));
       gap:7px;
       margin-top:14px;
     }
@@ -1024,6 +1024,7 @@
 
     @media (min-width:680px) {
       .shell { padding:28px 24px 70px }
+      .forge-lines { grid-template-columns:repeat(4,minmax(0,1fr)) }
       .tabs {
         width:940px;
         max-width:100%;
@@ -1088,6 +1089,10 @@
       <div class="forge-line beta">
         <div class="forge-line-head"><strong>Viral Remix</strong><b>BETA</b></div>
         <small>Rights-safe video</small>
+      </div>
+      <div class="forge-line beta">
+        <div class="forge-line-head"><strong>Security Gate</strong><b>BETA</b></div>
+        <small>Release protection</small>
       </div>
     </section>
 
@@ -3610,8 +3615,8 @@
             : "status warn";
 
         statusText.textContent =
-          data.viralRemixAvailable
-            ? "All studios ready"
+          data.viralRemixAvailable && data.securityGateAvailable
+            ? "Studios + gate ready"
             : data.trendRadarAvailable
               ? "Live search ready"
             : "Local scoring only";
