@@ -28,6 +28,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Automatic page-label correction, embedded export fonts, and complete KDP black-and-white metadata
 - One plain-language visual preview check for the user; technical PDF and cover checks stay automated
 - Large illustrated publishing-bundle support with readable download errors
+- Verified publishing metadata that uses the chosen pen name, removes invented credits, and limits page and file claims to what the bundle actually contains
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
 - KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
