@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b0f">
-  <meta name="description" content="Find and evaluate original product opportunities for Amazon KDP and Etsy.">
+  <meta name="description" content="Find, build, and measure original product opportunities for Amazon KDP, Etsy, and Shopify.">
   <title>Publisher Forge</title>
   <style>
     :root {
@@ -104,6 +104,59 @@
 
     .online .dot { background:var(--green) }
     .warn .dot { background:var(--orange) }
+
+    .forge-lines {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:7px;
+      margin-top:14px;
+    }
+
+    .forge-line {
+      min-width:0;
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#10151c;
+    }
+
+    .forge-line-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:6px;
+    }
+
+    .forge-line strong {
+      overflow:hidden;
+      font-size:.8rem;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .forge-line b {
+      padding:2px 5px;
+      border-radius:999px;
+      background:#55dd8a18;
+      color:var(--green);
+      font-size:.58rem;
+      letter-spacing:.06em;
+    }
+
+    .forge-line.beta b {
+      background:#ff9d2e18;
+      color:var(--gold);
+    }
+
+    .forge-line small {
+      display:block;
+      margin-top:3px;
+      overflow:hidden;
+      color:var(--muted);
+      font-size:.66rem;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
 
     .tabs {
       display:grid;
@@ -872,7 +925,7 @@
         <div class="mark">PF</div>
         <div>
           <h1>Publisher Forge</h1>
-          <p>KDP + Etsy opportunity engine</p>
+          <p>One beta · multiple revenue pipelines</p>
         </div>
       </div>
 
@@ -881,6 +934,21 @@
         <span id="statusText">Checking system</span>
       </div>
     </header>
+
+    <section class="forge-lines" aria-label="Publisher Forge business lines">
+      <div class="forge-line">
+        <div class="forge-line-head"><strong>Publishing</strong><b>LIVE</b></div>
+        <small>KDP + Etsy</small>
+      </div>
+      <div class="forge-line beta">
+        <div class="forge-line-head"><strong>Shopify</strong><b>BETA</b></div>
+        <small>Digital products</small>
+      </div>
+      <div class="forge-line beta">
+        <div class="forge-line-head"><strong>Clips</strong><b>NEXT</b></div>
+        <small>Shorts + TikTok</small>
+      </div>
+    </section>
 
     <nav class="tabs" role="tablist" aria-label="Publisher Forge tools">
       <button class="tab" id="radarTab" type="button" role="tab"
@@ -922,6 +990,7 @@
                 <option value="Both">KDP + Etsy</option>
                 <option value="KDP">Amazon KDP</option>
                 <option value="Etsy">Etsy</option>
+                <option value="Shopify">Shopify</option>
               </select>
             </div>
 
@@ -1001,6 +1070,7 @@
                 <select id="platform">
                   <option value="KDP">Amazon KDP</option>
                   <option value="Etsy">Etsy</option>
+                  <option value="Shopify">Shopify</option>
                 </select>
               </div>
             </div>
@@ -1143,6 +1213,7 @@
                 <select id="productionPlatform">
                   <option value="KDP">Amazon KDP</option>
                   <option value="Etsy">Etsy</option>
+                  <option value="Shopify">Shopify</option>
                 </select>
               </div>
             </div>
@@ -1346,6 +1417,7 @@
                 <select id="revenuePlatform">
                   <option value="KDP">Amazon KDP</option>
                   <option value="Etsy">Etsy</option>
+                  <option value="Shopify">Shopify</option>
                 </select>
               </div>
               <div class="field">
@@ -1625,7 +1697,11 @@
 
     function formatProductionPackage(data) {
       const keywordHeading =
-        data.platform === "Etsy" ? "Etsy tags" : "KDP keywords";
+        data.platform === "Etsy"
+          ? "Etsy tags"
+          : data.platform === "Shopify"
+            ? "Shopify tags"
+            : "KDP keywords";
 
       return [
         "# " + (data.packageTitle || "Untitled package"),
@@ -2290,7 +2366,9 @@
       const savedProject = {
         id: id,
         title: record.title,
-        platform: record.platform === "Etsy" ? "Etsy" : "KDP",
+        platform: ["KDP", "Etsy", "Shopify"].includes(record.platform)
+          ? record.platform
+          : "KDP",
         brief: record.brief,
         package: hasPackage
           ? packageForStorage
@@ -2465,7 +2543,9 @@
 
     function openProduction(title, market, briefText) {
       productionTitle.value = title || titleInput.value.trim();
-      productionPlatform.value = market === "Etsy" ? "Etsy" : "KDP";
+      productionPlatform.value = ["KDP", "Etsy", "Shopify"].includes(market)
+        ? market
+        : "KDP";
       productionBrief.value = briefText || activeBrief;
 
       saveProjectRecord({
@@ -2523,15 +2603,13 @@
     function loadOpportunity(item) {
       titleInput.value = item.title || "";
 
-      if (item.platform === "Etsy") {
-        platformInput.value = "Etsy";
-      } else if (item.platform === "KDP") {
-        platformInput.value = "KDP";
+      if (["KDP", "Etsy", "Shopify"].includes(item.platform)) {
+        platformInput.value = item.platform;
       } else {
-        platformInput.value =
-          document.getElementById("radarPlatform").value === "Etsy"
-            ? "Etsy"
-            : "KDP";
+        const scannedMarket = document.getElementById("radarPlatform").value;
+        platformInput.value = ["KDP", "Etsy", "Shopify"].includes(scannedMarket)
+          ? scannedMarket
+          : "KDP";
       }
 
       signalIds.forEach(function(id) {
