@@ -29,14 +29,36 @@ const client = process.env.OPENAI_API_KEY
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const INDEX_PATH = path.join(__dirname, "index.html");
-const INLINE_SCRIPT_HASHES = [
-  ...readFileSync(INDEX_PATH, "utf8").matchAll(
-    /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi
-  )
-].map((match) =>
-  "'sha256-" + createHash("sha256").update(match[1]).digest("base64") + "'"
+const INLINE_SCRIPT_HASHES = inlineScriptSources(
+  readFileSync(INDEX_PATH, "utf8")
+).map((source) =>
+  "'sha256-" + createHash("sha256").update(source).digest("base64") + "'"
 );
 let activeVideoRenders = 0;
+
+function inlineScriptSources(html) {
+  const source = String(html || "");
+  const scripts = [];
+  let offset = 0;
+
+  while (offset < source.length) {
+    const open = source.indexOf("<script", offset);
+    if (open === -1) break;
+    const bodyStart = source.indexOf(">", open);
+    const close = bodyStart === -1
+      ? -1
+      : source.indexOf("</script>", bodyStart + 1);
+
+    if (bodyStart === -1 || close === -1) {
+      throw new Error("index.html contains an incomplete script element");
+    }
+
+    scripts.push(source.slice(bodyStart + 1, close));
+    offset = close + "</script>".length;
+  }
+
+  return scripts;
+}
 
 const LARGE_JSON_ROUTES = new Set([
   "/api/export-bundle",
@@ -477,11 +499,11 @@ function plainCommonsText(value, limit = 500) {
     String(value || "")
       .replace(/<[^>]*>/g, " ")
       .replace(/&nbsp;|&#160;/gi, " ")
-      .replace(/&amp;/gi, "&")
       .replace(/&quot;|&#34;/gi, "\"")
       .replace(/&#39;|&apos;/gi, "'")
       .replace(/&lt;/gi, "<")
       .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&")
       .replace(/\s+/g, " "),
     limit
   );
@@ -3599,6 +3621,7 @@ export {
   app,
   createFixedWindowLimiter,
   findReusableVideos,
+  inlineScriptSources,
   reverifyCommonsVideos,
   renderViralRemix,
   revenueChannel,
