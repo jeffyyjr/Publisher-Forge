@@ -1,11 +1,11 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import JSZip from "jszip";
 import PDFDocument from "pdfkit";
 import ffmpegPath from "ffmpeg-static";
-import { createWriteStream } from "fs";
+import { createHash } from "crypto";
+import { createWriteStream, readFileSync } from "fs";
 import { promises as fs } from "fs";
 import { spawn } from "child_process";
 import { Readable, Transform } from "stream";
@@ -18,6 +18,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const APP_VERSION = "0.21.0";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
@@ -27,9 +28,130 @@ const client = process.env.OPENAI_API_KEY
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const requestLog = new Map();
-const videoRequestLog = new Map();
+const INDEX_PATH = path.join(__dirname, "index.html");
+const INLINE_SCRIPT_HASHES = [
+  ...readFileSync(INDEX_PATH, "utf8").matchAll(
+    /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi
+  )
+].map((match) =>
+  "'sha256-" + createHash("sha256").update(match[1]).digest("base64") + "'"
+);
 let activeVideoRenders = 0;
+
+const LARGE_JSON_ROUTES = new Set([
+  "/api/export-bundle",
+  "/api/export-pdf",
+  "/api/kdp-cover",
+  "/api/kdp-pricing"
+]);
+
+const SECURITY_HEADERS = Object.freeze({
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "connect-src 'self'",
+    "font-src 'self' data:",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob: https://upload.wikimedia.org",
+    "media-src 'self' blob: https://upload.wikimedia.org",
+    "object-src 'none'",
+    "script-src 'self' " + INLINE_SCRIPT_HASHES.join(" "),
+    "style-src 'self' 'unsafe-inline'"
+  ].join("; "),
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Origin-Agent-Cluster": "?1",
+  "Permissions-Policy":
+    "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-Permitted-Cross-Domain-Policies": "none"
+});
+
+function createFixedWindowLimiter({
+  max,
+  windowMs,
+  error,
+  message,
+  maxKeys = 5000
+}) {
+  const records = new Map();
+  let lastSweep = Date.now();
+
+  function sweep(now) {
+    if (now - lastSweep < windowMs && records.size < maxKeys) return;
+
+    for (const [key, value] of records) {
+      if (now - value.started > windowMs) records.delete(key);
+    }
+
+    lastSweep = now;
+  }
+
+  const limiter = function fixedWindowLimiter(req, res, next) {
+    const key = req.ip || "unknown";
+    const now = Date.now();
+
+    sweep(now);
+
+    let current = records.get(key);
+
+    if (!current || now - current.started > windowMs) {
+      if (!current && records.size >= maxKeys) {
+        res.set("Retry-After", String(Math.ceil(windowMs / 1000)));
+        return res.status(429).json({ error, message });
+      }
+
+      current = { started: now, count: 0 };
+      records.set(key, current);
+    }
+
+    const resetSeconds = Math.max(
+      1,
+      Math.ceil((current.started + windowMs - now) / 1000)
+    );
+
+    res.set({
+      "RateLimit-Limit": String(max),
+      "RateLimit-Remaining": String(Math.max(0, max - current.count - 1)),
+      "RateLimit-Reset": String(resetSeconds)
+    });
+
+    if (current.count >= max) {
+      res.set("Retry-After", String(resetSeconds));
+      return res.status(429).json({ error, message });
+    }
+
+    current.count += 1;
+    next();
+  };
+
+  limiter.reset = () => records.clear();
+  return limiter;
+}
+
+const limitAI = createFixedWindowLimiter({
+  max: 15,
+  windowMs: 15 * 60 * 1000,
+  error: "Too many requests",
+  message: "Wait a few minutes and try again."
+});
+
+const limitVideoRender = createFixedWindowLimiter({
+  max: 3,
+  windowMs: 60 * 60 * 1000,
+  error: "Hourly video limit reached",
+  message: "This beta can render three videos per hour. Try again later."
+});
+
+const limitExport = createFixedWindowLimiter({
+  max: 8,
+  windowMs: 15 * 60 * 1000,
+  error: "Export limit reached",
+  message: "Wait a few minutes before creating another large export."
+});
 
 const trendReportSchema = {
   type: "object",
@@ -245,9 +367,63 @@ const viralRemixSchema = {
 };
 
 app.set("trust proxy", 1);
-app.use(cors());
-app.use(express.json({ limit: "80mb" }));
-app.use(express.static(__dirname));
+app.disable("x-powered-by");
+
+app.use((req, res, next) => {
+  res.set(SECURITY_HEADERS);
+
+  if (req.secure) {
+    res.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains"
+    );
+  }
+
+  if (req.path.startsWith("/api/")) {
+    res.set("Cache-Control", "no-store");
+  }
+
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && LARGE_JSON_ROUTES.has(req.path)) {
+    return limitExport(req, res, next);
+  }
+
+  next();
+});
+
+const standardJsonParser = express.json({
+  inflate: false,
+  limit: "1mb",
+  strict: true,
+  type: "application/json"
+});
+const largeJsonParser = express.json({
+  inflate: false,
+  limit: "80mb",
+  strict: true,
+  type: "application/json"
+});
+
+app.use((req, res, next) => {
+  if (!["POST", "PUT", "PATCH"].includes(req.method) ||
+      !req.path.startsWith("/api/")) {
+    return next();
+  }
+
+  if (!req.is("application/json")) {
+    return res.status(415).json({
+      error: "JSON request required",
+      message: "Send this request with Content-Type application/json."
+    });
+  }
+
+  return (LARGE_JSON_ROUTES.has(req.path)
+    ? largeJsonParser
+    : standardJsonParser)(req, res, next);
+});
 
 function text(value, limit = 300) {
   return String(value || "").trim().slice(0, limit);
@@ -943,50 +1119,6 @@ async function renderViralRemix(
   ]);
 
   return { finalPath, captionPath, captions };
-}
-
-function limitAI(req, res, next) {
-  const key = req.ip || "unknown";
-  const now = Date.now();
-  const windowMs = 15 * 60 * 1000;
-  const current = requestLog.get(key);
-
-  if (!current || now - current.started > windowMs) {
-    requestLog.set(key, { started: now, count: 1 });
-    return next();
-  }
-
-  if (current.count >= 15) {
-    return res.status(429).json({
-      error: "Too many requests",
-      message: "Wait a few minutes and try again."
-    });
-  }
-
-  current.count += 1;
-  next();
-}
-
-function limitVideoRender(req, res, next) {
-  const key = req.ip || "unknown";
-  const now = Date.now();
-  const windowMs = 60 * 60 * 1000;
-  const current = videoRequestLog.get(key);
-
-  if (!current || now - current.started > windowMs) {
-    videoRequestLog.set(key, { started: now, count: 1 });
-    return next();
-  }
-
-  if (current.count >= 3) {
-    return res.status(429).json({
-      error: "Hourly video limit reached",
-      message: "This beta can render three videos per hour. Try again later."
-    });
-  }
-
-  current.count += 1;
-  next();
 }
 
 function requireOpenAI(res) {
@@ -2049,20 +2181,22 @@ function getSources(response) {
   return [...found.values()].slice(0, 10);
 }
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+app.get(["/", "/index.html"], (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(INDEX_PATH);
 });
 
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.20.0",
+    version: APP_VERSION,
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
     qualityControlAvailable: Boolean(client),
     revisionAgentAvailable: Boolean(client),
     coverStudioAvailable: Boolean(client),
+    securityGateAvailable: true,
     viralRemixAvailable: Boolean(client && (ffmpegPath || process.env.FFMPEG_PATH)),
     reusableFootageProvider: "Wikimedia Commons"
   });
@@ -3237,7 +3371,7 @@ app.post(
     const postText = postingCopy(plan, sources);
     const manifest = {
       product: "Publisher Forge Viral Remix",
-      version: "0.20.0",
+      version: APP_VERSION,
       createdAt,
       platform: selectedPlatform,
       durationSeconds: duration,
@@ -3415,21 +3549,47 @@ app.post("/api/trend-radar", limitAI, async (req, res) => {
 });
 
 app.use((error, req, res, next) => {
-  if (error?.type === "entity.too.large" || error?.status === 413) {
-    return res.status(413).json({
-      error: "Publishing package is too large",
-      message: "The artwork package exceeded the download limit. Generate fewer or smaller images and try again."
+  if (error?.type === "encoding.unsupported") {
+    return res.status(415).json({
+      error: "Compressed requests are not supported",
+      message: "Send the JSON request without Content-Encoding."
     });
   }
 
-  console.error(error);
+  if (error?.type === "entity.too.large" || error?.status === 413) {
+    const largeExport = LARGE_JSON_ROUTES.has(req.path);
+
+    return res.status(413).json({
+      error: largeExport
+        ? "Publishing package is too large"
+        : "Request is too large",
+      message: largeExport
+        ? "The artwork package exceeded the download limit. Generate fewer or smaller images and try again."
+        : "This request exceeded the standard Publisher Forge size limit."
+    });
+  }
+
+  if (error instanceof SyntaxError && error?.type === "entity.parse.failed") {
+    return res.status(400).json({
+      error: "Invalid JSON",
+      message: "Check the request data and try again."
+    });
+  }
+
+  console.error(
+    "Publisher Forge request failed:",
+    error?.message || "Unknown error"
+  );
   res.status(500).json({
     error: "Publisher Forge server error",
     message: "The server could not finish that request. Please try again."
   });
 });
 
-if (process.env.NODE_ENV !== "test") {
+const isEntrypoint = process.argv[1] &&
+  path.resolve(process.argv[1]) === __filename;
+
+if (process.env.NODE_ENV !== "test" && isEntrypoint) {
   app.listen(PORT, () => {
     console.log("Publisher Forge running on port " + PORT);
   });
@@ -3437,6 +3597,7 @@ if (process.env.NODE_ENV !== "test") {
 
 export {
   app,
+  createFixedWindowLimiter,
   findReusableVideos,
   reverifyCommonsVideos,
   renderViralRemix,

@@ -1,0 +1,78 @@
+name: Security Gate - Staging Baseline
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 9 * * 2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publisher-forge-staging-security
+  cancel-in-progress: false
+
+jobs:
+  configuration-required:
+    name: Staging configuration
+    if: vars.SECURITY_STAGING_URL == '' || vars.SECURITY_ALLOWED_TARGETS == ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain the safe default
+        run: echo "Staging scan skipped until an exact authorized target and allowlist are configured."
+
+  passive-baseline:
+    name: Authorized passive baseline
+    if: vars.SECURITY_STAGING_URL != '' && vars.SECURITY_ALLOWED_TARGETS != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SECURITY_STAGING_URL: ${{ vars.SECURITY_STAGING_URL }}
+      SECURITY_ALLOWED_TARGETS: ${{ vars.SECURITY_ALLOWED_TARGETS }}
+
+    steps:
+      - name: Check out security policy
+        uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+
+      - name: Verify exact target authorization
+        run: npm run security:target
+
+      - name: Prepare report directory
+        run: mkdir -p security-artifacts
+
+      - name: Run passive OWASP ZAP baseline
+        run: |
+          set +e
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/zap/wrk/:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t "${SECURITY_STAGING_URL}" \
+            -c /zap/wrk/.zap/rules.tsv \
+            -J /zap/wrk/security-artifacts/zap-report.json \
+            -r /zap/wrk/security-artifacts/zap-report.html \
+            -I -s
+          zap_exit=$?
+          echo "SECURITY_ZAP_EXIT_CODE=${zap_exit}" >> "${GITHUB_ENV}"
+          exit 0
+
+      - name: Normalize findings and decide the staging gate
+        run: >-
+          node scripts/security-gate.mjs
+          --skip-audit --skip-tests
+          --zap security-artifacts/zap-report.json
+
+      - name: Preserve the staging report
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: publisher-forge-zap-report-${{ github.run_id }}
+          path: security-artifacts/
+          if-no-files-found: error
+          retention-days: 30

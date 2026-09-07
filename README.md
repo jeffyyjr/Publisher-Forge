@@ -41,6 +41,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Reusable-footage search limited to Wikimedia Commons videos whose metadata verifies Public Domain, CC0, or CC BY rights
 - Automatic license recheck before rendering, original voiceover, burned captions, posting copy, source credits, license manifest, and downloadable video ZIP
 - Strict rejection of unknown, ordinary social-platform, noncommercial, no-derivatives, and share-alike footage licenses
+- Security Gate beta with automated runtime-policy, dependency, secret, and code scanning before release
+- Safe staging-only ZAP baseline workflow with an exact target allowlist and production denylist
+- One normalized security report that blocks unresolved high and critical findings
 - Downloadable Markdown drafts and JSON listing data
 - Device-local human approval gate unlocked only after a passing review
 
@@ -48,8 +51,12 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - **Publisher Forge — active:** Research, create, quality-check, package, publish, and learn from Amazon KDP and Etsy products.
 - **Shopify Forge — beta:** Reuses the opportunity and production engine for original Shopify digital products, product-page copy, SEO, tags, creative assets, approval, packaging, and measured results.
 - **Viral Remix — beta inside the same app:** Study current public trend signals, match the angle with metadata-verified reusable footage, write an original script, cut a vertical 9:16 video, add narration and captions, preserve source credits, and require approval before publishing.
+- **Security Gate — beta across the same app:** Scan each proposed release, normalize scanner evidence, block unresolved high or critical findings, and keep active testing confined to an explicitly allowlisted staging environment.
 - **One app, three pipelines:** Publisher, Shopify, and Viral Remix share one dashboard, Project Vault, Revenue/Market Agent, and learning loop. Each pipeline keeps its own production engine behind the scenes.
 - **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every pipeline and recommends SCALE, ITERATE, or STOP.
 
 ## Next production layer
 Add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
+
+## Security Gate
+Run `npm run security:gate` to execute the local release policy, runtime security tests, and dependency audit. The GitHub workflow adds Gitleaks and CodeQL results to the same normalized report. See `security/README.md` for staging configuration, release enforcement, and the future MobSF mobile layer.
