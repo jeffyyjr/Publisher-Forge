@@ -326,8 +326,8 @@ function normalizedPackageData(packageData) {
 
 function publishingAuthor(value) {
   const requested = text(value, 160);
-  return !requested || /^(?:Maxx? Powers|Marina Solano)$/i.test(requested)
-    ? "Logan Cross"
+  return !requested || /^(?:Maxx? Powers|Logan Cross|Marina Solano)$/i.test(requested)
+    ? "Maxx Powers"
     : requested;
 }
 
@@ -344,6 +344,7 @@ function isColoringBookPackage(packageData) {
 function cleanPublishingClaims(value, authorName, artworkCount) {
   return normalizePageLabels(value)
     .replace(/\bMarina Solano\b/gi, authorName)
+    .replace(/\bLogan Cross\b/gi, authorName)
     .replace(/\bMaxx? Powers\b/gi, authorName)
     .replace(/\bHarbor\s*&\s*Hearth Press\b/gi, "Independently published")
     .replace(/commissioned artwork/gi, "AI-assisted artwork")
@@ -1287,7 +1288,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    version: "0.18.0",
+    version: "0.18.1",
     openaiConfigured: Boolean(client),
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
