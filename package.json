@@ -3,6 +3,9 @@
   "version": "0.22.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.5 <23"
+  },
   "scripts": {
     "start": "node dashboard-start.mjs",
     "test": "node --test",
