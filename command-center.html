@@ -7,6 +7,7 @@
   <style>
     :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#080d18}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#080d18,#111827)}a{color:#c7d2fe;text-decoration:none}.shell{max-width:1220px;margin:0 auto;padding:18px}.top{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.brand h1{margin:0;font-size:1.55rem}.brand p{margin:.3rem 0 0;color:#9ca3af}.actions{display:flex;gap:8px;flex-wrap:wrap}.pill,.btn{border-radius:10px;padding:10px 13px;font-weight:700}.pill{border:1px solid #374151;background:#111827;color:#e5e7eb}.btn{border:0;background:#4f46e5;color:white;cursor:pointer}.btn.secondary{background:#1f2937;border:1px solid #374151}.btn:disabled{opacity:.5;cursor:not-allowed}.hero{padding:18px;border:1px solid #4338ca;border-radius:16px;background:linear-gradient(135deg,#1e1b4b,#111827);margin-bottom:14px}.hero .eyebrow{color:#a5b4fc;font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.hero h2{margin:7px 0 6px;font-size:1.25rem}.hero p{margin:0;color:#cbd5e1;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:15px;box-shadow:0 12px 28px rgba(0,0,0,.18)}.card h3{margin:0 0 4px;font-size:1rem}.card .sub{color:#94a3b8;font-size:.84rem;margin-bottom:12px}.metric{font-size:1.8rem;font-weight:850}.metric-label{color:#94a3b8;font-size:.8rem}.wide{grid-column:1/-1}.list{margin-top:8px}.item{padding:10px 0;border-bottom:1px solid #273244}.item:last-child{border-bottom:0}.item-title{font-weight:800}.muted{color:#94a3b8}.good{color:#86efac}.warn{color:#fcd34d}.bad{color:#fca5a5}.lane{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.tag{display:inline-block;padding:4px 7px;border:1px solid #374151;border-radius:999px;font-size:.72rem;color:#cbd5e1;margin-top:5px}.empty{color:#64748b;padding:8px 0}.footer{color:#64748b;font-size:.82rem;margin:18px 0}@media(max-width:640px){.shell{padding:12px}.btn,.pill{width:100%;text-align:center}.lane{display:block}}
   </style>
+  <script src="/account-sync.js" defer></script>
   <script src="/command-center.js" defer></script>
 </head>
 <body>
@@ -19,6 +20,7 @@
       <div class="actions">
         <a class="pill" href="/">Publisher Forge</a>
         <a class="pill" href="/money-agents">Agent Settings</a>
+        <a class="pill" href="/account">Account & Sync</a>
         <button class="btn secondary" id="refreshCenter">Refresh</button>
       </div>
     </div>
@@ -81,7 +83,7 @@
       </article>
     </section>
 
-    <div class="footer">Beta command center reads the same device-local Project Vault, Revenue history, Opportunity results, and Money Agent settings already used by Publisher Forge. Persistent account storage is the next infrastructure layer.</div>
+    <div class="footer">When signed in, the Command Center safely syncs Project Vault, Revenue history, Opportunity results, Money Agent settings, and the latest company plan to the account copy. Conflicting edits are never silently overwritten.</div>
   </main>
 </body>
 </html>
