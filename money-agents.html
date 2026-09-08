@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Publisher Forge — Money Agents</title>
   <style>
-    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#0b1020}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1020,#111827);min-height:100vh}a{color:#c7d2fe}.shell{max-width:1180px;margin:0 auto;padding:18px}.top{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:.25rem 0 0;color:#9ca3af}.pill{border:1px solid #374151;border-radius:999px;padding:7px 10px;color:#cbd5e1;background:#111827}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px;box-shadow:0 14px 34px rgba(0,0,0,.2)}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#aab3c2;line-height:1.45}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer;background:#4f46e5;color:white}.btn.secondary{background:#1f2937;border:1px solid #374151;color:#e5e7eb}.btn:disabled{opacity:.45;cursor:not-allowed}.settings{margin-top:14px;padding-top:12px;border-top:1px solid #273244}.settings[hidden]{display:none}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field input,.field textarea,.field select{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:92px;resize:vertical}.check{display:flex;align-items:center;gap:8px;color:#d1d5db}.check input{width:auto}.locked{opacity:.72}.output{margin-top:12px;border:1px solid #273244;border-radius:12px;background:#0b1220;padding:12px;min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}.output:empty:before{content:"No run yet.";color:#64748b}.result{padding:10px 0;border-bottom:1px solid #273244}.result:last-child{border-bottom:0}.score{font-weight:800}.muted{color:#94a3b8}.wide{grid-column:1/-1}.footer{margin:18px 0;color:#7c8798;font-size:.85rem}.status-ok{color:#86efac}.status-bad{color:#fca5a5}@media(max-width:640px){.shell{padding:12px}.card{padding:14px}.btn{width:100%}}
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#0b1020}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1020,#111827);min-height:100vh}a{color:#c7d2fe}.shell{max-width:1180px;margin:0 auto;padding:18px}.top{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:.25rem 0 0;color:#9ca3af}.pill{border:1px solid #374151;border-radius:999px;padding:7px 10px;color:#cbd5e1;background:#111827}.notice{margin:0 0 14px;padding:12px 14px;border:1px solid #334155;border-radius:12px;background:#0f172a;color:#cbd5e1;line-height:1.45}.notice strong{color:#f8fafc}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px;box-shadow:0 14px 34px rgba(0,0,0,.2)}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#aab3c2;line-height:1.45}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer;background:#4f46e5;color:white}.btn.secondary{background:#1f2937;border:1px solid #374151;color:#e5e7eb}.btn:disabled{opacity:.45;cursor:not-allowed}.settings{margin-top:14px;padding-top:12px;border-top:1px solid #273244}.settings[hidden]{display:none}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field small{display:block;color:#7c8798;margin-top:4px;line-height:1.35}.field input,.field textarea,.field select{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:92px;resize:vertical}.check{display:flex;align-items:center;gap:8px;color:#d1d5db}.check input{width:auto}.locked{opacity:.72}.output{margin-top:12px;border:1px solid #273244;border-radius:12px;background:#0b1220;padding:12px;min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}.output:empty:before{content:"No run yet.";color:#64748b}.result{padding:10px 0;border-bottom:1px solid #273244}.result:last-child{border-bottom:0}.score{font-weight:800}.muted{color:#94a3b8}.wide{grid-column:1/-1}.footer{margin:18px 0;color:#7c8798;font-size:.85rem}.status-ok{color:#86efac}.status-bad{color:#fca5a5}@media(max-width:640px){.shell{padding:12px}.card{padding:14px}.btn{width:100%}}
   </style>
   <script src="/money-agents.js" defer></script>
 </head>
@@ -22,6 +22,8 @@
       </div>
     </div>
 
+    <div class="notice"><strong>2026 recommended preset:</strong> defaults are tuned for reliable after-cost income, practical job fit, Pinterest mobile/search behavior, and Shopify SEO/pricing fundamentals. You can change every non-safety setting.</div>
+
     <section class="grid">
       <article class="card">
         <h2>Orchestrator Agent</h2>
@@ -33,8 +35,9 @@
         <div class="settings" id="orchestratorSettings" hidden>
           <div class="field"><label for="orchGoal">Primary goal</label><input id="orchGoal" maxlength="800"></div>
           <div class="field"><label for="orchHours">Hours available this work block</label><input id="orchHours" type="number" min="0" max="168" step="0.5"></div>
-          <div class="field"><label for="orchBudget">Cash budget available ($)</label><input id="orchBudget" type="number" min="0" max="1000000" step="1"></div>
-          <div class="field"><label for="orchMode">Priority style</label><select id="orchMode"><option value="balanced">Balanced</option><option value="stable">Reliable income first</option><option value="growth">Growth/upside first</option><option value="time">Maximum time leverage</option></select></div>
+          <div class="field"><label for="orchBudget">Cash budget available ($)</label><input id="orchBudget" type="number" min="0" max="1000000" step="1"><small>Budget is a ceiling, not a spending target.</small></div>
+          <div class="field"><label for="orchMode">Priority style</label><select id="orchMode"><option value="balanced">Balanced expected value</option><option value="stable">Reliable income first</option><option value="growth">Growth/upside first</option><option value="time">Maximum time leverage</option></select></div>
+          <div class="field"><label for="orchHorizon">Decision horizon</label><select id="orchHorizon"><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option></select><small>30 days is the recommended default: near enough to measure, long enough to build something useful.</small></div>
           <div class="field"><label for="orchContext">Extra instructions</label><textarea id="orchContext" maxlength="3000" placeholder="Example: do not recommend anything that needs more than 2 hours tonight"></textarea></div>
         </div>
         <div id="orchestratorOutput" class="output"></div>
@@ -52,8 +55,9 @@
           <div class="field"><label for="jobQuery">Target roles / gig types</label><input id="jobQuery" maxlength="500"></div>
           <div class="field"><label for="jobLocation">Location</label><input id="jobLocation" maxlength="160"></div>
           <label class="check"><input id="jobRemote" type="checkbox"> Prefer remote work</label>
-          <div class="field"><label for="jobMinPay">Minimum desired pay</label><input id="jobMinPay" maxlength="120" placeholder="$25/hr or $65,000/yr"></div>
-          <div class="field"><label for="jobAvailability">Availability / schedule limits</label><input id="jobAvailability" maxlength="500"></div>
+          <div class="field"><label for="jobMinPay">Minimum desired pay</label><input id="jobMinPay" maxlength="120" placeholder="$25/hr or $65,000/yr"><small>The recommended preset separates main-job and side-gig thresholds.</small></div>
+          <div class="field"><label for="jobAvailability">Availability / commute / schedule limits</label><input id="jobAvailability" maxlength="500"></div>
+          <div class="field"><label for="jobScoringProfile">Money Score emphasis</label><select id="jobScoringProfile"><option value="income-fit-stability">Income + fit + stability</option><option value="fast-cash">Fastest practical cash</option><option value="career-growth">Career growth / higher ceiling</option></select><small>The recommended mode penalizes vague pay, weak evidence, bad schedule fit, impractical travel, and excessive application effort.</small></div>
         </div>
         <div id="opportunityOutput" class="output"></div>
       </article>
@@ -72,6 +76,11 @@
           <div class="field"><label for="pinAudience">Audience</label><input id="pinAudience" maxlength="600"></div>
           <div class="field"><label for="pinPlatform">Destination marketplace</label><select id="pinPlatform"><option>KDP</option><option>Etsy</option><option selected>Shopify</option><option>Other</option></select></div>
           <div class="field"><label for="pinUrl">Product URL (optional until live)</label><input id="pinUrl" type="url" maxlength="1000" placeholder="https://…"></div>
+          <div class="field"><label for="pinStrategy">Campaign emphasis</label><select id="pinStrategy"><option value="buyer-intent">Balanced buyer intent + search</option><option value="search">Search discovery first</option><option value="conversion">Conversion / product usefulness first</option></select></div>
+          <div class="field"><label for="pinBoardCount">Related boards</label><input id="pinBoardCount" type="number" min="2" max="4" step="1"><small>Three focused boards is the recommended starting point for a seven-pin test.</small></div>
+          <div class="field"><label for="pinCreativeFormat">Creative format</label><input id="pinCreativeFormat" maxlength="120"><small>Pinterest recommends a vertical 2:3 canvas; 1000 × 1500 is the standard target.</small></div>
+          <div class="field"><label for="pinTitleRule">Title rule</label><input id="pinTitleRule" maxlength="240"><small>Pinterest allows up to 100 title characters; the opening text is the most visible.</small></div>
+          <div class="field"><label for="pinDescriptionRule">Description rule</label><textarea id="pinDescriptionRule" maxlength="500"></textarea><small>Descriptions help Pinterest determine relevance, so keywords should read naturally rather than look stuffed.</small></div>
         </div>
         <div id="pinterestOutput" class="output"></div>
       </article>
@@ -83,9 +92,14 @@
         <div class="settings" id="shopifySettings" hidden>
           <div class="field"><label for="shopifyProductType">Default product type</label><select id="shopifyProductType"><option value="digital">Digital product</option><option value="printable">Printable</option><option value="bundle">Bundle</option></select></div>
           <div class="field"><label for="shopifySeo">SEO preference</label><select id="shopifySeo"><option value="balanced">Balanced readability + SEO</option><option value="search">Search-first</option><option value="conversion">Conversion-first</option></select></div>
+          <div class="field"><label for="shopifyPricing">Pricing method</label><select id="shopifyPricing"><option value="cost-value-market">Cost + value + market check</option><option value="value">Value-based</option><option value="cost">Cost-plus floor</option></select><small>The recommended method checks total cost, perceived value, and comparable market pricing instead of relying on one markup.</small></div>
+          <div class="field"><label for="shopifyTitleMax">SEO title target (characters)</label><input id="shopifyTitleMax" type="number" min="40" max="70" step="1"><small>Shopify recommends keeping search titles around 60 characters or fewer.</small></div>
+          <div class="field"><label for="shopifyMetaMax">Meta description target (characters)</label><input id="shopifyMetaMax" type="number" min="120" max="200" step="1"><small>160 characters is the recommended working target.</small></div>
+          <div class="field"><label for="shopifyDescriptionMinWords">Useful product-description target (words)</label><input id="shopifyDescriptionMinWords" type="number" min="100" max="600" step="10"><small>250 useful words is the starting target when enough context is needed for search and conversion; do not pad thin products with filler.</small></div>
+          <div class="field"><label for="shopifyPriceReview">Pricing review cadence</label><select id="shopifyPriceReview"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semiannual">Every 6 months</option></select></div>
           <label class="check locked"><input type="checkbox" checked disabled> Keep new Shopify products in Draft until approval</label>
         </div>
-        <div class="output">Shopify settings are saved locally. Existing Forge product creation remains the place where Shopify packages are generated.</div>
+        <div class="output">Shopify settings feed the Orchestrator now. Product creation remains in the main Forge pipeline; direct account publishing stays locked until authenticated controls are added.</div>
       </article>
 
       <article class="card wide">
@@ -99,13 +113,13 @@
         </div>
         <div class="actions" style="margin-top:14px">
           <button class="btn" id="saveSettings">Save All Settings</button>
-          <button class="btn secondary" id="resetSettings">Reset Defaults</button>
+          <button class="btn secondary" id="resetSettings">Restore 2026 Recommended Defaults</button>
         </div>
         <div id="saveState" class="muted" style="margin-top:8px"></div>
       </article>
     </section>
 
-    <div class="footer">Settings are stored on this device for the beta. Account credentials and marketplace permissions are not stored here.</div>
+    <div class="footer">Settings are stored on this device for the beta. Account credentials and marketplace permissions are not stored here. Recommended defaults are operating guidance, not guarantees of revenue or job placement.</div>
   </main>
 </body>
 </html>

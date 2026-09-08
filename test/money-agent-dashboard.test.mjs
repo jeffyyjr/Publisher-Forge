@@ -18,7 +18,7 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
 });
 
-test("money agent dashboard is served with settings controls", async () => {
+test("money agent dashboard is served with optimized settings controls", async () => {
   const response = await fetch(baseUrl + "/money-agents");
   const html = await response.text();
 
@@ -27,6 +27,11 @@ test("money agent dashboard is served with settings controls", async () => {
   assert.match(html, /Opportunity Agent/);
   assert.match(html, /Pinterest Agent/);
   assert.match(html, /Shopify Agent/);
+  assert.match(html, /2026 recommended preset/i);
+  assert.match(html, /Decision horizon/);
+  assert.match(html, /Money Score emphasis/);
+  assert.match(html, /Creative format/);
+  assert.match(html, /Pricing method/);
   assert.match(html, /Global Safety & Automation Controls/);
   assert.match(html, /src="\/money-agents\.js"/);
 });
@@ -37,9 +42,12 @@ test("money agent browser script is served as JavaScript", async () => {
 
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") || "", /javascript/);
+  assert.match(source, /publisherForge\.moneyAgentSettings\.v2/);
   assert.match(source, /\/api\/opportunity-scan/);
   assert.match(source, /\/api\/orchestrator\/next-action/);
   assert.match(source, /\/api\/pinterest-plan/);
+  assert.match(source, /2:3 vertical/);
+  assert.match(source, /cost-value-market/);
 });
 
 test("money agent status endpoint remains available", async () => {

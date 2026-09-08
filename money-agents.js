@@ -1,21 +1,23 @@
-const STORAGE_KEY = "publisherForge.moneyAgentSettings.v1";
+const STORAGE_KEY = "publisherForge.moneyAgentSettings.v2";
 const OPPORTUNITIES_KEY = "publisherForge.moneyAgentOpportunities.v1";
 
 const defaults = {
   orchestrator: {
-    goal: "Increase reliable income and profit while protecting time.",
+    goal: "Maximize reliable after-cost income per hour while compounding scalable assets and protecting downside.",
     hours: 2,
     budget: 0,
     mode: "balanced",
-    context: ""
+    horizon: "30",
+    context: "Favor measurable payoff and completed loops over adding features. If a reliability blocker can invalidate revenue work, fix the blocker first."
   },
   opportunity: {
-    profile: "Manufacturing operations leader with hands-on troubleshooting, quality control, training, production coordination, warehouse experience, customer service, and practical AI/software project experience.",
-    query: "manufacturing supervisor, operations supervisor, technical operations, remote AI training, side gigs",
+    profile: "Manufacturing operations leader with hands-on troubleshooting, quality control, training, production coordination, warehouse experience, customer service, team leadership, and practical AI/software project experience.",
+    query: "production supervisor, manufacturing supervisor, operations supervisor, production manager, manufacturing manager, technical operations, remote AI trainer, AI evaluator, data annotation, part-time remote contract",
     location: "Levittown, PA",
     remote: true,
-    minimumPay: "",
-    availability: ""
+    minimumPay: "$65,000+/yr main jobs; $20+/hr side gigs",
+    availability: "Prefer predictable schedules, remote side gigs, and nearby roles with a practical commute. Favor clear advertised compensation and work that can improve income without creating a worse time tradeoff.",
+    scoringProfile: "income-fit-stability"
   },
   pinterest: {
     title: "",
@@ -23,11 +25,21 @@ const defaults = {
     keywords: "",
     audience: "",
     platform: "Shopify",
-    destinationUrl: ""
+    destinationUrl: "",
+    strategy: "buyer-intent",
+    boardCount: 3,
+    creativeFormat: "2:3 vertical — 1000 × 1500",
+    titleRule: "Put the main search phrase or benefit in the first 40 characters.",
+    descriptionRule: "Use natural relevant keywords and a clear benefit; keep the working draft at 500 characters or less."
   },
   shopify: {
     productType: "digital",
-    seo: "balanced"
+    seo: "balanced",
+    pricing: "cost-value-market",
+    titleMax: 60,
+    metaMax: 160,
+    descriptionMinWords: 250,
+    priceReview: "quarterly"
   }
 };
 
@@ -68,6 +80,7 @@ function populate() {
   byId("orchHours").value = settings.orchestrator.hours;
   byId("orchBudget").value = settings.orchestrator.budget;
   byId("orchMode").value = settings.orchestrator.mode;
+  byId("orchHorizon").value = settings.orchestrator.horizon;
   byId("orchContext").value = settings.orchestrator.context;
 
   byId("jobProfile").value = settings.opportunity.profile;
@@ -76,6 +89,7 @@ function populate() {
   byId("jobRemote").checked = Boolean(settings.opportunity.remote);
   byId("jobMinPay").value = settings.opportunity.minimumPay;
   byId("jobAvailability").value = settings.opportunity.availability;
+  byId("jobScoringProfile").value = settings.opportunity.scoringProfile;
 
   byId("pinTitle").value = settings.pinterest.title;
   byId("pinDescription").value = settings.pinterest.description;
@@ -83,9 +97,19 @@ function populate() {
   byId("pinAudience").value = settings.pinterest.audience;
   byId("pinPlatform").value = settings.pinterest.platform;
   byId("pinUrl").value = settings.pinterest.destinationUrl;
+  byId("pinStrategy").value = settings.pinterest.strategy;
+  byId("pinBoardCount").value = settings.pinterest.boardCount;
+  byId("pinCreativeFormat").value = settings.pinterest.creativeFormat;
+  byId("pinTitleRule").value = settings.pinterest.titleRule;
+  byId("pinDescriptionRule").value = settings.pinterest.descriptionRule;
 
   byId("shopifyProductType").value = settings.shopify.productType;
   byId("shopifySeo").value = settings.shopify.seo;
+  byId("shopifyPricing").value = settings.shopify.pricing;
+  byId("shopifyTitleMax").value = settings.shopify.titleMax;
+  byId("shopifyMetaMax").value = settings.shopify.metaMax;
+  byId("shopifyDescriptionMinWords").value = settings.shopify.descriptionMinWords;
+  byId("shopifyPriceReview").value = settings.shopify.priceReview;
 }
 
 function readSettingsFromForm() {
@@ -95,6 +119,7 @@ function readSettingsFromForm() {
       hours: Number(byId("orchHours").value) || 0,
       budget: Number(byId("orchBudget").value) || 0,
       mode: byId("orchMode").value,
+      horizon: byId("orchHorizon").value,
       context: byId("orchContext").value.trim()
     },
     opportunity: {
@@ -103,7 +128,8 @@ function readSettingsFromForm() {
       location: byId("jobLocation").value.trim(),
       remote: byId("jobRemote").checked,
       minimumPay: byId("jobMinPay").value.trim(),
-      availability: byId("jobAvailability").value.trim()
+      availability: byId("jobAvailability").value.trim(),
+      scoringProfile: byId("jobScoringProfile").value
     },
     pinterest: {
       title: byId("pinTitle").value.trim(),
@@ -111,16 +137,26 @@ function readSettingsFromForm() {
       keywords: byId("pinKeywords").value.trim(),
       audience: byId("pinAudience").value.trim(),
       platform: byId("pinPlatform").value,
-      destinationUrl: byId("pinUrl").value.trim()
+      destinationUrl: byId("pinUrl").value.trim(),
+      strategy: byId("pinStrategy").value,
+      boardCount: Math.max(2, Math.min(4, Number(byId("pinBoardCount").value) || 3)),
+      creativeFormat: byId("pinCreativeFormat").value.trim(),
+      titleRule: byId("pinTitleRule").value.trim(),
+      descriptionRule: byId("pinDescriptionRule").value.trim()
     },
     shopify: {
       productType: byId("shopifyProductType").value,
-      seo: byId("shopifySeo").value
+      seo: byId("shopifySeo").value,
+      pricing: byId("shopifyPricing").value,
+      titleMax: Math.max(40, Math.min(70, Number(byId("shopifyTitleMax").value) || 60)),
+      metaMax: Math.max(120, Math.min(200, Number(byId("shopifyMetaMax").value) || 160)),
+      descriptionMinWords: Math.max(100, Math.min(600, Number(byId("shopifyDescriptionMinWords").value) || 250)),
+      priceReview: byId("shopifyPriceReview").value
     }
   };
 }
 
-function saveSettings(message = "Settings saved on this device.") {
+function saveSettings(message = "Recommended settings saved on this device.") {
   settings = readSettingsFromForm();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   byId("saveState").textContent = message;
@@ -173,10 +209,59 @@ function linkLine(parent, url, label = "Open listing") {
 }
 
 function modeInstruction(mode) {
-  if (mode === "stable") return "Prioritize dependable recurring or salary income over speculative upside.";
-  if (mode === "growth") return "Prioritize high-upside opportunities when the evidence is strong, but do not invent returns.";
-  if (mode === "time") return "Prioritize money per hour and automation leverage; avoid manual busywork.";
-  return "Balance reliable income, upside, time efficiency, and current blockers.";
+  if (mode === "stable") return "Weight recurring salary or dependable recurring income highest; require strong evidence before trading stability for upside.";
+  if (mode === "growth") return "Weight scalable upside and learning velocity higher, but require measurable validation before spending meaningful cash or time.";
+  if (mode === "time") return "Weight expected income per hour and automation leverage highest; strongly penalize manual busywork and recurring operator effort.";
+  return "Balance reliable income, expected after-cost upside, time efficiency, confidence, reversibility, and removal of blockers.";
+}
+
+function horizonInstruction(horizon) {
+  if (horizon === "7") return "Optimize primarily for cash or validated progress within the next 7 days.";
+  if (horizon === "90") return "Optimize for the next 90 days without sacrificing near-term cash needs.";
+  if (horizon === "365") return "Optimize for one-year compounding while keeping near-term income resilient.";
+  return "Optimize for measurable payoff or validated progress within the next 30 days, while preserving scalable upside.";
+}
+
+function opportunityInstruction(profile) {
+  if (profile === "fast-cash") {
+    return "For the fit score, heavily consider time-to-income, application friction, schedule fit, and realistic chance of acceptance. Do not let vague high advertised pay outrank a verified opportunity that can pay sooner.";
+  }
+  if (profile === "career-growth") {
+    return "For the fit score, heavily consider compensation upside, leadership scope, stability, transferable advancement, schedule practicality, and realistic qualification match.";
+  }
+  return "For the fit score, consider advertised compensation, qualification match, stability, schedule fit, commute or remote practicality, time-to-income, and application burden. Penalize unclear pay, weak evidence, bad schedule fit, or impractical travel instead of letting headline pay dominate.";
+}
+
+function pinterestInstruction(s) {
+  const angle = s.strategy === "search"
+    ? "Prioritize specific search intent and clear keyword relevance."
+    : s.strategy === "conversion"
+      ? "Prioritize buyer intent, product usefulness, and a clear non-pushy CTA."
+      : "Balance search relevance, buyer intent, and distinct creative angles.";
+  return [
+    angle,
+    `Use ${s.boardCount} tightly related boards rather than broad unrelated boards.`,
+    `Creative target: ${s.creativeFormat}.`,
+    s.titleRule,
+    s.descriptionRule,
+    "Keep titles at 100 characters or less, make the product or outcome visually obvious, and keep important text away from the extreme edges."
+  ].filter(Boolean).join(" ");
+}
+
+function shopifyInstruction(s) {
+  const pricing = s.pricing === "value"
+    ? "Use value-based pricing but still verify every direct, platform, delivery, and acquisition cost before calling a price profitable."
+    : s.pricing === "cost"
+      ? "Use cost-plus as the floor, then confirm the result still makes sense against market expectations."
+      : "Triangulate total cost, customer value, and comparable market pricing; do not rely on markup alone.";
+  return [
+    pricing,
+    `SEO title target: ${s.titleMax} characters or fewer with the primary keyword near the beginning.`,
+    `Meta description target: ${s.metaMax} characters or fewer, natural and unique.`,
+    `Product-description depth target: at least ${s.descriptionMinWords} useful words when the product needs enough context for search and conversion.`,
+    `Pricing review cadence: ${s.priceReview}.`,
+    "Keep new products in Draft until files, claims, price, delivery, and checkout behavior are verified."
+  ].join(" ");
 }
 
 async function checkStatus() {
@@ -185,7 +270,7 @@ async function checkStatus() {
     const response = await fetch("/api/money-agents/status", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || data.status !== "READY") throw new Error();
-    status.textContent = data.openAIConfigured ? "Agents ready" : "Agents loaded — AI key missing";
+    status.textContent = data.openAIConfigured ? "Agents ready · optimized preset" : "Agents loaded — AI key missing";
     status.classList.add(data.openAIConfigured ? "status-ok" : "status-bad");
   } catch (error) {
     status.textContent = "Money agents unavailable";
@@ -203,7 +288,7 @@ async function runOpportunity() {
   try {
     const s = settings.opportunity;
     const data = await jsonRequest("/api/opportunity-scan", {
-      profile: s.profile,
+      profile: [s.profile, opportunityInstruction(s.scoringProfile)].filter(Boolean).join("\n"),
       query: s.query,
       location: s.location,
       remote: s.remote,
@@ -250,10 +335,22 @@ async function runOrchestrator() {
       state: {
         agentDashboard: true,
         priorityMode: s.mode,
+        decisionHorizonDays: Number(s.horizon) || 30,
         shopifyDefaults: settings.shopify,
+        shopifyOperatingRules: shopifyInstruction(settings.shopify),
+        pinterestDefaults: {
+          strategy: settings.pinterest.strategy,
+          boardCount: settings.pinterest.boardCount,
+          creativeFormat: settings.pinterest.creativeFormat
+        },
         opportunityCount: lastOpportunities.length
       },
-      context: [modeInstruction(s.mode), s.context].filter(Boolean).join(" ")
+      context: [
+        modeInstruction(s.mode),
+        horizonInstruction(s.horizon),
+        shopifyInstruction(settings.shopify),
+        s.context
+      ].filter(Boolean).join(" ")
     });
     clearOutput("orchestratorOutput");
     textLine(output, `${data.primaryChannel}: ${data.primaryAction}`, "score");
@@ -287,7 +384,7 @@ async function runPinterest() {
       title: s.title,
       description: s.description,
       keywords: s.keywords.split(",").map((item) => item.trim()).filter(Boolean),
-      audience: s.audience,
+      audience: [s.audience, pinterestInstruction(s)].filter(Boolean).join(" "),
       platform: s.platform,
       destinationUrl: s.destinationUrl
     });
@@ -323,7 +420,7 @@ byId("resetSettings").addEventListener("click", () => {
   settings = cloneDefaults();
   localStorage.removeItem(STORAGE_KEY);
   populate();
-  byId("saveState").textContent = "Defaults restored.";
+  byId("saveState").textContent = "2026 recommended defaults restored.";
 });
 byId("runOpportunity").addEventListener("click", runOpportunity);
 byId("runOrchestrator").addEventListener("click", runOrchestrator);
