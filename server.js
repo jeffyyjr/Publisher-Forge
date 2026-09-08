@@ -18,7 +18,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const APP_VERSION = "0.21.0";
+const APP_VERSION = "0.22.0";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
@@ -64,7 +64,8 @@ const LARGE_JSON_ROUTES = new Set([
   "/api/export-bundle",
   "/api/export-pdf",
   "/api/kdp-cover",
-  "/api/kdp-pricing"
+  "/api/kdp-pricing",
+  "/api/release-qa"
 ]);
 
 const SECURITY_HEADERS = Object.freeze({
@@ -1721,6 +1722,8 @@ function printablePdf(packageData) {
     doc.on("end", () => {
       const buffer = Buffer.concat(chunks);
       buffer.pageCount = finalPageCount;
+      buffer.intentionalBlankPageCount = blankBackingPages.size;
+      buffer.contentPageCount = finalPageCount - blankBackingPages.size;
       resolve(buffer);
     });
     doc.on("error", reject);
@@ -1918,7 +1921,8 @@ function kdpPricing(pageCount) {
     actualPageCount,
     pricingPageCount,
     minimumPageCount: 24,
-    pageCountReady: actualPageCount >= 24,
+    maximumPageCount: 828,
+    pageCountReady: actualPageCount >= 24 && actualPageCount <= 828,
     estimatedPrintingCost: printingCost,
     minimumListPrice,
     options,
@@ -1950,7 +1954,8 @@ function kdpCoverSpecs(pageCount) {
     paper: "White paper",
     pageCount: actualPageCount,
     minimumPageCount: 24,
-    pageCountReady: actualPageCount >= 24,
+    maximumPageCount: 828,
+    pageCountReady: actualPageCount >= 24 && actualPageCount <= 828,
     bleedInches: bleed,
     spineWidthInches: Number(spineWidth.toFixed(4)),
     coverWidthInches: Number(coverWidth.toFixed(4)),
@@ -1983,8 +1988,8 @@ function formatKdpCoverSpecs(specs) {
       specs.barcodeArea.heightInches + " in, " + specs.barcodeArea.placement,
     "",
     specs.pageCountReady
-      ? "Page-count check: ready for KDP's 24-page minimum."
-      : "PAGE-COUNT WARNING: finish the interior before generating a final cover.",
+      ? "Page-count check: ready for KDP's 24-to-828-page range."
+      : "PAGE-COUNT WARNING: the interior must contain 24 to 828 pages before generating a final cover.",
     "",
     specs.disclaimer
   ].join("\n");
@@ -1996,7 +2001,7 @@ function kdpWrapCoverPdf(packageData, cover, pageCount, authorName) {
 
     if (!specs.pageCountReady) {
       reject(new Error(
-        "The interior needs at least 24 pages before a final KDP cover can be sized."
+        "The interior must contain 24 to 828 pages before a final KDP cover can be sized."
       ));
       return;
     }
@@ -2163,12 +2168,613 @@ function formatKdpPricing(pricing) {
     ),
     "",
     pricing.pageCountReady
-      ? "Page-count check: ready for KDP's 24-page minimum."
+      ? "Page-count check: ready for KDP's 24-to-828-page range."
       : "PAGE-COUNT WARNING: this interior has " + pricing.actualPageCount +
-        " pages. Expand it to at least 24 pages before uploading to KDP.",
+        " pages. The supported range for this workflow is 24 to 828 pages.",
     "",
     pricing.disclaimer
   ].join("\n");
+}
+
+function cleanReleaseList(value, itemLimit, maximumItems = Infinity) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  const cleaned = [];
+
+  for (const item of value) {
+    const normalized = text(item, itemLimit).replace(/\s+/g, " ");
+    const key = normalized.toLowerCase();
+
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(normalized);
+    if (cleaned.length >= maximumItems) break;
+  }
+
+  return cleaned;
+}
+
+function releaseReadyPackage(packageData, requestedAuthor, fallbackTitle = "") {
+  const original = normalizedPackageData(packageData);
+  const ready = publicationReadyPackage(packageData, requestedAuthor);
+  const autoFixes = [];
+
+  if (!ready) {
+    return { packageData: null, autoFixes };
+  }
+
+  const originalCore = original && {
+    packageTitle: original.packageTitle,
+    subtitle: original.subtitle,
+    deliverableType: original.deliverableType,
+    draftMarkdown: original.draftMarkdown,
+    listingTitle: original.listingTitle,
+    listingDescription: original.listingDescription,
+    authorName: original.authorName
+  };
+  const readyCore = {
+    packageTitle: ready.packageTitle,
+    subtitle: ready.subtitle,
+    deliverableType: ready.deliverableType,
+    draftMarkdown: ready.draftMarkdown,
+    listingTitle: ready.listingTitle,
+    listingDescription: ready.listingDescription,
+    authorName: ready.authorName
+  };
+
+  if (JSON.stringify(originalCore) !== JSON.stringify(readyCore)) {
+    autoFixes.push(
+      "Normalized page labels, authorship, and publishing claims in the final copy."
+    );
+  }
+
+  if (!text(ready.packageTitle, 300) && text(fallbackTitle, 300)) {
+    ready.packageTitle = text(fallbackTitle, 300);
+    autoFixes.push("Filled the package title from the approved project title.");
+  }
+
+  if (!text(ready.listingTitle, 500) && text(ready.packageTitle, 300)) {
+    ready.listingTitle = text(ready.packageTitle, 300);
+    autoFixes.push("Filled the listing title from the package title.");
+  }
+
+  if (!text(ready.deliverableType, 200) && platform(ready.platform) === "KDP") {
+    ready.deliverableType = "KDP paperback";
+    autoFixes.push("Filled the missing deliverable type for the paperback export.");
+  }
+
+  const originalKeywords = Array.isArray(ready.keywords) ? ready.keywords : [];
+  const keywordLimit = platform(ready.platform) === "KDP" ? 7 : 20;
+  const cleanedKeywords = cleanReleaseList(originalKeywords, 200, keywordLimit);
+
+  if (JSON.stringify(originalKeywords) !== JSON.stringify(cleanedKeywords)) {
+    ready.keywords = cleanedKeywords;
+    autoFixes.push("Removed empty or duplicate keywords and fitted the marketplace slots.");
+  } else {
+    ready.keywords = cleanedKeywords;
+  }
+
+  for (const [key, label] of [
+    ["productionChecklist", "production checklist"],
+    ["riskFlags", "risk flags"]
+  ]) {
+    const originalItems = Array.isArray(ready[key]) ? ready[key] : [];
+    const cleanedItems = cleanReleaseList(originalItems, 500, 30);
+
+    if (JSON.stringify(originalItems) !== JSON.stringify(cleanedItems)) {
+      autoFixes.push("Removed empty or duplicate items from the " + label + ".");
+    }
+    ready[key] = cleanedItems;
+  }
+
+  return {
+    packageData: ready,
+    autoFixes: [...new Set(autoFixes)]
+  };
+}
+
+function pngDimensions(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 24 ||
+      buffer.toString("ascii", 12, 16) !== "IHDR") {
+    throw new Error("PNG dimensions could not be read");
+  }
+
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+
+  if (!width || !height || width > 20000 || height > 20000) {
+    throw new Error("PNG dimensions are outside the supported range");
+  }
+
+  return { width, height };
+}
+
+function pdfStructure(buffer, expectedWidth, expectedHeight) {
+  const source = Buffer.isBuffer(buffer) ? buffer.toString("latin1") : "";
+  const mediaBoxes = [...source.matchAll(
+    /\/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]/g
+  )].map((match) => match.slice(1).map(Number));
+  const dimensionsMatch = mediaBoxes.length > 0 && mediaBoxes.every((box) =>
+    Math.abs(box[0]) < 0.02 &&
+    Math.abs(box[1]) < 0.02 &&
+    Math.abs(box[2] - expectedWidth) < 0.02 &&
+    Math.abs(box[3] - expectedHeight) < 0.02
+  );
+
+  return {
+    headerValid: source.startsWith("%PDF-"),
+    eofValid: /%%EOF\s*$/.test(source),
+    dimensionsMatch,
+    mediaBoxCount: mediaBoxes.length,
+    fontsEmbedded: /\/FontFile(?:2|3)?\b/.test(source),
+    bytes: Buffer.isBuffer(buffer) ? buffer.length : 0
+  };
+}
+
+function markdownReleaseIssues(markdown) {
+  const source = String(markdown || "");
+  const lines = source.split(/\r?\n/);
+  const headings = [];
+
+  lines.forEach((line, index) => {
+    const match = line.trim().match(/^(#{1,3})\s+(.+)$/);
+    if (match) headings.push({ index, title: match[2].trim() });
+  });
+
+  const emptySections = headings.filter((heading, index) => {
+    const nextIndex = headings[index + 1]?.index ?? lines.length;
+    return !lines.slice(heading.index + 1, nextIndex).some((line) => {
+      const content = line.trim();
+      return content && !/^[-_]{3,}$/.test(content);
+    });
+  }).map((heading) => heading.title);
+  const chapterNumbers = headings.map((heading) =>
+    heading.title.match(/^chapter\s+(\d+)\b/i)
+  ).filter(Boolean).map((match) => Number(match[1]));
+  const missingChapters = [];
+
+  if (chapterNumbers.length) {
+    const unique = [...new Set(chapterNumbers)].sort((a, b) => a - b);
+    const last = unique[unique.length - 1];
+    for (let number = 1; number <= last; number += 1) {
+      if (!unique.includes(number)) missingChapters.push(number);
+    }
+  }
+
+  return { headings, emptySections, missingChapters };
+}
+
+function releaseFingerprint(packageData, cover, interiorArt) {
+  const payload = {
+    platform: platform(packageData.platform),
+    packageTitle: text(packageData.packageTitle, 300),
+    subtitle: text(packageData.subtitle, 500),
+    deliverableType: text(packageData.deliverableType, 200),
+    draftMarkdown: text(packageData.draftMarkdown, 50000),
+    listingTitle: text(packageData.listingTitle, 500),
+    listingDescription: text(packageData.listingDescription, 10000),
+    authorName: text(packageData.authorName, 160),
+    keywords: cleanReleaseList(packageData.keywords, 200, 20),
+    interiorArt: interiorArt.map((item) => ({
+      filename: item.filename,
+      sha256: createHash("sha256").update(item.buffer).digest("hex")
+    })),
+    coverSha256: cover
+      ? createHash("sha256").update(cover).digest("hex")
+      : null
+  };
+
+  return createHash("sha256")
+    .update(JSON.stringify(payload))
+    .digest("hex");
+}
+
+async function buildReleaseQa({
+  title,
+  package: inputPackage,
+  qualityReview,
+  cover: inputCover,
+  authorName: requestedAuthor
+}) {
+  const normalized = releaseReadyPackage(
+    inputPackage,
+    requestedAuthor,
+    title
+  );
+  const packageData = normalized.packageData;
+
+  if (!packageData) {
+    throw new Error("A production package is required");
+  }
+
+  const market = platform(packageData.platform);
+  const checks = [];
+  const blockers = [];
+  const warnings = [];
+  const autoFixes = normalized.autoFixes;
+  let cover = null;
+  let coverDimensions = null;
+  let interiorArt = [];
+  let printable = null;
+  let wrapCover = null;
+  let pricing = null;
+  let coverSpecs = null;
+
+  function addCheck(id, label, status, detail, blocker) {
+    checks.push({ id, label, status, detail });
+    if (status === "BLOCKED" && (blocker || detail)) {
+      blockers.push(blocker || detail);
+    }
+  }
+
+  addCheck(
+    "content-quality",
+    "Written content QA",
+    qualityReview?.verdict === "PASS" ? "PASS" : "BLOCKED",
+    qualityReview?.verdict === "PASS"
+      ? "The independent content review passed."
+      : "The written package does not have a passing Quality Control report.",
+    "Pass the written Quality Control check before release."
+  );
+
+  const missingMetadata = [
+    ["packageTitle", "book title"],
+    ["deliverableType", "deliverable type"],
+    ["listingTitle", "listing title"],
+    ["listingDescription", "listing description"],
+    ["authorName", "author or pen name"]
+  ].filter(([key]) => !text(packageData[key], key === "listingDescription" ? 10000 : 500))
+    .map(([, label]) => label);
+
+  addCheck(
+    "metadata",
+    "Listing metadata",
+    missingMetadata.length
+      ? "BLOCKED"
+      : autoFixes.length
+        ? "FIXED"
+        : "PASS",
+    missingMetadata.length
+      ? "Missing " + missingMetadata.join(", ") + "."
+      : (packageData.keywords || []).length +
+        " clean keyword" + ((packageData.keywords || []).length === 1 ? "" : "s") +
+        " and all required listing fields are present."
+  );
+
+  if (!(packageData.keywords || []).length) {
+    warnings.push("No optional search keywords were supplied.");
+  }
+
+  const draft = text(packageData.draftMarkdown, 50000);
+  const draftIssues = markdownReleaseIssues(draft);
+  const draftBlockers = [];
+
+  if (draft.length < 100) {
+    draftBlockers.push("The manuscript is substantially empty.");
+  }
+  if (illustrationPlaceholderPattern().test(draft)) {
+    draftBlockers.push("Unresolved illustration placeholders remain in the manuscript.");
+  }
+  if (draftIssues.emptySections.length) {
+    draftBlockers.push(
+      "These manuscript sections have no content: " +
+      draftIssues.emptySections.slice(0, 4).join(", ") + "."
+    );
+  }
+  if (draftIssues.missingChapters.length) {
+    draftBlockers.push(
+      "The chapter numbering skips: " +
+      draftIssues.missingChapters.slice(0, 8).join(", ") + "."
+    );
+  }
+
+  addCheck(
+    "manuscript",
+    "Manuscript sections",
+    draftBlockers.length ? "BLOCKED" : "PASS",
+    draftBlockers.length
+      ? draftBlockers.join(" ")
+      : draftIssues.headings.length +
+        " structured section" + (draftIssues.headings.length === 1 ? "" : "s") +
+        " checked; none are empty.",
+    draftBlockers.join(" ")
+  );
+
+  try {
+    interiorArt = validatedInteriorArt(packageData.interiorArt);
+    const available = new Map(interiorArt.map((item) => [item.filename, item]));
+    const references = [...draft.matchAll(
+      /!\[[^\]]*\]\((?:interior-art\/)?(interior-art-\d{2}\.png)\)/gi
+    )].map((match) => match[1].toLowerCase());
+    const missingArt = [...new Set(references.filter((item) => !available.has(item)))];
+    const unsupportedImages = [...draft.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)]
+      .map((match) => match[1])
+      .filter((item) => !/(?:^|\/)interior-art-\d{2}\.png$/i.test(item));
+    const smallArt = interiorArt.map((item) => ({
+      filename: item.filename,
+      ...pngDimensions(item.buffer)
+    })).filter((item) => item.width < 900 || item.height < 900);
+    const artBlockers = [];
+
+    if (missingArt.length) {
+      artBlockers.push("Missing embedded artwork files: " + missingArt.join(", ") + ".");
+    }
+    if (unsupportedImages.length) {
+      artBlockers.push("The manuscript contains image links that cannot be embedded.");
+    }
+    if (smallArt.length) {
+      artBlockers.push(
+        "Interior artwork is too small for a clean print result: " +
+        smallArt.map((item) => item.filename).join(", ") + "."
+      );
+    }
+    if (isColoringBookPackage(packageData) && !interiorArt.length) {
+      artBlockers.push("A coloring book needs generated interior artwork before release.");
+    }
+
+    addCheck(
+      "interior-art",
+      "Interior artwork",
+      artBlockers.length ? "BLOCKED" : "PASS",
+      artBlockers.length
+        ? artBlockers.join(" ")
+        : interiorArt.length
+          ? interiorArt.length + " valid high-resolution PNG file" +
+            (interiorArt.length === 1 ? "" : "s") + " embedded."
+          : "No embedded illustrations are required for this manuscript.",
+      artBlockers.join(" ")
+    );
+  } catch (error) {
+    addCheck(
+      "interior-art",
+      "Interior artwork",
+      "BLOCKED",
+      error.message,
+      "Repair or regenerate the interior artwork: " + error.message
+    );
+  }
+
+  try {
+    printable = await printablePdf(packageData);
+    const expectedSize = market === "KDP" ? [432, 648] : [612, 792];
+    const structure = pdfStructure(printable, expectedSize[0], expectedSize[1]);
+    const pdfProblems = [];
+
+    if (!structure.headerValid || !structure.eofValid || structure.bytes < 1000) {
+      pdfProblems.push("the PDF file structure is incomplete");
+    }
+    if (!structure.dimensionsMatch) {
+      pdfProblems.push("one or more pages use the wrong dimensions");
+    }
+    if (!structure.fontsEmbedded) {
+      pdfProblems.push("the required fonts are not embedded");
+    }
+
+    addCheck(
+      "interior-pdf",
+      "Interior PDF",
+      pdfProblems.length ? "BLOCKED" : "PASS",
+      pdfProblems.length
+        ? "Interior PDF failed: " + pdfProblems.join("; ") + "."
+        : "Valid " + Math.round(structure.bytes / 1024) + " KB PDF with " +
+          printable.pageCount + " correctly sized pages and embedded fonts.",
+      pdfProblems.length
+        ? "Regenerate the interior PDF because " + pdfProblems.join("; ") + "."
+        : ""
+    );
+
+    addCheck(
+      "blank-pages",
+      "Blank-page safety",
+      "PASS",
+      printable.intentionalBlankPageCount
+        ? printable.intentionalBlankPageCount +
+          " blank reverse page" +
+          (printable.intentionalBlankPageCount === 1 ? " was" : "s were") +
+          " intentionally placed behind artwork."
+        : "The renderer did not insert blank reverse pages."
+    );
+
+    if (market === "KDP") {
+      addCheck(
+        "page-count",
+        "KDP page count",
+        printable.pageCount >= 24 && printable.pageCount <= 828
+          ? "PASS"
+          : "BLOCKED",
+        printable.pageCount >= 24 && printable.pageCount <= 828
+          ? printable.pageCount + " pages; the 24-to-828-page range is met."
+          : printable.pageCount +
+            " pages; this 6 x 9 black-and-white paperback workflow supports 24 to 828.",
+        printable.pageCount < 24
+          ? "Expand the manuscript from " + printable.pageCount +
+            " to at least 24 finished pages."
+          : "Reduce the manuscript from " + printable.pageCount +
+            " to no more than 828 finished pages."
+      );
+    }
+  } catch (error) {
+    addCheck(
+      "interior-pdf",
+      "Interior PDF",
+      "BLOCKED",
+      error.message,
+      "The interior PDF could not be generated: " + error.message
+    );
+  }
+
+  if (inputCover) {
+    try {
+      cover = validatedCover(inputCover);
+      coverDimensions = pngDimensions(cover);
+      const expectedCover = market === "KDP" &&
+        (coverDimensions.width !== 1838 || coverDimensions.height !== 2775);
+      const authorMismatch = market === "KDP" && inputCover.authorName &&
+        text(inputCover.authorName, 160) !== text(packageData.authorName, 160);
+      const coverProblems = [];
+
+      if (expectedCover) {
+        coverProblems.push(
+          "the front cover must be 1838 x 2775 pixels for this 6 x 9 workflow"
+        );
+      }
+      if (authorMismatch) {
+        coverProblems.push("the author name changed after this cover was generated");
+      }
+
+      addCheck(
+        "cover-art",
+        "Front cover artwork",
+        coverProblems.length ? "BLOCKED" : "PASS",
+        coverProblems.length
+          ? "Cover failed: " + coverProblems.join("; ") + "."
+          : "Valid " + coverDimensions.width + " x " +
+            coverDimensions.height + " PNG.",
+        coverProblems.length
+          ? "Generate a new front cover because " + coverProblems.join("; ") + "."
+          : ""
+      );
+    } catch (error) {
+      addCheck(
+        "cover-art",
+        "Front cover artwork",
+        "BLOCKED",
+        error.message,
+        "Generate a valid PNG front cover: " + error.message
+      );
+    }
+  } else {
+    addCheck(
+      "cover-art",
+      "Front cover artwork",
+      market === "KDP" ? "BLOCKED" : "WARN",
+      market === "KDP"
+        ? "No front cover has been generated."
+        : "No optional product cover was supplied.",
+      market === "KDP" ? "Generate the front cover before release." : ""
+    );
+    if (market !== "KDP") warnings.push("No optional product cover was supplied.");
+  }
+
+  if (market === "KDP" && printable) {
+    pricing = kdpPricing(printable.pageCount);
+    coverSpecs = kdpCoverSpecs(printable.pageCount);
+    const pricingReady = pricing.pageCountReady &&
+      pricing.recommendedPrice > pricing.estimatedPrintingCost;
+
+    addCheck(
+      "pricing",
+      "KDP pricing",
+      pricingReady ? "PASS" : "BLOCKED",
+      pricingReady
+        ? "$" + pricing.recommendedPrice.toFixed(2) +
+          " recommended price is above the estimated $" +
+          pricing.estimatedPrintingCost.toFixed(2) + " print cost."
+        : "Pricing cannot be finalized until the page-count requirement passes.",
+      "Finish the interior before using the KDP pricing estimate."
+    );
+
+    if (cover && pricing.pageCountReady) {
+      try {
+        wrapCover = await kdpWrapCoverPdf(
+          packageData,
+          cover,
+          printable.pageCount,
+          packageData.authorName
+        );
+        const coverStructure = pdfStructure(
+          wrapCover,
+          coverSpecs.coverWidthInches * 72,
+          coverSpecs.coverHeightInches * 72
+        );
+        const coverPdfReady = coverStructure.headerValid &&
+          coverStructure.eofValid && coverStructure.dimensionsMatch &&
+          coverStructure.fontsEmbedded && coverStructure.bytes >= 1000;
+
+        addCheck(
+          "cover-pdf",
+          "KDP cover PDF",
+          coverPdfReady ? "PASS" : "BLOCKED",
+          coverPdfReady
+            ? "Valid " + coverSpecs.coverWidthInches.toFixed(4) + " x " +
+              coverSpecs.coverHeightInches.toFixed(4) +
+              " inch wrap with a " + coverSpecs.spineWidthInches.toFixed(4) +
+              " inch spine."
+            : "The generated wrap cover failed its PDF structure or dimension check.",
+          "Regenerate the KDP wrap cover before release."
+        );
+      } catch (error) {
+        addCheck(
+          "cover-pdf",
+          "KDP cover PDF",
+          "BLOCKED",
+          error.message,
+          "The KDP wrap cover could not be generated: " + error.message
+        );
+      }
+    } else {
+      addCheck(
+        "cover-pdf",
+        "KDP cover PDF",
+        "BLOCKED",
+        "The wrap cover waits for a valid front cover and a finished page count.",
+        "Finish the interior and front cover so the KDP wrap can be generated."
+      );
+    }
+  }
+
+  const uniqueBlockers = [...new Set(blockers.filter(Boolean))];
+  const fingerprint = releaseFingerprint(packageData, cover, interiorArt);
+  const verdict = uniqueBlockers.length ? "BLOCKED" : "READY";
+  const report = {
+    reviewedAt: new Date().toISOString(),
+    platform: market,
+    verdict,
+    packageFingerprint: fingerprint,
+    summary: verdict === "READY"
+      ? "Every final file passed. The package is ready for your approval and one marketplace preview."
+      : uniqueBlockers.length + " release blocker" +
+        (uniqueBlockers.length === 1 ? " remains." : "s remain."),
+    checks,
+    autoFixes,
+    blockers: uniqueBlockers,
+    warnings: [...new Set(warnings)],
+    artifacts: {
+      interiorPdf: printable ? {
+        filename: market === "KDP"
+          ? "1-manuscript-interior.pdf"
+          : "printable.pdf",
+        bytes: printable.length,
+        pageCount: printable.pageCount,
+        intentionalBlankPageCount: printable.intentionalBlankPageCount
+      } : null,
+      coverPdf: wrapCover ? {
+        filename: "2-paperback-cover.pdf",
+        bytes: wrapCover.length,
+        widthInches: coverSpecs.coverWidthInches,
+        heightInches: coverSpecs.coverHeightInches,
+        spineWidthInches: coverSpecs.spineWidthInches
+      } : null,
+      coverPng: cover ? {
+        width: coverDimensions.width,
+        height: coverDimensions.height,
+        bytes: cover.length
+      } : null
+    },
+    pricing
+  };
+
+  return {
+    report,
+    packageData,
+    printable,
+    wrapCover,
+    cover,
+    coverSpecs,
+    pricing,
+    interiorArt
+  };
 }
 
 function getSources(response) {
@@ -2216,6 +2822,7 @@ app.get("/api/health", (req, res) => {
     trendRadarAvailable: Boolean(client),
     productionAgentAvailable: Boolean(client),
     qualityControlAvailable: Boolean(client),
+    releaseQaAvailable: true,
     revisionAgentAvailable: Boolean(client),
     coverStudioAvailable: Boolean(client),
     securityGateAvailable: true,
@@ -2744,6 +3351,39 @@ app.post("/api/generate-interior-art", limitAI, async (req, res) => {
   }
 });
 
+app.post("/api/release-qa", async (req, res) => {
+  if (!req.body.package || typeof req.body.package !== "object") {
+    return res.status(400).json({
+      error: "A production package is required"
+    });
+  }
+
+  try {
+    const release = await buildReleaseQa({
+      title: text(req.body.title, 200),
+      package: req.body.package,
+      qualityReview: req.body.qualityReview,
+      cover: req.body.cover,
+      authorName: req.body.authorName
+    });
+    const fixedPackage = { ...release.packageData };
+
+    // The browser already owns these image payloads. Avoid echoing tens of
+    // megabytes of base64 back merely to return deterministic text fixes.
+    delete fixedPackage.interiorArt;
+
+    res.json({
+      ...release.report,
+      fixedPackage
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Release check failed",
+      message: error.message
+    });
+  }
+});
+
 app.post("/api/kdp-pricing", async (req, res) => {
   const packageData = publicationReadyPackage(
     req.body.package,
@@ -2780,6 +3420,21 @@ app.post("/api/kdp-cover", async (req, res) => {
 
   try {
     cover = validatedCover(req.body.cover);
+    const dimensions = pngDimensions(cover);
+
+    if (dimensions.width !== 1838 || dimensions.height !== 2775) {
+      return res.status(400).json({
+        error: "Generate the KDP front cover again",
+        message: "The front cover must be 1838 x 2775 pixels for this 6 x 9 workflow."
+      });
+    }
+    if (req.body.cover?.authorName &&
+        text(req.body.cover.authorName, 160) !== authorName) {
+      return res.status(409).json({
+        error: "The author name changed",
+        message: "Generate the cover again so the artwork and KDP wrap use the same author name."
+      });
+    }
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
@@ -2796,6 +3451,17 @@ app.post("/api/kdp-cover", async (req, res) => {
       printable.pageCount,
       authorName
     );
+    const specs = wrap.coverSpecs;
+    const structure = pdfStructure(
+      wrap,
+      specs.coverWidthInches * 72,
+      specs.coverHeightInches * 72
+    );
+
+    if (!structure.headerValid || !structure.eofValid ||
+        !structure.dimensionsMatch || !structure.fontsEmbedded) {
+      throw new Error("The generated cover did not pass its final PDF validation.");
+    }
     const filename = text(packageData.packageTitle, 100)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -2821,7 +3487,7 @@ app.post("/api/export-bundle", async (req, res) => {
   const brief = text(req.body.brief, 12000);
   const packageText = text(req.body.packageText, 50000);
   const authorName = publishingAuthor(req.body.authorName);
-  const packageData = publicationReadyPackage(req.body.package, authorName);
+  let packageData = publicationReadyPackage(req.body.package, authorName);
   const artworkCount = Array.isArray(packageData?.interiorArt)
     ? packageData.interiorArt.length
     : 0;
@@ -2830,13 +3496,8 @@ app.post("/api/export-bundle", async (req, res) => {
     authorName,
     artworkCount
   );
+  let release = null;
   let cover = null;
-
-  try {
-    cover = validatedCover(req.body.cover);
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
 
   if (!title || !brief || !packageText || !packageData || !qualityReview) {
     return res.status(400).json({
@@ -2849,6 +3510,33 @@ app.post("/api/export-bundle", async (req, res) => {
       error: "Pass Quality Control and approve the package before exporting"
     });
   }
+
+  try {
+    release = await buildReleaseQa({
+      title,
+      package: packageData,
+      qualityReview,
+      cover: req.body.cover,
+      authorName
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Release QA could not validate the publishing package",
+      message: error.message
+    });
+  }
+
+  if (release.report.verdict !== "READY") {
+    return res.status(409).json({
+      error: "Release QA blocked this export",
+      message: release.report.blockers[0] ||
+        "Run the release check again before exporting.",
+      releaseQa: release.report
+    });
+  }
+
+  packageData = release.packageData;
+  cover = release.cover;
 
   const bundleName = text(packageData.packageTitle || title, 100)
     .toLowerCase()
@@ -2906,20 +3594,78 @@ app.post("/api/export-bundle", async (req, res) => {
     const interiorArtFolder = product.folder("interior-art");
     const review = zip.folder("review");
     const listing = zip.folder("listing");
-    const interiorArt = validatedInteriorArt(packageData.interiorArt);
-    const printable = await printablePdf(packageData);
-    const pricing = listingData.platform === "KDP"
-      ? kdpPricing(printable.pageCount)
+    const upload = listingData.platform === "KDP"
+      ? zip.folder("UPLOAD-TO-KDP")
       : null;
-    const coverSpecs = pricing ? kdpCoverSpecs(printable.pageCount) : null;
-    const wrapCover = pricing && pricing.pageCountReady && cover
-      ? await kdpWrapCoverPdf(
-          packageData,
-          cover,
-          printable.pageCount,
-          authorName
-        )
-      : null;
+    const interiorArt = release.interiorArt;
+    const printable = release.printable;
+    const pricing = release.pricing;
+    const coverSpecs = release.coverSpecs;
+    const wrapCover = release.wrapCover;
+    const kdpUploadGuide = pricing ? [
+      "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
+      "",
+      "Release QA: PASS (" + pricing.actualPageCount + " interior pages)",
+      "",
+      "1. In KDP Bookshelf, choose Create > Paperback.",
+      "2. Open 3-copy-paste-book-details.txt and copy each value into the matching KDP field.",
+      "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
+      "4. Upload 1-manuscript-interior.pdf as the manuscript.",
+      "5. After the manuscript processes, upload 2-paperback-cover.pdf as the book cover.",
+      "6. Open Print Previewer and resolve every warning before continuing.",
+      "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
+      "8. Start with the suggested price of $" +
+        pricing.recommendedPrice.toFixed(2) +
+        ". Confirm KDP's displayed print cost and royalty before saving.",
+      "9. Let Amazon place the barcode in the reserved white area on the back cover.",
+      "10. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
+      "",
+      "KDP Bookshelf: https://kdp.amazon.com/bookshelf"
+    ].join("\n") : "";
+    const copyPasteDetails = pricing ? [
+      "KDP BOOK DETAILS — COPY AND PASTE",
+      "",
+      "TITLE",
+      listingData.listingTitle || listingData.packageTitle,
+      "",
+      "SUBTITLE",
+      listingData.subtitle || "Leave blank",
+      "",
+      "AUTHOR OR PEN NAME",
+      listingData.authorName,
+      "",
+      "DESCRIPTION",
+      listingData.listingDescription,
+      "",
+      "KEYWORDS",
+      ...(listingData.keywords.length
+        ? listingData.keywords.map((item, index) =>
+            (index + 1) + ". " + item
+          )
+        : ["No optional keywords supplied"]),
+      "",
+      "PAPERBACK SETTINGS",
+      "Ink: Black & White",
+      "Paper: White",
+      "Trim: 6 x 9 inches",
+      "Bleed: No bleed",
+      "Suggested Amazon.com price: $" + pricing.recommendedPrice.toFixed(2),
+      "Estimated printing cost: $" + pricing.estimatedPrintingCost.toFixed(2),
+      "",
+      "Confirm KDP's live price and royalty calculation before publishing."
+    ].join("\n") : "";
+    const startHere = pricing ? [
+      "START HERE — YOUR KDP FILES PASSED RELEASE QA",
+      "",
+      "Only use the files inside this UPLOAD-TO-KDP folder for the paperback listing.",
+      "",
+      "1-manuscript-interior.pdf — upload in KDP's Manuscript section",
+      "2-paperback-cover.pdf — upload in KDP's Book Cover section",
+      "3-copy-paste-book-details.txt — title, description, author, keywords, and settings",
+      "4-upload-steps.txt — the exact order to finish the listing",
+      "",
+      "Final human step: open KDP Print Previewer once. Publisher Forge cannot see Amazon's processed preview, so do not skip that check."
+    ].join("\n") : "";
     const readme = [
       "PUBLISHER FORGE — APPROVED PUBLISHING BUNDLE",
       "",
@@ -2927,11 +3673,16 @@ app.post("/api/export-bundle", async (req, res) => {
       "Marketplace: " + listingData.platform,
       "Approved: " + listingData.approvedAt,
       "",
-      "This bundle passed Publisher Forge Quality Control and was approved on the user's device.",
-      "Before uploading, complete the production checklist and confirm the marketplace's current requirements.",
+      "This bundle passed written Quality Control, deterministic Release QA, and user approval.",
       "Publisher Forge does not upload or publish anything automatically.",
       "",
       "FILES",
+      ...(pricing
+        ? [
+            "UPLOAD-TO-KDP/ — the only four files needed to finish the paperback listing",
+            "START-HERE.txt — one-page map of the final handoff"
+          ]
+        : []),
       "product/full-package.md — complete review package",
       "product/draft.md — product content",
       "product/printable.pdf — formatted printable product",
@@ -2966,7 +3717,8 @@ app.post("/api/export-bundle", async (req, res) => {
             "listing/shopify-upload-guide.txt — guided Shopify draft-listing sequence"
           ]
         : []),
-      "review/quality-review.json — final Quality Control report",
+      "review/quality-review.json — final written Quality Control report",
+      "review/release-qa.json — deterministic file-validation report",
       "review/production-checklist.md — remaining human production steps",
       "review/approved-brief.txt — source brief used to create the package"
     ].join("\n");
@@ -3005,15 +3757,23 @@ app.post("/api/export-bundle", async (req, res) => {
     ].join("\n");
 
     zip.file("README.txt", readme);
+    if (startHere) zip.file("START-HERE.txt", startHere);
     product.file("full-package.md", fullPackage);
     product.file("draft.md", draft);
     product.file("printable.pdf", printable);
     if (pricing) product.file("kdp-paperback-interior-6x9.pdf", printable);
+    if (pricing && cover) product.file("front-cover.png", cover);
     if (cover && !pricing) product.file("cover.png", cover);
     interiorArt.forEach((item) => {
       interiorArtFolder.file(item.filename, item.buffer);
     });
     if (wrapCover) product.file("kdp-paperback-cover-wrap.pdf", wrapCover);
+    if (upload) {
+      upload.file("1-manuscript-interior.pdf", printable);
+      upload.file("2-paperback-cover.pdf", wrapCover);
+      upload.file("3-copy-paste-book-details.txt", copyPasteDetails);
+      upload.file("4-upload-steps.txt", kdpUploadGuide);
+    }
     listing.file("listing.json", JSON.stringify(listingData, null, 2));
     if (shopifyProduct) {
       listing.file(
@@ -3040,37 +3800,10 @@ app.post("/api/export-bundle", async (req, res) => {
       listing.file("kdp-pricing.json", JSON.stringify(pricing, null, 2));
       listing.file("kdp-cover-specs.txt", formatKdpCoverSpecs(coverSpecs));
       listing.file("kdp-cover-specs.json", JSON.stringify(coverSpecs, null, 2));
-      listing.file("kdp-upload-guide.txt", [
-        "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
-        "",
-        pricing.pageCountReady
-          ? "Interior page-count check: PASS (" + pricing.actualPageCount + " pages)"
-          : "STOP: Expand the interior from " + pricing.actualPageCount +
-            " to at least 24 pages before uploading.",
-        "",
-        "1. In KDP Bookshelf, choose Create > Paperback.",
-        "2. Copy the title, subtitle, description, and keywords from listing.json.",
-        "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
-        "4. Upload product/kdp-paperback-interior-6x9.pdf as the manuscript.",
-        wrapCover
-          ? "5. After the manuscript finishes processing, upload product/kdp-paperback-cover-wrap.pdf as the book cover."
-          : cover && !authorName
-            ? "5. Add an author or pen name in Publisher Forge and download the bundle again to create the full cover PDF."
-            : cover && !pricing.pageCountReady
-              ? "5. Finish the 24-page minimum, then generate the final full cover from the completed interior."
-              : "5. Generate a cover in Publisher Forge, or create one with KDP Cover Creator.",
-        "6. Open Print Previewer and resolve every warning before continuing.",
-        "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
-        "8. Start with the Standard price: $" + pricing.recommendedPrice.toFixed(2) +
-          ". Confirm KDP's displayed print cost and royalty before saving.",
-        "9. Order a proof copy if you want to inspect the physical book before publishing.",
-        "10. Let Amazon place the barcode in the reserved white area on the back cover.",
-        "11. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
-        "",
-        "KDP Bookshelf: https://kdp.amazon.com/bookshelf"
-      ].join("\n"));
+      listing.file("kdp-upload-guide.txt", kdpUploadGuide);
     }
     review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
+    review.file("release-qa.json", JSON.stringify(release.report, null, 2));
     review.file("production-checklist.md", checklist);
     review.file("approved-brief.txt", brief);
 
@@ -3097,9 +3830,9 @@ app.post("/api/export-bundle", async (req, res) => {
 
 app.post("/api/export-pdf", async (req, res) => {
   const title = text(req.body.title, 200);
-  const packageData = publicationReadyPackage(
+  let packageData = publicationReadyPackage(
     req.body.package,
-    req.body.package?.authorName
+    req.body.authorName || req.body.package?.authorName
   );
   const qualityReview = req.body.qualityReview;
 
@@ -3115,13 +3848,41 @@ app.post("/api/export-pdf", async (req, res) => {
     });
   }
 
+  let release;
+
+  try {
+    release = await buildReleaseQa({
+      title,
+      package: packageData,
+      qualityReview,
+      cover: req.body.cover,
+      authorName: req.body.authorName || packageData.authorName
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Release QA could not validate the printable PDF",
+      message: error.message
+    });
+  }
+
+  if (release.report.verdict !== "READY") {
+    return res.status(409).json({
+      error: "Release QA blocked this PDF",
+      message: release.report.blockers[0] ||
+        "Run the release check again before exporting.",
+      releaseQa: release.report
+    });
+  }
+
+  packageData = release.packageData;
+
   const filename = text(packageData.packageTitle || title, 100)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "publisher-forge-product";
 
   try {
-    const pdf = await printablePdf(packageData);
+    const pdf = release.printable;
 
     res.set({
       "Content-Type": "application/pdf",
@@ -3619,6 +4380,7 @@ if (process.env.NODE_ENV !== "test" && isEntrypoint) {
 
 export {
   app,
+  buildReleaseQa,
   createFixedWindowLimiter,
   findReusableVideos,
   inlineScriptSources,

@@ -18,6 +18,8 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Automatic Quality Control recovery when a detailed review needs more response space
 - Strong-review policy that passes scores of 85+ when no genuine release blocker remains, keeping minor polish as final checks
 - One-tap package revision followed by a prior-issue-aware Quality Control recheck
+- Release/QA Agent that builds the real files, applies safe metadata fixes, and checks manuscript structure, missing chapters, artwork, PDF integrity, embedded fonts, page dimensions, intentional blank pages, KDP page count, cover dimensions, spine sizing, and pricing
+- Server-side release enforcement that regenerates and retests final files before every approved PDF or ZIP download
 - Human-only marketplace finishing checks separated from AI-fixable blockers
 - Device-local Project Vault with automatic saving and project restoration
 - One-tap approved publishing ZIP with draft, listing, QC, brief, and checklist files
@@ -30,7 +32,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Large illustrated publishing-bundle support with readable download errors
 - Verified publishing metadata that uses the chosen pen name, removes invented credits, and limits page and file claims to what the bundle actually contains
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
-- KDP upload kit with a clearly named 6×9 interior PDF and guided upload steps
+- Foolproof KDP handoff with a top-level `UPLOAD-TO-KDP` folder containing numbered manuscript, cover, copy-and-paste details, and upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
 - Remembered author or pen name with matching front-cover typography
 - Revenue/Market Agent with measured conversion, profit, scale/iterate/stop decisions, and one controlled next experiment
@@ -52,7 +54,8 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - **Shopify Forge — beta:** Reuses the opportunity and production engine for original Shopify digital products, product-page copy, SEO, tags, creative assets, approval, packaging, and measured results.
 - **Viral Remix — beta inside the same app:** Study current public trend signals, match the angle with metadata-verified reusable footage, write an original script, cut a vertical 9:16 video, add narration and captions, preserve source credits, and require approval before publishing.
 - **Security Gate — beta across the same app:** Scan each proposed release, normalize scanner evidence, block unresolved high or critical findings, and keep active testing confined to an explicitly allowlisted staging environment.
-- **One app, three pipelines:** Publisher, Shopify, and Viral Remix share one dashboard, Project Vault, Revenue/Market Agent, and learning loop. Each pipeline keeps its own production engine behind the scenes.
+- **Release/QA Agent — beta across the same app:** Build and validate the actual customer-facing and marketplace files, automatically repair safe metadata issues, and keep approval locked until every deterministic release check passes.
+- **One app, shared pipelines:** Publisher, Shopify, Viral Remix, Release QA, and Security Gate share one dashboard, Project Vault, Revenue/Market Agent, and learning loop. Each pipeline keeps its own production engine behind the scenes.
 - **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every pipeline and recommends SCALE, ITERATE, or STOP.
 
 ## Next production layer
