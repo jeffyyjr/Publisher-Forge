@@ -448,6 +448,15 @@
 
     .quality-card.visible { display:block }
 
+    .release-card {
+      border-color:#704719;
+      background:#1b130b;
+    }
+
+    .release-card .quality-metric {
+      border-color:#5b3c1d;
+    }
+
     .cover-card {
       display:grid;
       gap:14px;
@@ -1477,6 +1486,16 @@
               <div class="output compact" id="qualityOutput"></div>
             </div>
 
+            <div class="quality-card release-card" id="releaseQaCard">
+              <div class="score-line">
+                <span class="verdict" id="releaseQaVerdict">NOT CHECKED</span>
+                <span class="package-type" id="releaseQaCount"></span>
+              </div>
+
+              <div class="quality-metrics" id="releaseQaChecks"></div>
+              <div class="output compact" id="releaseQaOutput"></div>
+            </div>
+
             <div class="result-actions">
               <button class="btn secondary" id="copyProductionButton" type="button">
                 Copy package
@@ -1497,6 +1516,11 @@
               <button class="btn secondary" id="revisePackageButton"
                 type="button" hidden>
                 Revise &amp; recheck
+              </button>
+
+              <button class="btn secondary" id="runReleaseQaButton"
+                type="button" disabled>
+                Prepare final files
               </button>
 
               <button class="btn primary" id="approveProductionButton"
@@ -1821,6 +1845,8 @@
       document.getElementById("runQualityButton");
     const revisePackageButton =
       document.getElementById("revisePackageButton");
+    const runReleaseQaButton =
+      document.getElementById("runReleaseQaButton");
     const generateCoverButton =
       document.getElementById("generateCoverButton");
     const generateInteriorArtButton =
@@ -1853,6 +1879,7 @@
     let activePackage = null;
     let activePackageText = "";
     let activeQualityReview = null;
+    let activeReleaseQa = null;
     let activeProductionTitle = "";
     let activeProductionBrief = "";
     let activeCover = null;
@@ -2046,6 +2073,7 @@
 
     function resetCover() {
       activeCover = null;
+      resetReleaseQa();
       document.getElementById("coverImage").hidden = true;
       document.getElementById("coverImage").removeAttribute("src");
       document.getElementById("coverPlaceholder").hidden = false;
@@ -2160,8 +2188,8 @@
       summary.textContent = data.pageCountReady
         ? data.actualPageCount + " pages · estimated print cost " +
           money(data.estimatedPrintingCost) + " · " + examples
-        : "Needs at least 24 pages before KDP upload. Current interior: " +
-          data.actualPageCount + " pages. Pricing uses the 24-page minimum.";
+        : "KDP needs 24 to 828 pages for this 6×9 workflow. Current interior: " +
+          data.actualPageCount + " pages.";
       document.getElementById("kdpPricingCard").hidden = false;
     }
 
@@ -2357,6 +2385,7 @@
           generatedAt: data.generatedAt,
           authorName: authorName
         };
+        resetReleaseQa();
 
         const coverImage = document.getElementById("coverImage");
         coverImage.src = dataUrl;
@@ -2387,9 +2416,13 @@
 
         document.getElementById("approvalNote").textContent =
           activeQualityReview && activeQualityReview.verdict === "PASS"
-            ? "Review the new cover, then approve the complete package."
+            ? "Cover ready. Release QA is testing the complete package now."
             : "Review the cover and run Quality Control before approval.";
         toast("Cover generated");
+
+        if (activeQualityReview && activeQualityReview.verdict === "PASS") {
+          await runReleaseQa();
+        }
       } catch (error) {
         if (!hadCover) {
           document.getElementById("coverPlaceholder").hidden = false;
@@ -2403,11 +2436,14 @@
           activeCover ? "Generate a new cover" : "Generate cover");
         const passed = activeQualityReview &&
           activeQualityReview.verdict === "PASS";
-        const approved = passed && activePackage && activePackage.approvedAt;
+        const releaseReady = passed && activeReleaseQa &&
+          activeReleaseQa.verdict === "READY";
+        const approved = releaseReady && activePackage && activePackage.approvedAt;
         document.getElementById("approveProductionButton").disabled =
-          !passed || Boolean(activePackage && activePackage.approvedAt);
+          !releaseReady || Boolean(activePackage && activePackage.approvedAt);
         document.getElementById("downloadBundleButton").disabled = !approved;
         document.getElementById("downloadPdfButton").disabled = !approved;
+        downloadWrapButton.disabled = !approved;
         sendRevenueButton.disabled = !approved;
       }
     }
@@ -2512,8 +2548,184 @@
       }
     }
 
+    function resetReleaseQa() {
+      activeReleaseQa = null;
+      document.getElementById("releaseQaCard").classList.remove("visible");
+      document.getElementById("releaseQaVerdict").className = "verdict";
+      document.getElementById("releaseQaVerdict").textContent = "NOT CHECKED";
+      document.getElementById("releaseQaCount").textContent = "";
+      document.getElementById("releaseQaChecks").replaceChildren();
+      document.getElementById("releaseQaOutput").textContent = "";
+      runReleaseQaButton.disabled =
+        !activeQualityReview || activeQualityReview.verdict !== "PASS";
+      document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
+      downloadWrapButton.disabled = true;
+      sendRevenueButton.disabled = true;
+      if (activeQualityReview && activeQualityReview.verdict === "PASS") {
+        revisePackageButton.hidden = true;
+        revisePackageButton.textContent = "Revise & recheck";
+      }
+    }
+
+    function formatReleaseQa(data) {
+      return [
+        data.summary || "No release summary was returned.",
+        "",
+        "Automatic fixes",
+        bulletList(data.autoFixes, "No automatic fixes were needed."),
+        "",
+        "Things Forge still needs",
+        bulletList(data.blockers, "No release blockers remain."),
+        "",
+        "Warnings",
+        bulletList(data.warnings, "No additional warnings.")
+      ].join("\n");
+    }
+
+    function showReleaseQa(data) {
+      activeReleaseQa = data;
+      const card = document.getElementById("releaseQaCard");
+      const badge = document.getElementById("releaseQaVerdict");
+      const checks = document.getElementById("releaseQaChecks");
+      const ready = data.verdict === "READY";
+      const passedCount = (data.checks || []).filter(function (item) {
+        return item.status === "PASS" || item.status === "FIXED";
+      }).length;
+
+      badge.className = "verdict" + (ready ? " make" : " error");
+      badge.textContent = ready ? "READY" : "NEEDS FIX";
+      document.getElementById("releaseQaCount").textContent =
+        "Release QA · " + passedCount + "/" +
+        (data.checks || []).length + " passed";
+      checks.replaceChildren();
+
+      (data.checks || []).forEach(function (check) {
+        const item = document.createElement("div");
+        const status = document.createElement("strong");
+
+        item.className = "quality-metric";
+        item.textContent = check.label;
+        item.title = check.detail || "";
+        status.textContent = check.status === "BLOCKED"
+          ? "FIX NEEDED"
+          : check.status;
+        status.style.color = check.status === "BLOCKED"
+          ? "#ff9ca7"
+          : check.status === "WARN"
+            ? "#ffb26d"
+            : "#7aeca5";
+        item.appendChild(status);
+        checks.appendChild(item);
+      });
+
+      document.getElementById("releaseQaOutput").textContent =
+        formatReleaseQa(data);
+      card.classList.add("visible");
+      runReleaseQaButton.disabled = false;
+
+      const approved = ready && activePackage && activePackage.approvedAt;
+      document.getElementById("approveProductionButton").disabled =
+        !ready || Boolean(approved);
+      document.getElementById("downloadBundleButton").disabled = !approved;
+      document.getElementById("downloadPdfButton").disabled = !approved;
+      downloadWrapButton.disabled = !approved;
+      sendRevenueButton.disabled = !approved;
+      const manuscriptFixNeeded = !ready && (data.checks || []).some(
+        function (check) {
+          return check.status === "BLOCKED" &&
+            ["manuscript", "page-count"].includes(check.id);
+        }
+      );
+      revisePackageButton.hidden = !manuscriptFixNeeded;
+      revisePackageButton.disabled = !manuscriptFixNeeded;
+      revisePackageButton.textContent = manuscriptFixNeeded
+        ? "Fix manuscript & recheck"
+        : "Revise & recheck";
+      document.getElementById("approvalNote").textContent = ready
+        ? approved
+          ? "Approved locally. The validated PDF and foolproof ZIP are unlocked; nothing was uploaded."
+          : "Every final file passed. Human approval is now unlocked."
+        : data.blockers && data.blockers[0]
+          ? "Still locked: " + data.blockers[0]
+          : "Approval stays locked until every final file passes Release QA.";
+
+      if (data.pricing) showKdpPricing(data.pricing);
+      saveActiveProject();
+    }
+
+    async function runReleaseQa() {
+      if (!activePackage || !activeQualityReview ||
+          activeQualityReview.verdict !== "PASS") {
+        toast("Pass the written quality check first");
+        return;
+      }
+
+      if (activePackage.approvedAt) delete activePackage.approvedAt;
+      activeReleaseQa = null;
+      const card = document.getElementById("releaseQaCard");
+      const badge = document.getElementById("releaseQaVerdict");
+
+      card.classList.add("visible");
+      badge.className = "verdict";
+      badge.textContent = "CHECKING";
+      document.getElementById("releaseQaCount").textContent = "Release QA";
+      document.getElementById("releaseQaChecks").replaceChildren();
+      document.getElementById("releaseQaOutput").textContent =
+        "Building the actual files and checking the manuscript, pages, fonts, artwork, cover, metadata, and pricing…";
+      document.getElementById("approveProductionButton").disabled = true;
+      document.getElementById("downloadBundleButton").disabled = true;
+      document.getElementById("downloadPdfButton").disabled = true;
+      downloadWrapButton.disabled = true;
+      sendRevenueButton.disabled = true;
+      document.getElementById("approvalNote").textContent =
+        "Approval remains locked while the final files are tested.";
+      loading(runReleaseQaButton, true, "Prepare final files");
+
+      try {
+        const response = await fetch("/api/release-qa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: activeProductionTitle,
+            package: activePackage,
+            qualityReview: activeQualityReview,
+            cover: activeCover,
+            authorName: coverAuthorName.value.trim()
+          })
+        });
+        const data = await readJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "Release check failed");
+        }
+
+        if (data.fixedPackage) {
+          activePackage = { ...activePackage, ...data.fixedPackage };
+          activePackageText = formatProductionPackage(activePackage);
+          productionOutput.textContent = activePackageText;
+        }
+
+        showReleaseQa(data);
+        toast(data.verdict === "READY"
+          ? "Final files passed Release QA"
+          : "Release QA found something to fix");
+      } catch (error) {
+        activeReleaseQa = null;
+        badge.className = "verdict error";
+        badge.textContent = "ERROR";
+        document.getElementById("releaseQaOutput").textContent = error.message;
+        document.getElementById("approvalNote").textContent =
+          "Release QA must complete before approval.";
+      } finally {
+        loading(runReleaseQaButton, false, "Prepare final files");
+      }
+    }
+
     function resetQualityReview() {
       activeQualityReview = null;
+      resetReleaseQa();
       document.getElementById("qualityCard").classList.remove("visible");
       document.getElementById("qualityMetrics").replaceChildren();
       document.getElementById("qualityOutput").textContent = "";
@@ -2571,21 +2783,25 @@
       document.getElementById("qualityCard").classList.add("visible");
 
       const passed = data.verdict === "PASS";
-      document.getElementById("approveProductionButton").disabled = !passed;
-      document.getElementById("downloadBundleButton").disabled =
-        !(passed && activePackage && activePackage.approvedAt);
-      document.getElementById("downloadPdfButton").disabled =
-        !(passed && activePackage && activePackage.approvedAt);
-      sendRevenueButton.disabled =
-        !(passed && activePackage && activePackage.approvedAt);
+      const releaseReady = activeReleaseQa &&
+        activeReleaseQa.verdict === "READY";
+      const approved = passed && releaseReady &&
+        activePackage && activePackage.approvedAt;
+      runReleaseQaButton.disabled = !passed;
+      document.getElementById("approveProductionButton").disabled =
+        !passed || !releaseReady || Boolean(approved);
+      document.getElementById("downloadBundleButton").disabled = !approved;
+      document.getElementById("downloadPdfButton").disabled = !approved;
+      downloadWrapButton.disabled = !approved;
+      sendRevenueButton.disabled = !approved;
       revisePackageButton.hidden = passed;
       revisePackageButton.disabled = passed;
       const remainingIssue = data.blockers && data.blockers[0] ||
         data.requiredFixes && data.requiredFixes[0];
       document.getElementById("approvalNote").textContent = passed
-        ? data.humanChecks && data.humanChecks.length
-          ? "Quality passed. Approval is unlocked; preview the finished files before publishing."
-          : "Quality check passed. Human approval is now unlocked."
+        ? releaseReady
+          ? "Every final file passed. Human approval is now unlocked."
+          : "Written quality passed. Release QA will now build and test the final files."
         : remainingIssue
           ? "Still locked: " + remainingIssue
           : "Approval stays locked until the written package passes Quality Control.";
@@ -2656,7 +2872,15 @@
         delete packageForStorage.interiorArt;
         delete packageForStorage.artSourceMarkdown;
         delete packageForStorage.interiorArtGeneratedAt;
+      }
+
+      // Covers and full-resolution artwork are intentionally not kept in
+      // localStorage. Do not restore an approval without the exact files that
+      // Release QA validated.
+      if (packageForStorage) {
         delete packageForStorage.approvedAt;
+        delete packageForStorage.releaseFingerprint;
+        delete packageForStorage.releaseCheckedAt;
       }
 
       const savedProject = {
@@ -2714,25 +2938,21 @@
       resetKdpPricing();
 
       if (project.package) {
-        showProductionPackage(project.package);
+        const restoredPackage = { ...project.package };
+        const needsFreshApproval = Boolean(restoredPackage.approvedAt);
+
+        delete restoredPackage.approvedAt;
+        delete restoredPackage.releaseFingerprint;
+        delete restoredPackage.releaseCheckedAt;
+        showProductionPackage(restoredPackage);
 
         if (project.qualityReview) {
           showQualityReview(project.qualityReview);
         }
 
-        if (project.package.approvedAt) {
-          document.getElementById("productionVerdict").className =
-            "verdict make";
-          document.getElementById("productionVerdict").textContent =
-            "APPROVED";
-          document.getElementById("approveProductionButton").disabled = true;
-          document.getElementById("approveProductionButton").textContent =
-            "Approved on this device";
-          document.getElementById("downloadBundleButton").disabled = false;
-          document.getElementById("downloadPdfButton").disabled = false;
-          sendRevenueButton.disabled = false;
+        if (needsFreshApproval) {
           document.getElementById("approvalNote").textContent =
-            "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
+            "Project restored. Rebuild its cover and rerun Release QA because large final files are not stored in the browser vault.";
         }
       } else {
         activePackage = null;
@@ -3823,6 +4043,7 @@
         "downloadBundleButton",
         "downloadPdfButton",
         "runQualityButton",
+        "runReleaseQaButton",
         "revisePackageButton",
         "generateCoverButton",
         "generateInteriorArtButton"
@@ -3890,6 +4111,7 @@
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
       productionActionsEnabled(true);
+      runReleaseQaButton.disabled = true;
       renderInteriorArtState(data);
       approveButton.disabled = true;
       saveActiveProject();
@@ -3994,6 +4216,7 @@
       const qualityBadge = document.getElementById("qualityVerdict");
 
       activeQualityReview = null;
+      resetReleaseQa();
       qualityCard.classList.add("visible");
       qualityBadge.className = "verdict";
       qualityBadge.textContent = "WORKING";
@@ -4034,11 +4257,12 @@
         }
 
         showQualityReview(data);
-        toast(
-          data.verdict === "PASS"
-            ? "Quality check passed"
-            : "Quality check found work to do"
-        );
+        if (data.verdict === "PASS") {
+          toast("Written quality passed. Testing final files…");
+          await runReleaseQa();
+        } else {
+          toast("Quality check found work to do");
+        }
       } catch (error) {
         activeQualityReview = null;
         qualityBadge.className = "verdict error";
@@ -4057,12 +4281,31 @@
         return;
       }
 
-      if (activeQualityReview.verdict === "PASS") {
+      const releaseManuscriptBlockers = activeReleaseQa &&
+        activeReleaseQa.verdict !== "READY"
+        ? (activeReleaseQa.checks || []).filter(function (check) {
+            return check.status === "BLOCKED" &&
+              ["manuscript", "page-count"].includes(check.id);
+          }).map(function (check) {
+            return check.detail;
+          })
+        : [];
+
+      if (activeQualityReview.verdict === "PASS" &&
+          !releaseManuscriptBlockers.length) {
         toast("This package already passed Quality Control");
         return;
       }
 
-      const review = activeQualityReview;
+      const review = releaseManuscriptBlockers.length
+        ? {
+            verdict: "BLOCKED",
+            summary:
+              "Release QA found manuscript problems that the Revision Agent can repair.",
+            blockers: releaseManuscriptBlockers,
+            requiredFixes: releaseManuscriptBlockers
+          }
+        : activeQualityReview;
 
       productionActionsEnabled(false);
       revisePackageButton.hidden = false;
@@ -4342,9 +4585,16 @@
         return;
       }
 
+      if (!activeReleaseQa || activeReleaseQa.verdict !== "READY") {
+        toast("Every final file must pass Release QA first");
+        return;
+      }
+
       const approvedPackage = {
         ...activePackage,
         qualityReview: activeQualityReview,
+        releaseFingerprint: activeReleaseQa.packageFingerprint,
+        releaseCheckedAt: activeReleaseQa.reviewedAt,
         approvedAt: new Date().toISOString()
       };
       const approvalRecord = { ...approvedPackage };
@@ -4393,9 +4643,10 @@
       button.textContent = "Approved on this device";
       document.getElementById("downloadBundleButton").disabled = false;
       document.getElementById("downloadPdfButton").disabled = false;
+      downloadWrapButton.disabled = false;
       sendRevenueButton.disabled = false;
       document.getElementById("approvalNote").textContent =
-        "Approved locally. PDF and ZIP downloads are unlocked; nothing was uploaded.";
+        "Approved locally. The validated PDF and foolproof ZIP are unlocked; nothing was uploaded.";
 
       toast("Package approved on this device");
     }
@@ -4468,6 +4719,11 @@
       runQualityReview
     );
 
+    runReleaseQaButton.addEventListener(
+      "click",
+      runReleaseQa
+    );
+
     revisePackageButton.addEventListener(
       "click",
       reviseAndRecheck
@@ -4505,6 +4761,12 @@
 
     downloadWrapButton.addEventListener("click", async function () {
       if (!activePackage || !activeCover) return;
+
+      if (!activeReleaseQa || activeReleaseQa.verdict !== "READY" ||
+          !activePackage.approvedAt) {
+        toast("Pass Release QA and approve the package first");
+        return;
+      }
 
       const authorName = coverAuthorName.value.trim();
       if (!authorName) {
@@ -4599,6 +4861,7 @@
           productionChecklist: activePackage.productionChecklist,
           riskFlags: activePackage.riskFlags,
           qualityReview: activeQualityReview,
+          releaseQa: activeReleaseQa,
           kdpPricing: activeKdpPricing,
           createdAt: activePackage.createdAt,
           approvedAt: activePackage.approvedAt || null
@@ -4621,7 +4884,8 @@
 
     document.getElementById("downloadBundleButton")
       .addEventListener("click", async function () {
-        if (!activePackage || !activeQualityReview) return;
+        if (!activePackage || !activeQualityReview || !activeReleaseQa ||
+            activeReleaseQa.verdict !== "READY") return;
 
         const button = document.getElementById("downloadBundleButton");
         loading(button, true, "Download publishing ZIP");
@@ -4645,6 +4909,7 @@
 
           if (!response.ok) {
             const data = await readJson(response);
+            if (data.releaseQa) showReleaseQa(data.releaseQa);
             throw new Error(data.message || data.error || "Bundle export failed");
           }
 
@@ -4671,7 +4936,8 @@
 
     document.getElementById("downloadPdfButton")
       .addEventListener("click", async function () {
-        if (!activePackage || !activeQualityReview) return;
+        if (!activePackage || !activeQualityReview || !activeReleaseQa ||
+            activeReleaseQa.verdict !== "READY") return;
 
         const button = document.getElementById("downloadPdfButton");
         loading(button, true, "Download printable PDF");
@@ -4685,12 +4951,15 @@
             body: JSON.stringify({
               title: activeProductionTitle,
               package: activePackage,
-              qualityReview: activeQualityReview
+              qualityReview: activeQualityReview,
+              cover: activeCover,
+              authorName: coverAuthorName.value.trim()
             })
           });
 
           if (!response.ok) {
             const data = await readJson(response);
+            if (data.releaseQa) showReleaseQa(data.releaseQa);
             throw new Error(data.message || data.error || "PDF export failed");
           }
 
