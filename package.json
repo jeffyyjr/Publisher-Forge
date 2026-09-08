@@ -15,7 +15,7 @@
     "express": "^4.21.2",
     "ffmpeg-static": "^5.2.0",
     "jszip": "^3.10.1",
-    "openai": "^4.76.0",
+    "openai": "^7.10.0",
     "pdfkit": "^0.20.2"
   },
   "overrides": {
