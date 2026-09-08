@@ -1,6 +1,6 @@
 # Publisher Forge MVP
 
-A browser-based AI product workflow for finding, evaluating, planning, producing, remixing, and measuring original Amazon KDP, Etsy, Shopify, TikTok, and YouTube Shorts opportunities.
+A browser-based AI product workflow for finding, evaluating, planning, producing, remixing, and measuring original Amazon KDP, Etsy, Shopify, TikTok, YouTube Shorts, Pinterest traffic, job, and gig opportunities.
 
 ## Operating principle
 If AI or software can do a task reliably, automate it instead of making the operator do it manually.
@@ -39,6 +39,10 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Device-local revenue learning history for repeat test cycles
 - Shopify beta path across research, analysis, production, Quality Control, Project Vault, ZIP export, and Revenue
 - Shopify draft product JSON and guided listing handoff inside approved publishing bundles
+- Orchestrator Agent beta that ranks the next best money action across KDP, Etsy, Shopify, Pinterest, Viral Remix, main-job, gig/freelance, and operations work
+- Opportunity Agent beta that searches the live public web for source-backed main jobs, part-time work, contracts, freelance work, and gigs, then applies a deterministic Money Score
+- Opportunity Agent source validation that drops any listing URL that cannot be matched back to live web-search evidence
+- Pinterest Agent beta that creates seven-pin traffic campaigns for approved Forge products while keeping posting in Draft until an authorized account is connected and the user approves it
 - Viral Remix beta with live trend research, an original six-scene script, and automatic 9:16 video assembly
 - Reusable-footage search limited to Wikimedia Commons videos whose metadata verifies Public Domain, CC0, or CC BY rights
 - Automatic license recheck before rendering, original voiceover, burned captions, posting copy, source credits, license manifest, and downloadable video ZIP
@@ -52,14 +56,22 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 ## Forge product suite roadmap
 - **Publisher Forge — active:** Research, create, quality-check, package, publish, and learn from Amazon KDP and Etsy products.
 - **Shopify Forge — beta:** Reuses the opportunity and production engine for original Shopify digital products, product-page copy, SEO, tags, creative assets, approval, packaging, and measured results.
+- **Money/Opportunity layer — beta:** Treat main jobs, part-time work, contracts, freelance gigs, and Forge business opportunities as competing income channels. Opportunity Agent finds source-backed work; Orchestrator Agent decides which action deserves attention next.
+- **Pinterest Agent — beta:** Turns approved products into seven-pin discovery campaigns with board strategy, keywords, creative briefs, CTAs, and controlled draft handoff. Authorized account posting comes later.
 - **Viral Remix — beta inside the same app:** Study current public trend signals, match the angle with metadata-verified reusable footage, write an original script, cut a vertical 9:16 video, add narration and captions, preserve source credits, and require approval before publishing.
 - **Security Gate — beta across the same app:** Scan each proposed release, normalize scanner evidence, block unresolved high or critical findings, and keep active testing confined to an explicitly allowlisted staging environment.
 - **Release/QA Agent — beta across the same app:** Build and validate the actual customer-facing and marketplace files, automatically repair safe metadata issues, and keep approval locked until every deterministic release check passes.
-- **One app, shared pipelines:** Publisher, Shopify, Viral Remix, Release QA, and Security Gate share one dashboard, Project Vault, Revenue/Market Agent, and learning loop. Each pipeline keeps its own production engine behind the scenes.
-- **Shared learning loop:** Find money → evaluate → create → test → measure → learn → repeat. The Revenue/Market Agent compares results across every pipeline and recommends SCALE, ITERATE, or STOP.
+- **One app, shared pipelines:** Publisher, Shopify, Pinterest, Viral Remix, Opportunity, Release QA, and Security Gate share one dashboard, Project Vault, Orchestrator, Revenue/Market Agent, and learning loop. Each pipeline keeps its own specialized engine behind the scenes.
+- **Shared learning loop:** Find money → evaluate → create/apply → test → measure → learn → repeat. The Revenue/Market Agent measures results while the Orchestrator allocates the next block of time.
+
+## Money-agent API beta
+- `GET /api/money-agents/status` — reports the Orchestrator, Opportunity, Pinterest, and Shopify agent layer.
+- `POST /api/opportunity-scan` — searches current public web evidence for paid work and returns only listings whose URLs can be matched to the search evidence.
+- `POST /api/pinterest-plan` — creates a seven-pin Draft campaign from an approved product title, description, keywords, audience, and optional destination URL.
+- `POST /api/orchestrator/next-action` — ranks the next action across Forge products, traffic, jobs/gigs, and operational blockers using only supplied state.
 
 ## Next production layer
-Add accounts, persistent project storage, payments, and controlled marketplace handoff. Keep data collection and API use compliant with current platform terms, and require human approval before publishing.
+Add authenticated accounts, persistent project and opportunity storage, payments, controlled Shopify/Pinterest marketplace handoff, and a unified dashboard for the Orchestrator queue. Keep data collection and API use compliant with current platform terms, and require human approval before publishing, applying, spending, or activating account actions.
 
 ## Security Gate
 Run `npm run security:gate` to execute the local release policy, runtime security tests, and dependency audit. The GitHub workflow adds Gitleaks and CodeQL results to the same normalized report. See `security/README.md` for staging configuration, release enforcement, and the future MobSF mobile layer.
