@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Publisher Forge — Money Agents</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#0b1020}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1020,#111827);min-height:100vh}a{color:#c7d2fe}.shell{max-width:1180px;margin:0 auto;padding:18px}.top{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.brand h1{margin:0;font-size:1.45rem}.brand p{margin:.25rem 0 0;color:#9ca3af}.pill{border:1px solid #374151;border-radius:999px;padding:7px 10px;color:#cbd5e1;background:#111827}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px;box-shadow:0 14px 34px rgba(0,0,0,.2)}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#aab3c2;line-height:1.45}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer;background:#4f46e5;color:white}.btn.secondary{background:#1f2937;border:1px solid #374151;color:#e5e7eb}.btn:disabled{opacity:.45;cursor:not-allowed}.settings{margin-top:14px;padding-top:12px;border-top:1px solid #273244}.settings[hidden]{display:none}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field input,.field textarea,.field select{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:92px;resize:vertical}.check{display:flex;align-items:center;gap:8px;color:#d1d5db}.check input{width:auto}.locked{opacity:.72}.output{margin-top:12px;border:1px solid #273244;border-radius:12px;background:#0b1220;padding:12px;min-height:48px;white-space:pre-wrap;overflow-wrap:anywhere}.output:empty:before{content:"No run yet.";color:#64748b}.result{padding:10px 0;border-bottom:1px solid #273244}.result:last-child{border-bottom:0}.score{font-weight:800}.muted{color:#94a3b8}.wide{grid-column:1/-1}.footer{margin:18px 0;color:#7c8798;font-size:.85rem}.status-ok{color:#86efac}.status-bad{color:#fca5a5}@media(max-width:640px){.shell{padding:12px}.card{padding:14px}.btn{width:100%}}
+  </style>
+  <script src="/money-agents.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <div class="top">
+      <div class="brand">
+        <h1>Publisher Forge — Money Agents</h1>
+        <p>Control the agents that decide, hunt, promote, and route income opportunities.</p>
+      </div>
+      <div class="actions">
+        <a class="pill" href="/">← Publisher Forge</a>
+        <span id="agentStatus" class="pill">Checking agents…</span>
+      </div>
+    </div>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Orchestrator Agent</h2>
+        <p>Chooses what deserves your next block of time across Forge products, jobs, gigs, traffic, and operational blockers.</p>
+        <div class="actions">
+          <button class="btn" id="runOrchestrator">Choose Next Action</button>
+          <button class="btn secondary settingsToggle" data-target="orchestratorSettings">Settings</button>
+        </div>
+        <div class="settings" id="orchestratorSettings" hidden>
+          <div class="field"><label for="orchGoal">Primary goal</label><input id="orchGoal" maxlength="800"></div>
+          <div class="field"><label for="orchHours">Hours available this work block</label><input id="orchHours" type="number" min="0" max="168" step="0.5"></div>
+          <div class="field"><label for="orchBudget">Cash budget available ($)</label><input id="orchBudget" type="number" min="0" max="1000000" step="1"></div>
+          <div class="field"><label for="orchMode">Priority style</label><select id="orchMode"><option value="balanced">Balanced</option><option value="stable">Reliable income first</option><option value="growth">Growth/upside first</option><option value="time">Maximum time leverage</option></select></div>
+          <div class="field"><label for="orchContext">Extra instructions</label><textarea id="orchContext" maxlength="3000" placeholder="Example: do not recommend anything that needs more than 2 hours tonight"></textarea></div>
+        </div>
+        <div id="orchestratorOutput" class="output"></div>
+      </article>
+
+      <article class="card">
+        <h2>Opportunity Agent</h2>
+        <p>Finds real main jobs, part-time work, contracts, freelance work, and gigs, then ranks them by Money Score.</p>
+        <div class="actions">
+          <button class="btn" id="runOpportunity">Find Opportunities</button>
+          <button class="btn secondary settingsToggle" data-target="opportunitySettings">Settings</button>
+        </div>
+        <div class="settings" id="opportunitySettings" hidden>
+          <div class="field"><label for="jobProfile">Work profile</label><textarea id="jobProfile" maxlength="3500"></textarea></div>
+          <div class="field"><label for="jobQuery">Target roles / gig types</label><input id="jobQuery" maxlength="500"></div>
+          <div class="field"><label for="jobLocation">Location</label><input id="jobLocation" maxlength="160"></div>
+          <label class="check"><input id="jobRemote" type="checkbox"> Prefer remote work</label>
+          <div class="field"><label for="jobMinPay">Minimum desired pay</label><input id="jobMinPay" maxlength="120" placeholder="$25/hr or $65,000/yr"></div>
+          <div class="field"><label for="jobAvailability">Availability / schedule limits</label><input id="jobAvailability" maxlength="500"></div>
+        </div>
+        <div id="opportunityOutput" class="output"></div>
+      </article>
+
+      <article class="card">
+        <h2>Pinterest Agent</h2>
+        <p>Turns an approved product into a seven-pin traffic campaign. It creates drafts only; nothing is posted automatically.</p>
+        <div class="actions">
+          <button class="btn" id="runPinterest">Build Pin Campaign</button>
+          <button class="btn secondary settingsToggle" data-target="pinterestSettings">Settings</button>
+        </div>
+        <div class="settings" id="pinterestSettings" hidden>
+          <div class="field"><label for="pinTitle">Product title</label><input id="pinTitle" maxlength="220"></div>
+          <div class="field"><label for="pinDescription">Approved product description</label><textarea id="pinDescription" maxlength="5000"></textarea></div>
+          <div class="field"><label for="pinKeywords">Keywords, comma separated</label><input id="pinKeywords" maxlength="1200"></div>
+          <div class="field"><label for="pinAudience">Audience</label><input id="pinAudience" maxlength="600"></div>
+          <div class="field"><label for="pinPlatform">Destination marketplace</label><select id="pinPlatform"><option>KDP</option><option>Etsy</option><option selected>Shopify</option><option>Other</option></select></div>
+          <div class="field"><label for="pinUrl">Product URL (optional until live)</label><input id="pinUrl" type="url" maxlength="1000" placeholder="https://…"></div>
+        </div>
+        <div id="pinterestOutput" class="output"></div>
+      </article>
+
+      <article class="card">
+        <h2>Shopify Agent</h2>
+        <p>Uses the existing Shopify research → production → QA → draft listing → Revenue pipeline.</p>
+        <div class="actions"><button class="btn secondary settingsToggle" data-target="shopifySettings">Settings</button></div>
+        <div class="settings" id="shopifySettings" hidden>
+          <div class="field"><label for="shopifyProductType">Default product type</label><select id="shopifyProductType"><option value="digital">Digital product</option><option value="printable">Printable</option><option value="bundle">Bundle</option></select></div>
+          <div class="field"><label for="shopifySeo">SEO preference</label><select id="shopifySeo"><option value="balanced">Balanced readability + SEO</option><option value="search">Search-first</option><option value="conversion">Conversion-first</option></select></div>
+          <label class="check locked"><input type="checkbox" checked disabled> Keep new Shopify products in Draft until approval</label>
+        </div>
+        <div class="output">Shopify settings are saved locally. Existing Forge product creation remains the place where Shopify packages are generated.</div>
+      </article>
+
+      <article class="card wide">
+        <h2>Global Safety & Automation Controls</h2>
+        <p>These are deliberately locked during beta. You control the agents, but they cannot silently act outside Forge.</p>
+        <div class="grid">
+          <label class="check locked"><input type="checkbox" checked disabled> Require human approval before external actions</label>
+          <label class="check locked"><input type="checkbox" disabled> Auto-apply to jobs</label>
+          <label class="check locked"><input type="checkbox" disabled> Auto-post to Pinterest</label>
+          <label class="check locked"><input type="checkbox" disabled> Auto-spend / buy ads</label>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn" id="saveSettings">Save All Settings</button>
+          <button class="btn secondary" id="resetSettings">Reset Defaults</button>
+        </div>
+        <div id="saveState" class="muted" style="margin-top:8px"></div>
+      </article>
+    </section>
+
+    <div class="footer">Settings are stored on this device for the beta. Account credentials and marketplace permissions are not stored here.</div>
+  </main>
+</body>
+</html>
