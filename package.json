@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node start.mjs",
+    "start": "node dashboard-start.mjs",
     "test": "node --test",
     "security:gate": "node scripts/security-gate.mjs",
     "security:target": "node scripts/validate-security-target.mjs"
