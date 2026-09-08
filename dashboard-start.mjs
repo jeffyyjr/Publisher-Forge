@@ -21,6 +21,19 @@ function registerMoneyDashboard(application = app) {
     res.sendFile(path.join(__dirname, "money-agents.js"));
   });
 
+  application.get(["/command-center", "/command-center.html"], (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(__dirname, "command-center.html"));
+  });
+
+  application.get("/command-center.js", (req, res) => {
+    res.set({
+      "Cache-Control": "no-store",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    res.sendFile(path.join(__dirname, "command-center.js"));
+  });
+
   return application;
 }
 
