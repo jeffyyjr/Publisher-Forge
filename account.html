@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Publisher Forge — Account</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#080d18}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#080d18,#111827)}a{color:#c7d2fe;text-decoration:none}.shell{max-width:900px;margin:0 auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.top h1{margin:0;font-size:1.45rem}.top p{margin:.3rem 0 0;color:#94a3b8}.pill,.btn{border-radius:10px;padding:10px 13px;font-weight:700}.pill{border:1px solid #374151;background:#111827;color:#e5e7eb}.btn{border:0;background:#4f46e5;color:#fff;cursor:pointer}.btn.secondary{background:#1f2937;border:1px solid #374151}.btn.danger{background:#7f1d1d}.btn:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#94a3b8;line-height:1.45}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field input{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{padding:10px 12px;border:1px solid #374151;border-radius:10px;background:#0f172a;margin:10px 0;color:#cbd5e1}.good{color:#86efac}.warn{color:#fcd34d}.bad{color:#fca5a5}.hidden{display:none}.wide{grid-column:1/-1}.footer{color:#64748b;font-size:.82rem;margin-top:16px}@media(max-width:640px){.shell{padding:12px}.btn,.pill{width:100%;text-align:center}}
+  </style>
+  <script src="/account.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <div class="top">
+      <div><h1>Publisher Forge — Account</h1><p>Keep Forge projects, revenue, opportunities, settings, and company plans tied to your account.</p></div>
+      <div class="actions"><a class="pill" href="/command-center">Command Center</a><a class="pill" href="/">Publisher Forge</a></div>
+    </div>
+
+    <div id="storageStatus" class="status">Checking storage…</div>
+
+    <section id="signedOut" class="grid">
+      <article class="card">
+        <h2>Create Account</h2>
+        <p>Creates a private Forge account and signs this browser in.</p>
+        <div class="field"><label for="registerEmail">Email</label><input id="registerEmail" type="email" autocomplete="email"></div>
+        <div class="field"><label for="registerPassword">Password</label><input id="registerPassword" type="password" minlength="10" autocomplete="new-password"></div>
+        <button class="btn" id="registerButton">Create Account</button>
+      </article>
+      <article class="card">
+        <h2>Sign In</h2>
+        <p>Use the same account on another phone or computer.</p>
+        <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="email"></div>
+        <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+        <button class="btn" id="loginButton">Sign In</button>
+      </article>
+    </section>
+
+    <section id="signedIn" class="grid hidden">
+      <article class="card wide">
+        <h2 id="accountEmail">Signed in</h2>
+        <p id="syncSummary">Choose how to initialize or resolve this device. After the first clean sync, Forge can keep the account copy updated automatically from the Command Center and Money Agents pages.</p>
+        <div class="actions">
+          <button class="btn" id="saveDevice">Save This Device to Account</button>
+          <button class="btn secondary" id="loadAccount">Load Account onto This Device</button>
+          <button class="btn secondary" id="refreshState">Check Sync</button>
+          <button class="btn danger" id="logoutButton">Sign Out</button>
+        </div>
+        <div id="syncStatus" class="status">Checking account data…</div>
+      </article>
+    </section>
+
+    <div id="message" class="status hidden"></div>
+    <div class="footer">Passwords are stored as salted scrypt hashes. Sessions use HttpOnly SameSite cookies. External publishing, applications, posting, and spending still require approval.</div>
+  </main>
+</body>
+</html>

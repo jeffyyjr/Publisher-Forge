@@ -1,11 +1,30 @@
 import "./start.mjs";
-import { app } from "./server.js";
+import { app, createFixedWindowLimiter } from "./server.js";
+import { registerAccountPersistence } from "./account-persistence.mjs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const PORT = process.env.PORT || 10000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const accountAuthLimiter = createFixedWindowLimiter({
+  max: 12,
+  windowMs: 15 * 60 * 1000,
+  error: "Too many account attempts",
+  message: "Wait a few minutes and try again."
+});
+const accountSyncLimiter = createFixedWindowLimiter({
+  max: 120,
+  windowMs: 15 * 60 * 1000,
+  error: "Too many account sync requests",
+  message: "Wait a moment and try again."
+});
+
+registerAccountPersistence(app, {
+  authLimiter: accountAuthLimiter,
+  syncLimiter: accountSyncLimiter
+});
 
 function registerMoneyDashboard(application = app) {
   application.get(["/money-agents", "/money-agents.html"], (req, res) => {
@@ -32,6 +51,27 @@ function registerMoneyDashboard(application = app) {
       "Content-Type": "text/javascript; charset=utf-8"
     });
     res.sendFile(path.join(__dirname, "command-center.js"));
+  });
+
+  application.get(["/account", "/account.html"], (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(__dirname, "account.html"));
+  });
+
+  application.get("/account.js", (req, res) => {
+    res.set({
+      "Cache-Control": "no-store",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    res.sendFile(path.join(__dirname, "account.js"));
+  });
+
+  application.get("/account-sync.js", (req, res) => {
+    res.set({
+      "Cache-Control": "no-store",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    res.sendFile(path.join(__dirname, "account-sync.js"));
   });
 
   return application;
