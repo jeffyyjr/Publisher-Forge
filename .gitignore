@@ -4,3 +4,7 @@ node_modules/
 npm-debug.log*
 .DS_Store
 security-artifacts/
+.data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
