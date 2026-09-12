@@ -22,6 +22,8 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Strong-review policy that passes scores of 85+ when no genuine release blocker remains, keeping minor polish as final checks
 - One-tap package revision followed by a prior-issue-aware Quality Control recheck
 - Release/QA Agent that builds the real files, applies safe metadata fixes, and checks manuscript structure, missing chapters, artwork, PDF integrity, embedded fonts, page dimensions, intentional blank pages, KDP page count, cover dimensions, spine sizing, and pricing
+- Automatic short-logbook completion with usable labeled record forms, followed by pricing and cover sizing from the final PDF (no blank page padding or extra AI call)
+- Bounded automatic manuscript revision and content/release rechecks when file QA still finds manuscript blockers (two attempts maximum); compatible front-cover and interior-art assets are retained
 - Server-side release enforcement that regenerates and retests final files before every approved PDF or ZIP download
 - Human-only marketplace finishing checks separated from AI-fixable blockers
 - Device-local Project Vault with automatic saving and project restoration

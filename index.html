@@ -2668,7 +2668,9 @@
       saveActiveProject();
     }
 
-    async function runReleaseQa() {
+    async function runReleaseQa(recoveryOptions) {
+      const recoveryAttempt = Number.isInteger(recoveryOptions?.recoveryAttempt)
+        ? recoveryOptions.recoveryAttempt : 0;
       if (!activePackage || !activeQualityReview ||
           activeQualityReview.verdict !== "PASS") {
         toast("Pass the written quality check first");
@@ -2721,6 +2723,20 @@
         }
 
         showReleaseQa(data);
+        const repairableManuscript = data.verdict !== "READY" &&
+          (data.checks || []).some(function (check) {
+            return check.status === "BLOCKED" && ["manuscript", "page-count"].includes(check.id);
+          });
+        if (repairableManuscript && recoveryAttempt < 2) {
+          document.getElementById("approvalNote").textContent =
+            "Forge is repairing the manuscript automatically, then rerunning content QA and rebuilding final files (attempt " + (recoveryAttempt + 1) + " of 2).";
+          await reviseAndRecheck({ recoveryAttempt: recoveryAttempt + 1 });
+          return;
+        }
+        if (repairableManuscript) {
+          document.getElementById("approvalNote").textContent =
+            "Automatic manuscript recovery stopped after 2 attempts. Approval remains locked; the remaining blocker is shown above. You can retry explicitly without an endless paid loop.";
+        }
         toast(data.verdict === "READY"
           ? "Final files passed Release QA"
           : "Release QA found something to fix");
@@ -4221,7 +4237,7 @@
       }
     }
 
-    async function runQualityReview(previousReview) {
+    async function runQualityReview(previousReview, recoveryOptions) {
       if (!activePackage || !activePackageText) {
         toast("Build a production package first");
         return;
@@ -4278,7 +4294,7 @@
         showQualityReview(data);
         if (data.verdict === "PASS") {
           toast("Written quality passed. Testing final files…");
-          await runReleaseQa();
+          await runReleaseQa(recoveryOptions);
         } else {
           toast("Quality check found work to do");
         }
@@ -4294,7 +4310,7 @@
       }
     }
 
-    async function reviseAndRecheck() {
+    async function reviseAndRecheck(recoveryOptions) {
       if (!activePackage || !activePackageText || !activeQualityReview) {
         toast("Run Quality Control first");
         return;
@@ -4356,9 +4372,28 @@
           );
         }
 
-        showProductionPackage(data);
+        const previousPackage = activePackage;
+        const previousCover = activeCover;
+        const retainedArt = previousPackage.interiorArt;
+        const authorName = previousPackage.authorName;
+        const revised = { ...data, authorName };
+        if (retainedArt) revised.interiorArt = retainedArt;
+        showProductionPackage(revised);
+        if (previousCover && previousPackage.platform === revised.platform &&
+            previousPackage.packageTitle === revised.packageTitle &&
+            (previousPackage.subtitle || "") === (revised.subtitle || "")) {
+          activeCover = previousCover;
+          const image = document.getElementById("coverImage");
+          image.src = "data:image/png;base64," + previousCover.base64;
+          image.hidden = false;
+          document.getElementById("coverPlaceholder").hidden = true;
+          downloadCoverButton.hidden = false;
+          downloadWrapButton.hidden = revised.platform !== "KDP";
+          document.getElementById("coverStatus").textContent =
+            "Existing front cover retained. Release QA will rebuild the wrap using the revised interior.";
+        }
         toast("Revision complete. Rechecking quality…");
-        await runQualityReview(review);
+        await runQualityReview(review, recoveryOptions);
       } catch (error) {
         document.getElementById("productionVerdict").className = "verdict";
         document.getElementById("productionVerdict").textContent =

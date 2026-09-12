@@ -1575,6 +1575,14 @@ function printablePdf(packageData) {
     const interiorArt = validatedInteriorArt(normalizedPackage.interiorArt);
     const singleSidedArtwork = market === "KDP" &&
       /\b(coloring|colouring)\b/i.test([title, deliverable, markdown].join(" "));
+    // Repeatable record forms are a real part of a logbook, not blank padding.
+    // Never expand narrative books or a substantially empty draft this way.
+    const recordBook = market === "KDP" && !singleSidedArtwork && markdown.length >= 500 &&
+      /\b(log\s*book|record book|service journal)\b/i.test([title, subtitle, deliverable].join(" ")) &&
+      !/\b(novel|fiction|poetry|short stor(?:y|ies))\b/i.test(deliverable);
+    const rvRecords = /\b(rv|camper|motorhome|travel.trailer|winterization)\b/i
+      .test([title, subtitle, markdown].join(" "));
+    let recordPagesAdded = 0;
     const artByFilename = new Map(
       interiorArt.map((item) => [item.filename, item])
     );
@@ -1724,6 +1732,7 @@ function printablePdf(packageData) {
       buffer.pageCount = finalPageCount;
       buffer.intentionalBlankPageCount = blankBackingPages.size;
       buffer.contentPageCount = finalPageCount - blankBackingPages.size;
+      buffer.recordPagesAdded = recordPagesAdded;
       resolve(buffer);
     });
     doc.on("error", reject);
@@ -1835,6 +1844,36 @@ function printablePdf(packageData) {
             lineY += 28;
           }
         }
+      }
+    }
+
+    if (recordBook) {
+      const forms = rvRecords ? [
+        { title: "Seasonal Storage Record", fields: ["Date and storage location", "Vehicle / trailer reference", "Work recorded from owner's manual", "Provider / receipt reference", "Observations", "Next review date"] },
+        { title: "Maintenance and Service Record", fields: ["Date and mileage / reference", "System or component", "Service performed by", "Parts and receipt reference", "Cost", "Follow-up / next due date"] },
+        { title: "Storage Visit Record", fields: ["Visit date and location", "Owner's observations", "Changes since last visit", "Photos / document reference", "Service provider contacted", "Next visit / follow-up"] },
+        { title: "Parts and Warranty Record", fields: ["Component / part reference", "Purchase and installation date", "Vendor / service provider", "Receipt / warranty reference", "Cost", "Notes and follow-up"] }
+      ] : [
+        { title: "Dated Activity Record", fields: ["Date / reference", "Activity or category", "Work completed", "Documents / receipt reference", "Observations", "Next action and date"] },
+        { title: "Follow-up Record", fields: ["Date / reference", "Related entry", "Update or observation", "Contact / document reference", "Outcome", "Next action and date"] }
+      ];
+      while (doc.bufferedPageRange().count < 24) {
+        const form = forms[recordPagesAdded % forms.length];
+        doc.addPage();
+        recordPagesAdded += 1;
+        doc.font("InterBold").fontSize(17).fillColor("#202833")
+          .text(form.title, margin, margin, { width: 324 });
+        doc.font("Inter").fontSize(9).fillColor("#5A6470")
+          .text("Reusable record form " + recordPagesAdded + ". Record your own information; this is not a procedure or safety instruction.", margin, margin + 30, { width: 324 });
+        form.fields.forEach((label, index) => {
+          const y = margin + 86 + index * 66;
+          doc.font("InterBold").fontSize(10).fillColor("#202833")
+            .text(label, margin, y, { width: 324, lineBreak: false });
+          for (const offset of [22, 42]) {
+            doc.moveTo(margin, y + offset).lineTo(doc.page.width - margin, y + offset)
+              .lineWidth(0.6).strokeColor("#C9CFD6").stroke();
+          }
+        });
       }
     }
 
@@ -2537,6 +2576,11 @@ async function buildReleaseQa({
 
   try {
     printable = await printablePdf(packageData);
+    if (printable.recordPagesAdded) {
+      autoFixes.push("Added " + printable.recordPagesAdded +
+        " usable, labeled record forms to finish the logbook at " + printable.pageCount +
+        " pages. Pricing and wrap sizing use the finished interior. No blank filler or repair instructions were added.");
+    }
     const expectedSize = market === "KDP" ? [432, 648] : [612, 792];
     const structure = pdfStructure(printable, expectedSize[0], expectedSize[1]);
     const pdfProblems = [];
@@ -2747,7 +2791,8 @@ async function buildReleaseQa({
           : "printable.pdf",
         bytes: printable.length,
         pageCount: printable.pageCount,
-        intentionalBlankPageCount: printable.intentionalBlankPageCount
+        intentionalBlankPageCount: printable.intentionalBlankPageCount,
+        recordPagesAdded: printable.recordPagesAdded || 0
       } : null,
       coverPdf: wrapCover ? {
         filename: "2-paperback-cover.pdf",
