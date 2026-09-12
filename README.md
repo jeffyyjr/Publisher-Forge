@@ -10,6 +10,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 
 ## Included
 - Live KDP/Etsy/Shopify Trend Radar with cited public web sources
+- Saved Trend Radar research history (last 12 attempts, including failures and timing), refresh restoration, JSON download, and account sync
+- RV logbook and large-print Thanksgiving activity research presets that do not run paid scans until requested
+- Explicit public-evidence limits: saved scans are not verified sales, score changes are not search growth, and source lists do not establish per-idea corroboration
 - Consistent opportunity scoring and make/validate/skip decisions
 - AI opportunity analysis
 - Product Brief generation

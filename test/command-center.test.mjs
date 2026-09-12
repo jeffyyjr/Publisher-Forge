@@ -18,6 +18,18 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
 });
 
+test("research history module and helpers are served as JavaScript", async () => {
+  for (const filename of ["trend-history.js", "trend-evidence.mjs"]) {
+    const response = await fetch(baseUrl + "/" + filename);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") || "", /javascript/);
+  }
+  const response = await fetch(baseUrl + "/");
+  const html = await response.text();
+  assert.match(html, /id="trendHistoryList"/);
+  assert.match(html, /type="module" src="\/trend-history.js"/);
+});
+
 test("command center page is served", async () => {
   const response = await fetch(baseUrl + "/command-center");
   const html = await response.text();

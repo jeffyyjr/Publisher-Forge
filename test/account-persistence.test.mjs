@@ -61,6 +61,7 @@ test("account registration creates a session and versioned state", async () => {
       state: {
         projectVault: [{ title: "Persistent test", platform: "KDP" }],
         revenueTests: [],
+        trendHistory: [{ scannedAt: "2026-09-12T12:00:00Z", platform: "KDP", niche: "RV records", opportunities: [{ title: "RV test" }], sources: [] }],
         opportunities: [],
         moneyAgentSettings: { orchestrator: { mode: "balanced" } },
         commandCenterPlan: null
@@ -71,6 +72,8 @@ test("account registration creates a session and versioned state", async () => {
   assert.equal(save.status, 200);
   assert.equal(saved.revision, 1);
   assert.equal(saved.state.projectVault[0].title, "Persistent test");
+  assert.equal(saved.state.trendHistory[0].opportunities[0].title, "RV test");
+  assert.equal(saved.state.trendHistory[0].evidenceStatus, "NO_VERIFIED_SOURCES");
 
   const stale = await fetch(baseUrl + "/api/account/state", {
     method: "PUT",
