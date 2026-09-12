@@ -17,6 +17,7 @@ function harness(report) {
     coverAuthorName: { value: "Maxx Powers" }, runReleaseQaButton: {}, downloadWrapButton: {}, sendRevenueButton: {},
     loading() {}, toast() {}, formatProductionPackage() { return "Package"; },
     fetch: async () => ({ ok: true }), readJson: async () => report,
+    requestReleaseQa: async () => report,
     showReleaseQa(data) { context.activeReleaseQa = data; },
     async reviseAndRecheck(options) { attempts++; await context.runReleaseQa(options); }
   };
@@ -38,6 +39,86 @@ test("ready files and cover-only blockers do not trigger unnecessary paid manusc
     const app = harness(report);
     await app.context.runReleaseQa();
     assert.equal(app.attempts(), 0);
+  }
+});
+
+test("connection recovery preserves the draft, cover and written PASS, without paid revisions", async () => {
+  const app = harness({});
+  const book = { packageTitle: "RV logbook", draftMarkdown: "Original records", approvedAt: "old approval" };
+  const cover = { base64: "existing artwork" };
+  const review = { verdict: "PASS", overallScore: 88 };
+  app.context.activePackage = book;
+  app.context.activeCover = cover;
+  app.context.activeQualityReview = review;
+  app.context.requestReleaseQa = async (payload, onRetry) => {
+    assert.equal(payload.package, book);
+    assert.equal(payload.cover, cover);
+    assert.equal(payload.qualityReview, review);
+    onRetry({ attempt: 2, maxAttempts: 3, delayMs: 2000 });
+    assert.equal(app.elements.get("releaseQaVerdict").textContent, "RECONNECTING");
+    const error = new Error("Your draft and artwork are still in this tab. Tap Prepare final files.");
+    error.code = "RELEASE_QA_CONNECTION";
+    throw error;
+  };
+  await app.context.runReleaseQa();
+  assert.equal(app.context.activePackage, book);
+  assert.equal(app.context.activeCover, cover);
+  assert.equal(app.context.activeQualityReview, review);
+  assert.equal(app.context.activeReleaseQa, null);
+  assert.equal(app.attempts(), 0);
+  assert.equal(book.approvedAt, undefined);
+  assert.equal(app.elements.get("releaseQaVerdict").textContent, "CONNECTION INTERRUPTED");
+  assert.equal(app.elements.get("approveProductionButton").disabled, true);
+  assert.equal(app.elements.get("downloadBundleButton").disabled, true);
+  assert.equal(app.elements.get("downloadPdfButton").disabled, true);
+  assert.equal(app.context.downloadWrapButton.disabled, true);
+  assert.equal(app.context.runReleaseQaButton.disabled, false);
+  assert.match(app.elements.get("approvalNote").textContent, /not Run quality check/);
+
+  // Explicit retry is allowed after the bounded automatic recovery stops.
+  const report = { verdict: "READY", checks: [] };
+  app.context.requestReleaseQa = async () => report;
+  await app.context.runReleaseQa();
+  assert.equal(app.context.activeReleaseQa, report);
+  assert.equal(app.attempts(), 0);
+});
+
+test("duplicate taps are ignored while Release QA is waiting for the same request", async () => {
+  const app = harness({});
+  let resolve;
+  let requests = 0;
+  app.context.requestReleaseQa = () => {
+    requests++;
+    return new Promise(done => { resolve = done; });
+  };
+  const pending = app.context.runReleaseQa();
+  await app.context.runReleaseQa();
+  assert.equal(requests, 1);
+  resolve({ verdict: "READY", checks: [] });
+  await pending;
+  assert.equal(app.context.activeReleaseQa.verdict, "READY");
+});
+
+test("a late success or failure cannot overwrite a newly opened project", async () => {
+  for (const fails of [false, true]) {
+    const app = harness({});
+    let settle;
+    app.context.requestReleaseQa = () => new Promise((resolve, reject) => {
+      settle = () => fails ? reject(new TypeError("Load failed")) : resolve({
+        verdict: "READY", checks: [], fixedPackage: { packageTitle: "Old book" }
+      });
+    });
+    const pending = app.context.runReleaseQa();
+    const newBook = { packageTitle: "Different book" };
+    app.context.activePackage = newBook;
+    app.context.activeQualityReview = null;
+    app.elements.get("releaseQaVerdict").textContent = "NOT CHECKED";
+    settle();
+    await pending;
+    assert.equal(app.context.activePackage, newBook);
+    assert.equal(app.context.activeReleaseQa, null);
+    assert.equal(app.elements.get("releaseQaVerdict").textContent, "NOT CHECKED");
+    assert.equal(app.context.runReleaseQaButton.disabled, true);
   }
 });
 

@@ -2668,6 +2668,85 @@
       saveActiveProject();
     }
 
+    async function requestReleaseQa(payload, onRetry) {
+      // Only retry this deterministic file check. Never replay paid generation
+      // or revision endpoints just because the browser lost its connection.
+      const body = JSON.stringify(payload);
+      const delays = [2000, 5000];
+      const transientStatuses = [408, 502, 503, 504];
+      const statusMessages = {
+        401: "Your session expired. Sign in again before retrying Release QA.",
+        403: "Release QA access was denied. Check your account before retrying.",
+        413: "The artwork package is too large for Release QA. Automatic retry cannot reduce it.",
+        429: "Release QA is rate limited. Wait before trying again."
+      };
+
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(function () { controller.abort(); }, 90000);
+        let response;
+        let failure;
+        try {
+          response = await fetch("/api/release-qa", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body,
+            signal: controller.signal
+          });
+          const responseText = await response.text();
+          let data;
+          try { data = JSON.parse(responseText); } catch (_) { /* Incomplete or gateway response. */ }
+
+          if (!response.ok) {
+            const message = statusMessages[response.status] ||
+              data?.message || data?.error || "Release QA could not finish (HTTP " + response.status + ").";
+            const error = new Error(message);
+            error.status = response.status;
+            const retryAfter = response.headers?.get("Retry-After");
+            if (response.status === 429 && retryAfter) {
+              const seconds = /^\d+$/.test(retryAfter)
+                ? Number(retryAfter)
+                : Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000);
+              if (Number.isFinite(seconds) && seconds > 0) {
+                error.message += " Try again in about " + Math.ceil(seconds / 60) + " minute(s).";
+              }
+            }
+            throw error;
+          }
+          if (!data || !["READY", "BLOCKED"].includes(data.verdict) ||
+              !Array.isArray(data.checks)) {
+            const error = new Error("The server did not return a complete Release QA report.");
+            error.releaseQaRetryable = true;
+            throw error;
+          }
+          return data;
+        } catch (error) {
+          const retryable = response && !response.ok
+            ? transientStatuses.includes(response.status)
+            : controller.signal.aborted || error.releaseQaRetryable === true ||
+              ["TypeError", "AbortError", "TimeoutError"].includes(error.name);
+          if (!retryable) throw error;
+          failure = error;
+        } finally {
+          clearTimeout(timer);
+        }
+
+        if (attempt === delays.length) {
+          const error = new Error(
+            "Release QA could not reconnect or receive a complete report after 3 attempts. " +
+            "Your draft and artwork are still in this tab. Check your connection, then tap Prepare final files. " +
+            "You do not need to rerun the written quality check."
+          );
+          error.code = "RELEASE_QA_CONNECTION";
+          error.cause = failure;
+          throw error;
+        }
+        if (onRetry) onRetry({ attempt: attempt + 2, maxAttempts: 3, delayMs: delays[attempt] });
+        await new Promise(function (resolve) { setTimeout(resolve, delays[attempt]); });
+      }
+    }
+
     async function runReleaseQa(recoveryOptions) {
       const recoveryAttempt = Number.isInteger(recoveryOptions?.recoveryAttempt)
         ? recoveryOptions.recoveryAttempt : 0;
@@ -2675,6 +2754,18 @@
           activeQualityReview.verdict !== "PASS") {
         toast("Pass the written quality check first");
         return;
+      }
+      if (runReleaseQa.busy && recoveryAttempt === 0) return;
+      if (recoveryAttempt === 0) runReleaseQa.busy = true;
+      const sourcePackage = activePackage;
+      const sourceReview = activeQualityReview;
+      const sourceCover = activeCover;
+      const sourceTitle = activeProductionTitle;
+      const sourceAuthor = coverAuthorName.value.trim();
+      function stillCurrent() {
+        return activePackage === sourcePackage && activeQualityReview === sourceReview &&
+          activeCover === sourceCover && activeProductionTitle === sourceTitle &&
+          coverAuthorName.value.trim() === sourceAuthor;
       }
 
       if (activePackage.approvedAt) delete activePackage.approvedAt;
@@ -2699,22 +2790,23 @@
       loading(runReleaseQaButton, true, "Prepare final files");
 
       try {
-        const response = await fetch("/api/release-qa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: activeProductionTitle,
-            package: activePackage,
-            qualityReview: activeQualityReview,
-            cover: activeCover,
-            authorName: coverAuthorName.value.trim()
-          })
+        const data = await requestReleaseQa({
+          title: sourceTitle,
+          package: sourcePackage,
+          qualityReview: sourceReview,
+          cover: sourceCover,
+          authorName: sourceAuthor
+        }, function (retry) {
+          if (!stillCurrent()) return;
+          badge.textContent = "RECONNECTING";
+          document.getElementById("releaseQaCount").textContent =
+            "Release QA · attempt " + retry.attempt + " of " + retry.maxAttempts;
+          document.getElementById("releaseQaOutput").textContent =
+            "The connection or server response was interrupted. Retrying the same file check in " +
+            retry.delayMs / 1000 + " seconds. Your draft and artwork are kept; this retry does not call the paid writing or image agents.";
         });
-        const data = await readJson(response);
-
-        if (!response.ok) {
-          throw new Error(data.message || data.error || "Release check failed");
-        }
+        // A slow response must never approve or overwrite a different project.
+        if (!stillCurrent()) return;
 
         if (data.fixedPackage) {
           activePackage = { ...activePackage, ...data.fixedPackage };
@@ -2741,14 +2833,18 @@
           ? "Final files passed Release QA"
           : "Release QA found something to fix");
       } catch (error) {
+        if (!stillCurrent()) return;
         activeReleaseQa = null;
         badge.className = "verdict error";
-        badge.textContent = "ERROR";
+        badge.textContent = error.code === "RELEASE_QA_CONNECTION" ? "CONNECTION INTERRUPTED" : "ERROR";
+        document.getElementById("releaseQaCount").textContent = "Release QA · not completed";
         document.getElementById("releaseQaOutput").textContent = error.message;
         document.getElementById("approvalNote").textContent =
-          "Release QA must complete before approval.";
+          "Your written quality result is unchanged. Approval stays locked until Release QA completes; retry Prepare final files, not Run quality check.";
       } finally {
+        if (recoveryAttempt === 0) runReleaseQa.busy = false;
         loading(runReleaseQaButton, false, "Prepare final files");
+        runReleaseQaButton.disabled = !activeQualityReview || activeQualityReview.verdict !== "PASS";
       }
     }
 
