@@ -2,6 +2,7 @@
   const KEYS = Object.freeze({
     projectVault: "pfProjectVault",
     revenueTests: "pfRevenueTests",
+    trendHistory: "publisherForge.trendHistory.v1",
     opportunities: "publisherForge.moneyAgentOpportunities.v1",
     moneyAgentSettings: "publisherForge.moneyAgentSettings.v2",
     commandCenterPlan: "publisherForge.commandCenterPlan.v1"
@@ -22,6 +23,7 @@
     return {
       projectVault: readJson(KEYS.projectVault, []),
       revenueTests: readJson(KEYS.revenueTests, []),
+      trendHistory: readJson(KEYS.trendHistory, []),
       opportunities: readJson(KEYS.opportunities, []),
       moneyAgentSettings: readJson(KEYS.moneyAgentSettings, {}),
       commandCenterPlan: readJson(KEYS.commandCenterPlan, null)
@@ -59,7 +61,7 @@
   }
 
   function empty(state) {
-    return !(state.projectVault?.length || state.revenueTests?.length || state.opportunities?.length ||
+    return !(state.projectVault?.length || state.revenueTests?.length || state.trendHistory?.length || state.opportunities?.length ||
       Object.keys(state.moneyAgentSettings || {}).length || state.commandCenterPlan);
   }
 

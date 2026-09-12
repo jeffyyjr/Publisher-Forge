@@ -1,6 +1,7 @@
 const STORAGE_KEYS = Object.freeze({
   projectVault: "pfProjectVault",
   revenueTests: "pfRevenueTests",
+  trendHistory: "publisherForge.trendHistory.v1",
   opportunities: "publisherForge.moneyAgentOpportunities.v1",
   moneyAgentSettings: "publisherForge.moneyAgentSettings.v2",
   commandCenterPlan: "publisherForge.commandCenterPlan.v1"
@@ -22,6 +23,7 @@ function localState() {
   return {
     projectVault: readJson(STORAGE_KEYS.projectVault, []),
     revenueTests: readJson(STORAGE_KEYS.revenueTests, []),
+    trendHistory: readJson(STORAGE_KEYS.trendHistory, []),
     opportunities: readJson(STORAGE_KEYS.opportunities, []),
     moneyAgentSettings: readJson(STORAGE_KEYS.moneyAgentSettings, {}),
     commandCenterPlan: readJson(STORAGE_KEYS.commandCenterPlan, null)

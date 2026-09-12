@@ -1171,6 +1171,19 @@
             <p class="radar-form-note">
               A live scan can take a little longer than a normal analysis.
             </p>
+            <div class="field">
+              <h3>This week's product tests</h3>
+              <button class="btn wide" id="rvWorkflow" type="button">RV logbook research</button>
+              <button class="btn wide" id="thanksgivingWorkflow" type="button">Thanksgiving activity research</button>
+              <p class="radar-form-note">Test hypotheses, not guaranteed sellers. These buttons fill the search without running it.</p>
+            </div>
+            <div class="field">
+              <h3>Saved research</h3>
+              <p class="radar-form-note">Last 12 scan attempts with timing, including failures, on this device; included in account sync when signed in. Older attempts are replaced. Export to retain them.</p>
+              <div id="trendHistoryList"></div>
+              <button class="btn wide" id="exportTrendHistory" type="button" disabled>Download research history</button>
+              <p class="radar-form-note" id="trendEvidenceNote" aria-live="polite">Public listings are not verified sales. Search growth requires comparable measured observations.</p>
+            </div>
           </div>
         </article>
 
@@ -3638,6 +3651,7 @@
     }
 
     async function scanTrends() {
+      const scanStartedAt = Date.now();
       const market =
         document.getElementById("radarPlatform").value;
 
@@ -3675,7 +3689,12 @@
         }
 
         renderRadar(data);
+        window.dispatchEvent(new CustomEvent("publisherForge:trendScan", { detail: { ...data, durationMs: Date.now() - scanStartedAt } }));
       } catch (error) {
+        window.dispatchEvent(new CustomEvent("publisherForge:trendFailure", { detail: {
+          status: "FAILED", scannedAt: new Date().toISOString(), platform: market, niche: niche,
+          durationMs: Date.now() - scanStartedAt
+        } }));
         setRadarMessage(
           "Scan stopped",
           "No opportunities were saved.",
@@ -5017,5 +5036,6 @@
     restoreViralRemix();
     checkHealth();
   </script>
+  <script type="module" src="/trend-history.js"></script>
 </body>
 </html>

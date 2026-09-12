@@ -27,6 +27,12 @@ registerAccountPersistence(app, {
 });
 
 function registerMoneyDashboard(application = app) {
+  for (const filename of ["trend-history.js", "trend-evidence.mjs"]) {
+    application.get("/" + filename, (req, res) => {
+      res.set({ "Cache-Control": "no-store", "Content-Type": "text/javascript; charset=utf-8" });
+      res.sendFile(path.join(__dirname, filename));
+    });
+  }
   application.get(["/money-agents", "/money-agents.html"], (req, res) => {
     res.set("Cache-Control", "no-store");
     res.sendFile(path.join(__dirname, "money-agents.html"));

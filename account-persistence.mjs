@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { normalizeHistory } from "./trend-evidence.mjs";
 
 const SESSION_COOKIE = "pf_session";
 const SESSION_DAYS = 30;
@@ -157,6 +158,7 @@ function normalizeState(value) {
   return {
     projectVault: Array.isArray(state.projectVault) ? state.projectVault.slice(0, 250) : [],
     revenueTests: Array.isArray(state.revenueTests) ? state.revenueTests.slice(0, 1000) : [],
+    trendHistory: normalizeHistory(state.trendHistory),
     opportunities: Array.isArray(state.opportunities) ? state.opportunities.slice(0, 150) : [],
     moneyAgentSettings: safeObject(state.moneyAgentSettings),
     commandCenterPlan: state.commandCenterPlan && typeof state.commandCenterPlan === "object"
