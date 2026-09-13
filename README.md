@@ -25,6 +25,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Automatic short-logbook completion with usable labeled record forms, followed by pricing and cover sizing from the final PDF (no blank page padding or extra AI call)
 - Bounded automatic manuscript revision and content/release rechecks when file QA still finds manuscript blockers (two attempts maximum); compatible front-cover and interior-art assets are retained
 - Release QA connection recovery replays only the same deterministic file check, with two delayed retries and a 90-second timeout per attempt; it retains the current draft/artwork, never repeats paid generation because of a connection error, and keeps approval locked if recovery fails
+- Illustrated KDP projects defer pricing until Release QA so Forge builds the image-heavy PDF once instead of running pricing and Quality Control in parallel; Release QA also reuses validated image buffers and logs route duration/memory without logging customer content
 - Server-side release enforcement that regenerates and retests final files before every approved PDF or ZIP download
 - Human-only marketplace finishing checks separated from AI-fixable blockers
 - Device-local Project Vault with automatic saving and project restoration

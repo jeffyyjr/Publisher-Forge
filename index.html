@@ -2215,6 +2215,12 @@
       const packageTitle = packageData.packageTitle;
 
       card.hidden = false;
+      if (Array.isArray(packageData.interiorArt) && packageData.interiorArt.length) {
+        summary.className = "pricing-summary";
+        summary.textContent =
+          "Pricing will be calculated from the finished illustrated PDF during Release QA. This avoids building the same large file twice.";
+        return;
+      }
       summary.textContent = "Calculating print cost and royalty from the interior…";
 
       try {

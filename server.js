@@ -67,6 +67,11 @@ const LARGE_JSON_ROUTES = new Set([
   "/api/kdp-pricing",
   "/api/release-qa"
 ]);
+const DIAGNOSTIC_ROUTES = new Set([
+  "/api/kdp-pricing",
+  "/api/quality-review",
+  "/api/release-qa"
+]);
 
 const SECURITY_HEADERS = Object.freeze({
   "Content-Security-Policy": [
@@ -406,6 +411,37 @@ app.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
   }
 
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method !== "POST" || !DIAGNOSTIC_ROUTES.has(req.path)) return next();
+
+  const started = Date.now();
+  const startingRssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+  let completed = false;
+  console.log(
+    "[request] " + req.method + " " + req.path +
+    " started rss=" + startingRssMb + "MB"
+  );
+  res.once("finish", () => {
+    completed = true;
+    console.log(
+      "[request] " + req.method + " " + req.path +
+      " finished status=" + res.statusCode +
+      " duration=" + (Date.now() - started) + "ms" +
+      " rss=" + Math.round(process.memoryUsage().rss / 1024 / 1024) + "MB"
+    );
+  });
+  res.once("close", () => {
+    if (!completed) {
+      console.warn(
+        "[request] " + req.method + " " + req.path +
+        " connection-closed duration=" + (Date.now() - started) + "ms" +
+        " rss=" + Math.round(process.memoryUsage().rss / 1024 / 1024) + "MB"
+      );
+    }
+  });
   next();
 });
 
@@ -1559,12 +1595,11 @@ function printableText(value, limit) {
     .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "");
 }
 
-function printablePdf(packageData) {
+function printablePdf(packageData, options = {}) {
   return new Promise((resolve, reject) => {
-    const normalizedPackage = publicationReadyPackage(
-      packageData,
-      packageData?.authorName
-    );
+    const normalizedPackage = options.packageIsReady
+      ? packageData
+      : publicationReadyPackage(packageData, packageData?.authorName);
     const market = platform(normalizedPackage.platform);
     const pageSize = market === "KDP" ? [432, 648] : "LETTER";
     const margin = 54;
@@ -1572,7 +1607,9 @@ function printablePdf(packageData) {
     const subtitle = printableText(normalizedPackage.subtitle, 500);
     const deliverable = printableText(normalizedPackage.deliverableType, 200);
     const markdown = text(normalizedPackage.draftMarkdown, 50000);
-    const interiorArt = validatedInteriorArt(normalizedPackage.interiorArt);
+    const interiorArt = Array.isArray(options.validatedInteriorArt)
+      ? options.validatedInteriorArt
+      : validatedInteriorArt(normalizedPackage.interiorArt);
     const singleSidedArtwork = market === "KDP" &&
       /\b(coloring|colouring)\b/i.test([title, deliverable, markdown].join(" "));
     // Repeatable record forms are a real part of a logbook, not blank padding.
@@ -2575,7 +2612,12 @@ async function buildReleaseQa({
   }
 
   try {
-    printable = await printablePdf(packageData);
+    // Artwork was validated and decoded above. Reuse those buffers instead of
+    // decoding every base64 image a second time during the same release check.
+    printable = await printablePdf(packageData, {
+      packageIsReady: true,
+      validatedInteriorArt: interiorArt
+    });
     if (printable.recordPagesAdded) {
       autoFixes.push("Added " + printable.recordPagesAdded +
         " usable, labeled record forms to finish the logbook at " + printable.pageCount +
