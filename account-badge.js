@@ -22,7 +22,8 @@
     const stats = await json("/api/account/stats");
     const tracked = (stats?.stats?.projects || 0) +
       (stats?.stats?.revenueTests || 0) +
-      (stats?.stats?.trendScans || 0);
+      (stats?.stats?.trendScans || 0) +
+      (stats?.stats?.viralRenders || 0);
 
     link.textContent = tracked
       ? "Stats · " + tracked
