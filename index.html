@@ -1954,6 +1954,12 @@
         switchView("revenue");
       });
 
+    const requestedInitialView =
+      new URLSearchParams(window.location.search).get("view");
+    if (["radar", "analyzer", "production", "viral", "revenue"].includes(requestedInitialView)) {
+      switchView(requestedInitialView);
+    }
+
     signalIds.forEach(function (id) {
       const input = document.getElementById(id);
 
