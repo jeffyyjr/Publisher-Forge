@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const LAUNCH_EVENTS = new Set([
   "page_view",
   "open_app",
+  "open_viral",
   "create_account",
   "view_demo",
   "view_repo",
