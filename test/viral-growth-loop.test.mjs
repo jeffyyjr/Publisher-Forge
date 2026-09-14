@@ -33,6 +33,10 @@ test("a successful Viral Remix render unlocks the measured creator share loop", 
   assert.match(indexHtml, /viralShareButton\.disabled = false/);
   assert.match(indexHtml, /navigator\.share/);
   assert.match(indexHtml, /utm_source", "viral_share"/);
-  assert.match(indexHtml, /event: "viral_share"/);
+  assert.match(indexHtml, /trackViralLaunchEvent\("viral_scan_complete"\)/);
+  assert.match(indexHtml, /trackViralLaunchEvent\("viral_render_complete"\)/);
+  assert.match(indexHtml, /trackViralLaunchEvent\("viral_share"\)/);
+  assert.match(dashboardStart, /"viral_scan_complete"/);
+  assert.match(dashboardStart, /"viral_render_complete"/);
   assert.match(dashboardStart, /"viral_share"/);
 });

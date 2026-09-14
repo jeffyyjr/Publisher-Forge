@@ -15,6 +15,8 @@ const LAUNCH_EVENTS = new Set([
   "view_demo",
   "view_repo",
   "feedback",
+  "viral_scan_complete",
+  "viral_render_complete",
   "viral_share",
   "cta_click"
 ]);
