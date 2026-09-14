@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Publisher Forge — Account</title>
   <style>
-    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#080d18}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#080d18,#111827)}a{color:#c7d2fe;text-decoration:none}.shell{max-width:900px;margin:0 auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.top h1{margin:0;font-size:1.45rem}.top p{margin:.3rem 0 0;color:#94a3b8}.pill,.btn{border-radius:10px;padding:10px 13px;font-weight:700}.pill{border:1px solid #374151;background:#111827;color:#e5e7eb}.btn{border:0;background:#4f46e5;color:#fff;cursor:pointer}.btn.secondary{background:#1f2937;border:1px solid #374151}.btn.danger{background:#7f1d1d}.btn:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#94a3b8;line-height:1.45}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field input{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{padding:10px 12px;border:1px solid #374151;border-radius:10px;background:#0f172a;margin:10px 0;color:#cbd5e1}.good{color:#86efac}.warn{color:#fcd34d}.bad{color:#fca5a5}.hidden{display:none}.wide{grid-column:1/-1}.footer{color:#64748b;font-size:.82rem;margin-top:16px}@media(max-width:640px){.shell{padding:12px}.btn,.pill{width:100%;text-align:center}}
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#080d18}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(180deg,#080d18,#111827)}a{color:#c7d2fe;text-decoration:none}.shell{max-width:900px;margin:0 auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.top h1{margin:0;font-size:1.45rem}.top p{margin:.3rem 0 0;color:#94a3b8}.pill,.btn{border-radius:10px;padding:10px 13px;font-weight:700}.pill{border:1px solid #374151;background:#111827;color:#e5e7eb}.btn{border:0;background:#4f46e5;color:#fff;cursor:pointer}.btn.secondary{background:#1f2937;border:1px solid #374151}.btn.danger{background:#7f1d1d}.btn:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.card{background:#111827;border:1px solid #273244;border-radius:16px;padding:16px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.stat{padding:12px;border:1px solid #273244;border-radius:12px;background:#0f172a}.stat strong{display:block;font-size:1.55rem;color:#f8fafc}.stat span{display:block;margin-top:3px;color:#94a3b8;font-size:.76rem}.card h2{margin:0 0 6px;font-size:1.05rem}.card p{color:#94a3b8;line-height:1.45}.field{margin:10px 0}.field label{display:block;font-size:.82rem;color:#cbd5e1;margin-bottom:5px}.field input{width:100%;border:1px solid #374151;background:#0f172a;color:#f8fafc;border-radius:9px;padding:10px;font:inherit}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{padding:10px 12px;border:1px solid #374151;border-radius:10px;background:#0f172a;margin:10px 0;color:#cbd5e1}.good{color:#86efac}.warn{color:#fcd34d}.bad{color:#fca5a5}.hidden{display:none}.wide{grid-column:1/-1}.footer{color:#64748b;font-size:.82rem;margin-top:16px}@media(max-width:640px){.shell{padding:12px}.btn,.pill{width:100%;text-align:center}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
   <script src="/account.js" defer></script>
 </head>
@@ -38,8 +38,18 @@
     <section id="signedIn" class="grid hidden">
       <article class="card wide">
         <h2 id="accountEmail">Signed in</h2>
-        <p id="syncSummary">Choose how to initialize or resolve this device. After the first clean sync, Forge can keep the account copy updated automatically from the Command Center and Money Agents pages.</p>
-        <div class="actions">
+        <p id="syncSummary">Your Forge work can sync to this account, and the stats below are calculated from the saved account copy.</p>
+        <div class="stats" aria-label="Account stats">
+          <div class="stat"><strong id="statProjects">0</strong><span>Saved projects</span></div>
+          <div class="stat"><strong id="statTrendScans">0</strong><span>Trend scans</span></div>
+          <div class="stat"><strong id="statRevenueTests">0</strong><span>Measured tests</span></div>
+          <div class="stat"><strong id="statOpportunities">0</strong><span>Opportunities</span></div>
+          <div class="stat"><strong id="statViews">0</strong><span>Tracked views</span></div>
+          <div class="stat"><strong id="statOrders">0</strong><span>Tracked orders</span></div>
+          <div class="stat"><strong id="statGross">$0.00</strong><span>Tracked gross</span></div>
+          <div class="stat"><strong id="statProfit">$0.00</strong><span>Tracked net</span></div>
+        </div>
+        <div class="actions" style="margin-top:14px">
           <button class="btn" id="saveDevice">Save This Device to Account</button>
           <button class="btn secondary" id="loadAccount">Load Account onto This Device</button>
           <button class="btn secondary" id="refreshState">Check Sync</button>
