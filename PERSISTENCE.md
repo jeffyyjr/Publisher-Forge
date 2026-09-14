@@ -42,3 +42,7 @@ State writes use revision numbers. If another device changed the account copy, F
 ## Beta access controls
 
 Set `PF_ADMIN_EMAILS` to a comma-separated list of trusted account emails that should bypass daily beta usage limits. Set `PF_QUOTA_TIMEZONE` to the IANA timezone used for daily resets; production defaults to `America/New_York`.
+
+## Growth analytics
+
+Forge stores anonymous funnel events in the same persistent SQLite database in a `growth_events` table. Visitor IDs are random-cookie hashes; the dashboard does not expose account emails. Admin-only `GET /api/admin/growth` summarizes launch visitors, app opens, account creation, feature use, UTM source/campaign/content, active users, and returning users.
