@@ -2,7 +2,8 @@
   const params = new URLSearchParams(window.location.search);
   const campaign = {
     source: (params.get("utm_source") || params.get("source") || "direct").slice(0, 80),
-    campaign: (params.get("utm_campaign") || "public-beta").slice(0, 80)
+    campaign: (params.get("utm_campaign") || "public-beta").slice(0, 80),
+    content: (params.get("utm_content") || "").slice(0, 100)
   };
   const sharedTopic = String(params.get("topic") || "").trim().slice(0, 180);
 
@@ -20,6 +21,7 @@
       event,
       source: campaign.source,
       campaign: campaign.campaign,
+      content: campaign.content,
       path: window.location.pathname
     });
     fetch("/api/launch-event", {
