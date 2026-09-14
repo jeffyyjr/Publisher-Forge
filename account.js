@@ -156,6 +156,8 @@ async function refreshStatus() {
   statusData = await request("/api/account/status", { headers: {} });
   renderStorage(statusData);
   setSignedIn(Boolean(statusData.signedIn));
+  const growthLink = byId("growthDashboardLink");
+  if (growthLink) growthLink.classList.toggle("hidden", !statusData.admin);
   if (statusData.signedIn) {
     byId("accountEmail").textContent =
       (statusData.user?.email || "Signed in") + (statusData.admin ? " · Admin" : "");
