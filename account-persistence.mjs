@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { normalizeHistory } from "./trend-evidence.mjs";
 
 const SESSION_COOKIE = "pf_session";
+const VISITOR_COOKIE = "pf_visit";
 const SESSION_DAYS = 30;
 const MAX_STATE_BYTES = 1_500_000;
 const QUOTA_TIMEZONE = String(process.env.PF_QUOTA_TIMEZONE || "America/New_York").trim() || "America/New_York";
@@ -126,6 +127,22 @@ function createStore(config = databaseConfig()) {
     );
     CREATE INDEX IF NOT EXISTS daily_usage_user_date_idx
       ON daily_usage(user_id, usage_date);
+    CREATE TABLE IF NOT EXISTS growth_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      occurred_at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'direct',
+      campaign TEXT NOT NULL DEFAULT 'public-beta',
+      content TEXT NOT NULL DEFAULT '',
+      path TEXT NOT NULL DEFAULT '',
+      feature TEXT NOT NULL DEFAULT '',
+      visitor_key TEXT NOT NULL DEFAULT '',
+      user_key TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS growth_events_time_idx ON growth_events(occurred_at);
+    CREATE INDEX IF NOT EXISTS growth_events_source_idx ON growth_events(source,campaign,content);
+    CREATE INDEX IF NOT EXISTS growth_events_visitor_idx ON growth_events(visitor_key);
+    CREATE INDEX IF NOT EXISTS growth_events_user_idx ON growth_events(user_key);
   `);
   return { db, config };
 }
@@ -166,6 +183,12 @@ function tokenHash(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function anonymousKey(value) {
+  return value
+    ? crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32)
+    : "";
+}
+
 function cookieMap(header) {
   return String(header || "").split(";").reduce((result, pair) => {
     const index = pair.indexOf("=");
@@ -194,6 +217,24 @@ function clearSessionCookie(req, res) {
     "Set-Cookie",
     `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`
   );
+}
+
+function visitorKey(req, res) {
+  const cookies = cookieMap(req.headers.cookie);
+  let token = String(cookies[VISITOR_COOKIE] || "").trim();
+  if (!token) {
+    token = crypto.randomBytes(18).toString("base64url");
+    const secure = requestIsSecure(req) || process.env.NODE_ENV === "production";
+    const cookie = VISITOR_COOKIE + "=" + encodeURIComponent(token) +
+      "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" + (90 * 24 * 60 * 60) +
+      (secure ? "; Secure" : "");
+    const existing = res.getHeader("Set-Cookie");
+    res.setHeader(
+      "Set-Cookie",
+      existing ? (Array.isArray(existing) ? [...existing, cookie] : [existing, cookie]) : cookie
+    );
+  }
+  return anonymousKey(token);
 }
 
 function sameOrigin(req) {
@@ -336,6 +377,123 @@ function registerAccountPersistence(application, options = {}) {
     ON CONFLICT(user_id,usage_date,feature)
     DO UPDATE SET count = daily_usage.count + 1, updated_at = excluded.updated_at
   `);
+  const insertGrowthEvent = db.prepare(`
+    INSERT INTO growth_events
+      (occurred_at,event,source,campaign,content,path,feature,visitor_key,user_key)
+    VALUES (?,?,?,?,?,?,?,?,?)
+  `);
+  const latestVisitorAttribution = db.prepare(`
+    SELECT source,campaign,content,path
+    FROM growth_events
+    WHERE visitor_key = ? AND event = 'page_view'
+    ORDER BY id DESC LIMIT 1
+  `);
+  const growthTotals = db.prepare(`
+    SELECT
+      SUM(CASE WHEN event='page_view' THEN 1 ELSE 0 END) AS page_views,
+      COUNT(DISTINCT CASE WHEN event='page_view' THEN visitor_key END) AS visitors,
+      SUM(CASE WHEN event='open_app' THEN 1 ELSE 0 END) AS app_opens,
+      SUM(CASE WHEN event='account_created' THEN 1 ELSE 0 END) AS signups,
+      SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses
+    FROM growth_events
+    WHERE occurred_at >= ?
+  `);
+  const growthBySource = db.prepare(`
+    SELECT source,campaign,content,
+      SUM(CASE WHEN event='page_view' THEN 1 ELSE 0 END) AS page_views,
+      COUNT(DISTINCT CASE WHEN event='page_view' THEN visitor_key END) AS visitors,
+      SUM(CASE WHEN event='open_app' THEN 1 ELSE 0 END) AS app_opens,
+      SUM(CASE WHEN event='account_created' THEN 1 ELSE 0 END) AS signups,
+      SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses
+    FROM growth_events
+    WHERE occurred_at >= ?
+    GROUP BY source,campaign,content
+    ORDER BY signups DESC, feature_uses DESC, visitors DESC
+    LIMIT 30
+  `);
+  const growthByFeature = db.prepare(`
+    SELECT feature, COUNT(*) AS uses, COUNT(DISTINCT user_key) AS users
+    FROM growth_events
+    WHERE occurred_at >= ? AND event='quota_consumed' AND feature <> ''
+    GROUP BY feature ORDER BY uses DESC
+  `);
+  const returningUsers = db.prepare(`
+    SELECT COUNT(*) AS returning_users FROM (
+      SELECT user_id FROM daily_usage
+      WHERE usage_date >= ?
+      GROUP BY user_id
+      HAVING COUNT(DISTINCT usage_date) >= 2
+    )
+  `);
+  const activeUsers = db.prepare(`
+    SELECT COUNT(DISTINCT user_id) AS active_users
+    FROM daily_usage WHERE usage_date >= ?
+  `);
+
+  function recordGrowth(req, res, event, fields = {}) {
+    const occurredAt = new Date().toISOString();
+    const visitKey = visitorKey(req, res);
+    const userKey = fields.userId ? anonymousKey(fields.userId) : "";
+    const clean = (value, max = 120) =>
+      String(value || "").replace(/[\r\n\t]/g, " ").trim().slice(0, max);
+    insertGrowthEvent.run(
+      occurredAt,
+      clean(event, 50),
+      clean(fields.source || "direct", 80),
+      clean(fields.campaign || "public-beta", 80),
+      clean(fields.content || "", 100),
+      clean(fields.path || "", 160),
+      clean(fields.feature || "", 80),
+      visitKey,
+      userKey
+    );
+    return { occurredAt, visitorKey: visitKey, userKey };
+  }
+
+  function growthSummary(days = 30) {
+    const boundedDays = Math.max(1, Math.min(180, Math.round(Number(days) || 30)));
+    const sinceMs = Date.now() - boundedDays * 24 * 60 * 60 * 1000;
+    const since = new Date(sinceMs).toISOString();
+    const sinceDay = quotaDate(sinceMs);
+    const totals = growthTotals.get(since) || {};
+    const visitors = Number(totals.visitors) || 0;
+    const signups = Number(totals.signups) || 0;
+    const active = Number(activeUsers.get(sinceDay)?.active_users) || 0;
+    const returning = Number(returningUsers.get(sinceDay)?.returning_users) || 0;
+    return {
+      days: boundedDays,
+      since,
+      totals: {
+        pageViews: Number(totals.page_views) || 0,
+        visitors,
+        appOpens: Number(totals.app_opens) || 0,
+        signups,
+        featureUses: Number(totals.feature_uses) || 0,
+        signupConversion: visitors ? Math.round((signups / visitors) * 1000) / 10 : 0,
+        activeUsers: active,
+        returningUsers: returning,
+        returningRate: active ? Math.round((returning / active) * 1000) / 10 : 0
+      },
+      sources: growthBySource.all(since).map((row) => ({
+        source: row.source || "direct",
+        campaign: row.campaign || "public-beta",
+        content: row.content || "",
+        pageViews: Number(row.page_views) || 0,
+        visitors: Number(row.visitors) || 0,
+        appOpens: Number(row.app_opens) || 0,
+        signups: Number(row.signups) || 0,
+        featureUses: Number(row.feature_uses) || 0,
+        signupConversion: Number(row.visitors)
+          ? Math.round((Number(row.signups) / Number(row.visitors)) * 1000) / 10
+          : 0
+      })),
+      features: growthByFeature.all(since).map((row) => ({
+        feature: row.feature,
+        uses: Number(row.uses) || 0,
+        users: Number(row.users) || 0
+      }))
+    };
+  }
 
   function authenticated(req) {
     const token = cookieMap(req.headers.cookie)[SESSION_COOKIE];
@@ -418,6 +576,13 @@ function registerAccountPersistence(application, options = {}) {
 
     const usageTimestamp = new Date().toISOString();
     incrementFeatureUsage.run(auth.user.id, day, feature, 1, usageTimestamp);
+    const visitKey = visitorKey(req, res);
+    const attribution = latestVisitorAttribution.get(visitKey) || {};
+    recordGrowth(req, res, "quota_consumed", {
+      ...attribution,
+      feature,
+      userId: auth.user.id
+    });
     console.log(JSON.stringify({
       type: "publisher_forge_usage",
       timestamp: usageTimestamp,
@@ -434,6 +599,24 @@ function registerAccountPersistence(application, options = {}) {
     snapshot(req) {
       const auth = authenticated(req);
       return auth ? quotaPayload(auth.user) : null;
+    }
+  };
+  application.locals.publisherForgeGrowth = {
+    recordLaunch(req, res, fields) {
+      return recordGrowth(req, res, fields.event, fields);
+    },
+    summary(req, res, days) {
+      const auth = requireAuth(req, res);
+      if (!auth) return null;
+      if (!isAdminUser(auth.user)) {
+        res.status(403).json({ error: "Admin access required" });
+        return null;
+      }
+      return growthSummary(days);
+    },
+    isAdmin(req) {
+      const auth = authenticated(req);
+      return Boolean(auth && isAdminUser(auth.user));
     }
   };
 
@@ -489,6 +672,9 @@ function registerAccountPersistence(application, options = {}) {
     try {
       insertUser.run(id, email, record.salt, record.hash, now, now);
       issueSession(req, res, id);
+      const visitKey = visitorKey(req, res);
+      const attribution = latestVisitorAttribution.get(visitKey) || {};
+      recordGrowth(req, res, "account_created", { ...attribution, userId: id });
       console.log(JSON.stringify({
         type: "publisher_forge_account",
         timestamp: now,
@@ -543,6 +729,11 @@ function registerAccountPersistence(application, options = {}) {
     const auth = requireAuth(req, res);
     if (!auth) return;
     res.json(quotaPayload(auth.user));
+  });
+
+  application.get("/api/admin/growth", syncLimiter, (req, res) => {
+    const summary = application.locals.publisherForgeGrowth.summary(req, res, req.query?.days);
+    if (summary) res.json(summary);
   });
 
   application.put("/api/account/state", syncLimiter, (req, res) => {
