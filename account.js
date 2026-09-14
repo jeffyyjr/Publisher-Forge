@@ -84,6 +84,25 @@ function setSignedIn(signedIn) {
   byId("signedIn").classList.toggle("hidden", !signedIn);
 }
 
+function money(value) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(Number(value) || 0);
+}
+
+function renderStats(value) {
+  const stats = value || {};
+  byId("statProjects").textContent = String(stats.projects || 0);
+  byId("statTrendScans").textContent = String(stats.trendScans || 0);
+  byId("statRevenueTests").textContent = String(stats.revenueTests || 0);
+  byId("statOpportunities").textContent = String(stats.opportunities || 0);
+  byId("statViews").textContent = String(stats.views || 0);
+  byId("statOrders").textContent = String(stats.orders || 0);
+  byId("statGross").textContent = money(stats.grossRevenue);
+  byId("statProfit").textContent = money(stats.netProfit);
+}
+
 function renderStorage(status) {
   const node = byId("storageStatus");
   if (status.storagePersistent) {
@@ -107,13 +126,17 @@ async function refreshStatus() {
 
 async function refreshSyncState() {
   try {
-    const data = await request("/api/account/state", { headers: {} });
+    const [data, statsData] = await Promise.all([
+      request("/api/account/state", { headers: {} }),
+      request("/api/account/stats", { headers: {} })
+    ]);
     const local = localState();
     const remoteCount = (data.state?.projectVault?.length || 0) +
       (data.state?.revenueTests?.length || 0) + (data.state?.opportunities?.length || 0);
     const localCount = (local.projectVault?.length || 0) +
       (local.revenueTests?.length || 0) + (local.opportunities?.length || 0);
     byId("syncStatus").textContent = `Account revision ${data.revision} · this device has ${localCount} tracked items · account copy has ${remoteCount} tracked items.`;
+    renderStats(statsData.stats);
   } catch (error) {
     byId("syncStatus").textContent = error.message;
   }
@@ -126,8 +149,9 @@ async function register() {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
-  showMessage("Account created. This device can now be saved to the account.", "good");
+  showMessage("Account created. Saving this device so your stats start immediately.", "good");
   await refreshStatus();
+  await saveDevice();
 }
 
 async function login() {
