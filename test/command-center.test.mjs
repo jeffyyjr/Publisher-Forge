@@ -30,6 +30,46 @@ test("research history module and helpers are served as JavaScript", async () =>
   assert.match(html, /type="module" src="\/trend-history.js"/);
 });
 
+test("public beta launch page and script are served", async () => {
+  const page = await fetch(baseUrl + "/launch");
+  const html = await page.text();
+
+  assert.equal(page.status, 200);
+  assert.match(html, /Publisher Forge — Public Beta/);
+  assert.match(html, /Try the beta/);
+  assert.match(html, /data-launch-event="open_app"/);
+  assert.match(html, /src="\/launch\.js"/);
+
+  const script = await fetch(baseUrl + "/launch.js");
+  const source = await script.text();
+
+  assert.equal(script.status, 200);
+  assert.match(script.headers.get("content-type") || "", /javascript/);
+  assert.match(source, /\/api\/launch-event/);
+  assert.match(source, /page_view/);
+});
+
+test("launch analytics accepts known events and rejects unknown events", async () => {
+  const accepted = await fetch(baseUrl + "/api/launch-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event: "open_app",
+      source: "test",
+      campaign: "public-beta",
+      path: "/launch"
+    })
+  });
+  assert.equal(accepted.status, 204);
+
+  const rejected = await fetch(baseUrl + "/api/launch-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event: "not-a-real-event" })
+  });
+  assert.equal(rejected.status, 400);
+});
+
 test("command center page is served", async () => {
   const response = await fetch(baseUrl + "/command-center");
   const html = await response.text();
