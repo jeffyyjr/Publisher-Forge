@@ -3636,6 +3636,17 @@
       }).catch(function () {});
     }
 
+    function recordForgeUsage(metric) {
+      try {
+        const key = "publisherForge.usageStats.v1";
+        const current = JSON.parse(localStorage.getItem(key) || "{}");
+        current[metric] = Math.max(0, Number(current[metric]) || 0) + 1;
+        current.updatedAt = new Date().toISOString();
+        localStorage.setItem(key, JSON.stringify(current));
+        window.PublisherForgeAccountSync?.syncNow();
+      } catch (error) {}
+    }
+
     async function scanViralRemix() {
       const payload = {
         topic: document.getElementById("viralTopic").value.trim(),
@@ -3666,6 +3677,7 @@
 
         renderViralRemix(data, false);
         trackViralLaunchEvent("viral_scan_complete");
+        recordForgeUsage("viralScans");
         toast(data.videos.length + " reusable clips verified");
       } catch (error) {
         setViralMessage(
@@ -3726,6 +3738,7 @@
           "Remix package downloaded. Preview the MP4 and paste the included posting copy when you publish.";
         viralShareButton.disabled = false;
         trackViralLaunchEvent("viral_render_complete");
+        recordForgeUsage("viralRenders");
         toast("Viral Remix video downloaded");
       } catch (error) {
         document.getElementById("viralProgress").textContent = error.message;
@@ -3770,6 +3783,7 @@
         }
 
         trackViralLaunchEvent("viral_share");
+        recordForgeUsage("viralShares");
       } catch (error) {
         if (error && error.name === "AbortError") return;
         toast("Sharing was blocked by the browser");
