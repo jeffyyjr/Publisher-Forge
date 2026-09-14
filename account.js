@@ -3,6 +3,7 @@ const STORAGE_KEYS = Object.freeze({
   revenueTests: "pfRevenueTests",
   trendHistory: "publisherForge.trendHistory.v1",
   opportunities: "publisherForge.moneyAgentOpportunities.v1",
+  usageStats: "publisherForge.usageStats.v1",
   moneyAgentSettings: "publisherForge.moneyAgentSettings.v2",
   commandCenterPlan: "publisherForge.commandCenterPlan.v1"
 });
@@ -25,6 +26,7 @@ function localState() {
     revenueTests: readJson(STORAGE_KEYS.revenueTests, []),
     trendHistory: readJson(STORAGE_KEYS.trendHistory, []),
     opportunities: readJson(STORAGE_KEYS.opportunities, []),
+    usageStats: readJson(STORAGE_KEYS.usageStats, {}),
     moneyAgentSettings: readJson(STORAGE_KEYS.moneyAgentSettings, {}),
     commandCenterPlan: readJson(STORAGE_KEYS.commandCenterPlan, null)
   };
@@ -34,7 +36,7 @@ function writeLocalState(state) {
   Object.entries(STORAGE_KEYS).forEach(([field, key]) => {
     const value = state?.[field];
     if (value == null && field === "commandCenterPlan") localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(value ?? (field === "moneyAgentSettings" ? {} : [])));
+    else localStorage.setItem(key, JSON.stringify(value ?? (["moneyAgentSettings", "usageStats"].includes(field) ? {} : [])));
   });
 }
 
@@ -97,6 +99,9 @@ function renderStats(value) {
   byId("statTrendScans").textContent = String(stats.trendScans || 0);
   byId("statRevenueTests").textContent = String(stats.revenueTests || 0);
   byId("statOpportunities").textContent = String(stats.opportunities || 0);
+  byId("statViralScans").textContent = String(stats.viralScans || 0);
+  byId("statViralRenders").textContent = String(stats.viralRenders || 0);
+  byId("statViralShares").textContent = String(stats.viralShares || 0);
   byId("statViews").textContent = String(stats.views || 0);
   byId("statOrders").textContent = String(stats.orders || 0);
   byId("statGross").textContent = money(stats.grossRevenue);
