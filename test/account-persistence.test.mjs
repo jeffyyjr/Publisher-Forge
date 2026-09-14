@@ -39,6 +39,7 @@ test("account page and sync helper are served", async () => {
   assert.match(html, /id="statProjects"/);
   assert.match(html, /id="statProfit"/);
   assert.match(html, /id="quotaGrid"/);
+  assert.match(html, /id="growthDashboardLink"/);
   assert.equal(sync.status, 200);
   assert.match(sync.headers.get("content-type") || "", /javascript/);
   assert.equal(badge.status, 200);
@@ -50,19 +51,38 @@ test("account page and sync helper are served", async () => {
 
 test("account registration creates a session and versioned state", async () => {
   const email = `forge-${Date.now()}@example.com`;
+  const launch = await fetch(baseUrl + "/api/launch-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event: "page_view",
+      source: "tiktok",
+      campaign: "beta_feeler",
+      content: "test_angle",
+      path: "/launch"
+    })
+  });
+  const visitorCookie = (launch.headers.get("set-cookie") || "").split(";")[0];
+  assert.equal(launch.status, 204);
+  assert.match(visitorCookie, /pf_visit=/);
+
   const register = await fetch(baseUrl + "/api/account/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: visitorCookie },
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password: "strong-test-password" })
   });
   const registered = await register.json();
-  const cookie = register.headers.get("set-cookie");
+  const sessionSetCookie = register.headers.get("set-cookie");
+  const sessionCookie = (sessionSetCookie || "").split(";")[0];
+  const cookie = [visitorCookie, sessionCookie].filter(Boolean).join("; ");
 
   assert.equal(register.status, 201);
   assert.equal(registered.user.email, email);
-  assert.match(cookie || "", /pf_session=/);
-  assert.match(cookie || "", /HttpOnly/);
-  assert.match(cookie || "", /SameSite=Lax/);
+  assert.match(sessionSetCookie || "", /pf_session=/);
+  assert.match(sessionSetCookie || "", /HttpOnly/);
+  assert.match(sessionSetCookie || "", /SameSite=Lax/);
 
   const limitsResponse = await fetch(baseUrl + "/api/account/limits", {
     headers: { Cookie: cookie }
@@ -165,4 +185,35 @@ test("account registration creates a session and versioned state", async () => {
   }).then((response) => response.json());
   assert.equal(updatedLimits.limits.trendRadar.used, 3);
   assert.equal(updatedLimits.limits.trendRadar.remaining, 0);
+
+  const deniedGrowth = await fetch(baseUrl + "/api/admin/growth?days=30", {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(deniedGrowth.status, 403);
+
+  process.env.PF_ADMIN_EMAILS = email;
+  try {
+    const growthResponse = await fetch(baseUrl + "/api/admin/growth?days=30", {
+      headers: { Cookie: cookie }
+    });
+    const growth = await growthResponse.json();
+    assert.equal(growthResponse.status, 200);
+    assert.equal(growth.totals.visitors, 1);
+    assert.equal(growth.totals.signups, 1);
+    assert.equal(growth.totals.featureUses, 3);
+    assert.equal(growth.sources[0].source, "tiktok");
+    assert.equal(growth.sources[0].campaign, "beta_feeler");
+    assert.equal(growth.sources[0].content, "test_angle");
+    assert.equal(growth.sources[0].signups, 1);
+    assert.equal(growth.sources[0].featureUses, 3);
+
+    const growthPage = await fetch(baseUrl + "/admin/growth", {
+      headers: { Cookie: cookie },
+      redirect: "manual"
+    });
+    assert.equal(growthPage.status, 200);
+    assert.match(await growthPage.text(), /Growth Dashboard/);
+  } finally {
+    delete process.env.PF_ADMIN_EMAILS;
+  }
 });
