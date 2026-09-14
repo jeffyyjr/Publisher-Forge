@@ -155,11 +155,19 @@ function safeObject(value) {
 
 function normalizeState(value) {
   const state = safeObject(value);
+  const usage = safeObject(state.usageStats);
+  const count = (value) => Math.max(0, Math.min(1000000000, Math.round(Number(value) || 0)));
   return {
     projectVault: Array.isArray(state.projectVault) ? state.projectVault.slice(0, 250) : [],
     revenueTests: Array.isArray(state.revenueTests) ? state.revenueTests.slice(0, 1000) : [],
     trendHistory: normalizeHistory(state.trendHistory),
     opportunities: Array.isArray(state.opportunities) ? state.opportunities.slice(0, 150) : [],
+    usageStats: {
+      viralScans: count(usage.viralScans),
+      viralRenders: count(usage.viralRenders),
+      viralShares: count(usage.viralShares),
+      updatedAt: String(usage.updatedAt || "").slice(0, 100)
+    },
     moneyAgentSettings: safeObject(state.moneyAgentSettings),
     commandCenterPlan: state.commandCenterPlan && typeof state.commandCenterPlan === "object"
       ? state.commandCenterPlan
@@ -194,7 +202,10 @@ function accountStats(state) {
     grossRevenue: Math.round(totals.grossRevenue * 100) / 100,
     netProfit: Math.round(totals.netProfit * 100) / 100,
     orders: Math.round(totals.orders),
-    views: Math.round(totals.views)
+    views: Math.round(totals.views),
+    viralScans: normalized.usageStats.viralScans,
+    viralRenders: normalized.usageStats.viralRenders,
+    viralShares: normalized.usageStats.viralShares
   };
 }
 
