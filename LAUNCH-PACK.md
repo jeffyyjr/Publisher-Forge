@@ -182,6 +182,8 @@ Events currently include:
 - `view_demo`
 - `view_repo`
 - `feedback`
+- `viral_scan_complete`
+- `viral_render_complete`
 - `viral_share`
 
 The server writes these as one-line JSON records prefixed with `publisher_forge_launch`. On Render, search service logs for that prefix to see traffic and CTA activity without adding a paid analytics service.
