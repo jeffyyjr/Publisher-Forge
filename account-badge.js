@@ -19,15 +19,24 @@
       return;
     }
 
-    const stats = await json("/api/account/stats");
+    const [stats, limits] = await Promise.all([
+      json("/api/account/stats"),
+      json("/api/account/limits")
+    ]);
     const tracked = (stats?.stats?.projects || 0) +
       (stats?.stats?.revenueTests || 0) +
       (stats?.stats?.trendScans || 0) +
       (stats?.stats?.viralRenders || 0);
+    const videoRemaining = limits?.limits?.viralRender?.remaining;
 
-    link.textContent = tracked
-      ? "Stats · " + tracked
-      : "Stats & Account";
+    if (limits?.admin) {
+      link.textContent = "Admin · Stats";
+    } else if (Number.isFinite(videoRemaining)) {
+      link.textContent = "Stats · " + videoRemaining + " video left";
+    } else {
+      link.textContent = tracked ? "Stats · " + tracked : "Stats & Account";
+    }
+
     link.title = status.user?.email
       ? "Signed in as " + status.user.email
       : "Open your Publisher Forge account";
