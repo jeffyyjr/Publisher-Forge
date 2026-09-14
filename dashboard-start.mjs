@@ -139,6 +139,14 @@ function registerMoneyDashboard(application = app) {
     res.sendFile(path.join(__dirname, "account-sync.js"));
   });
 
+  application.get("/account-badge.js", (req, res) => {
+    res.set({
+      "Cache-Control": "no-store",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    res.sendFile(path.join(__dirname, "account-badge.js"));
+  });
+
   return application;
 }
 
