@@ -432,7 +432,7 @@ function registerAccountPersistence(application, options = {}) {
 
   function recordGrowth(req, res, event, fields = {}) {
     const occurredAt = new Date().toISOString();
-    const visitKey = visitorKey(req, res);
+    const visitKey = fields.visitorKey || visitorKey(req, res);
     const userKey = fields.userId ? anonymousKey(fields.userId) : "";
     const clean = (value, max = 120) =>
       String(value || "").replace(/[\r\n\t]/g, " ").trim().slice(0, max);
@@ -581,7 +581,8 @@ function registerAccountPersistence(application, options = {}) {
     recordGrowth(req, res, "quota_consumed", {
       ...attribution,
       feature,
-      userId: auth.user.id
+      userId: auth.user.id,
+      visitorKey: visitKey
     });
     console.log(JSON.stringify({
       type: "publisher_forge_usage",
@@ -674,7 +675,11 @@ function registerAccountPersistence(application, options = {}) {
       issueSession(req, res, id);
       const visitKey = visitorKey(req, res);
       const attribution = latestVisitorAttribution.get(visitKey) || {};
-      recordGrowth(req, res, "account_created", { ...attribution, userId: id });
+      recordGrowth(req, res, "account_created", {
+        ...attribution,
+        userId: id,
+        visitorKey: visitKey
+      });
       console.log(JSON.stringify({
         type: "publisher_forge_account",
         timestamp: now,
