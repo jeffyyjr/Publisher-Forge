@@ -1585,10 +1585,10 @@
       <div class="radar-grid">
         <article class="panel radar-controls">
           <div class="panel-head">
-            <p class="eyebrow">Viral Remix · Beta</p>
-            <h2>Build a rights-safe short</h2>
+            <p class="eyebrow">Viral Remix · 2.0</p>
+            <h2>Build a faster rights-safe short</h2>
             <p class="subtext">
-              Match a current viral angle with reusable footage, original narration, and captions.
+              Match a current viral angle with a deeper reusable-footage pool, original narration, captions, and quicker scene changes.
             </p>
           </div>
 
@@ -1636,7 +1636,7 @@
             </button>
 
             <p class="radar-form-note">
-              Viral posts supply trend signals only. Downloads are limited to Public Domain, CC0, and CC BY footage with verified source records.
+              Viral posts supply trend signals only. Footage is pulled from configured reusable providers, then every source is rechecked before rendering.
             </p>
           </div>
         </article>
@@ -1646,7 +1646,7 @@
             <p class="eyebrow" id="viralEyebrow">Remix Workspace</p>
             <h2 id="viralHeading">Ready to find a viral angle</h2>
             <p class="subtext" id="viralSubtext">
-              Publisher Forge will research the angle, select reusable clips, and write a new video.
+              Publisher Forge will research the angle, build a deeper reusable clip pool, and write a faster-cut video.
             </p>
           </div>
 
@@ -1654,7 +1654,7 @@
             <div>
               <div class="empty-icon">▶</div>
               <strong>No remix yet</strong>
-              Six license-verified clip choices and an original script will appear here.
+              A larger rights-verified clip set and an original fast-cut script will appear here.
             </div>
           </div>
 
@@ -3540,7 +3540,7 @@
       document.getElementById("viralScript").textContent =
         formatViralScript(data);
       document.getElementById("viralClipCount").textContent =
-        videos.length + " clips · " + data.duration + "s · " + data.platform;
+        videos.length + " clips · fast-cut · " + data.duration + "s · " + data.platform;
 
       const clipList = document.getElementById("viralClipList");
       clipList.replaceChildren();
@@ -3584,7 +3584,7 @@
       viralRevenueButton.disabled = false;
       document.getElementById("viralProgress").textContent = restored
         ? "Saved scan restored. Every source will be rechecked before rendering."
-        : "Ready. Creating the video downloads, cuts, narrates, captions, and packages the remix automatically.";
+        : "Ready. Creating the video downloads, rapid cuts, narrates, captions, and packages the remix automatically.";
 
       if (!restored) {
         try {
@@ -3642,7 +3642,7 @@
 
       loading(viralRenderButton, true, "Create remix video ZIP");
       document.getElementById("viralProgress").textContent =
-        "Rechecking licenses, downloading clips, recording narration, and rendering the vertical MP4…";
+        "Rechecking licenses, downloading the larger clip set, recording narration, and rendering the fast-cut vertical MP4…";
 
       try {
         const response = await fetch("/api/viral-remix/render", {
