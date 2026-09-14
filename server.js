@@ -359,8 +359,8 @@ const viralRemixSchema = {
     },
     searchTerms: {
       type: "array",
-      minItems: 6,
-      maxItems: 6,
+      minItems: 10,
+      maxItems: 10,
       items: { type: "string" }
     },
     scenes: {
@@ -599,7 +599,7 @@ function safeWebUrl(value, allowedHosts) {
 }
 
 function bestCommonsDerivative(info) {
-  const maxBytes = 32 * 1024 * 1024;
+  const maxBytes = 36 * 1024 * 1024;
   const duration = Number(info?.duration) || 0;
   const allowedHosts = new Set(["upload.wikimedia.org"]);
   const derivatives = Array.isArray(info?.derivatives)
@@ -627,7 +627,7 @@ function bestCommonsDerivative(info) {
     };
   }).filter((item) =>
     item.url &&
-    item.maxDimension >= 426 &&
+    item.maxDimension >= 360 &&
     item.type.startsWith("video/") &&
     (!item.estimatedBytes || item.estimatedBytes <= maxBytes)
   );
@@ -719,7 +719,7 @@ async function queryCommonsVideos(searchTerm) {
     generator: "search",
     gsrsearch: text(searchTerm, 120) + " filetype:video",
     gsrnamespace: "6",
-    gsrlimit: "10",
+    gsrlimit: "18",
     gsrwhat: "text",
     prop: "videoinfo",
     viprop: "url|mime|size|extmetadata|derivatives",
@@ -748,12 +748,43 @@ async function queryCommonsVideos(searchTerm) {
     .filter(Boolean);
 }
 
-async function findReusableVideos(searchTerms, count = 6) {
-  const terms = [...new Set(
+function reusableSearchTerms(searchTerms) {
+  const originals = [...new Set(
     (Array.isArray(searchTerms) ? searchTerms : [])
       .map((item) => text(item, 120))
       .filter(Boolean)
-  )].slice(0, 7);
+  )].slice(0, 10);
+  const stopWords = new Set([
+    "a", "an", "and", "at", "by", "for", "from", "in", "into",
+    "of", "on", "the", "to", "with"
+  ]);
+  const expanded = [...originals];
+
+  for (const term of originals) {
+    const words = String(term).toLowerCase().match(/[a-z0-9]+/g) || [];
+    const useful = words.filter((word) => !stopWords.has(word));
+
+    const variants = [
+      useful.slice(0, 2).join(" "),
+      useful.slice(-2).join(" "),
+      useful.slice(0, 3).join(" "),
+      [...useful].sort((a, b) => b.length - a.length)[0] || ""
+    ];
+
+    for (const variant of variants) {
+      const cleaned = text(variant, 120);
+      if (cleaned && !expanded.includes(cleaned)) expanded.push(cleaned);
+      if (expanded.length >= 12) break;
+    }
+
+    if (expanded.length >= 12) break;
+  }
+
+  return expanded.slice(0, 12);
+}
+
+async function findReusableVideos(searchTerms, count = 6) {
+  const terms = reusableSearchTerms(searchTerms);
 
   if (!terms.length) {
     throw new Error("No reusable-footage search terms were generated.");
@@ -770,7 +801,7 @@ async function findReusableVideos(searchTerms, count = 6) {
     const group = result.value.map((item, itemIndex) => ({
         ...item,
         qualityScore: item.qualityScore +
-          Math.max(0, 14 - termIndex * 2 - itemIndex)
+          Math.max(0, 18 - termIndex - Math.floor(itemIndex / 2))
       }))
       .sort((a, b) => b.qualityScore - a.qualityScore);
 
@@ -800,7 +831,7 @@ async function findReusableVideos(searchTerms, count = 6) {
 
   if (videos.length < 3) {
     throw new Error(
-      "Fewer than three license-verified videos matched this topic. Try a broader topic."
+      "Fewer than three license-verified videos matched after the expanded reusable-footage search. Try a broader topic."
     );
   }
 
@@ -910,7 +941,7 @@ function normalizedRemixPlan(value, duration) {
       ? plan.hashtags.slice(0, 10).map((item) => text(item, 80)).filter(Boolean)
       : [],
     searchTerms: Array.isArray(plan.searchTerms)
-      ? plan.searchTerms.slice(0, 6).map((item) => text(item, 120)).filter(Boolean)
+      ? plan.searchTerms.slice(0, 10).map((item) => text(item, 120)).filter(Boolean)
       : [],
     scenes
   };
@@ -4115,8 +4146,8 @@ app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
     "Use current public evidence, but do not copy, quote, summarize, name, or imitate a specific creator or viral video.",
     "Avoid celebrities, copyrighted characters, private people, breaking tragedies, medical or financial claims, dangerous stunts, political persuasion, and content centered on children.",
     "Create a genuinely original " + duration + "-second narrated video concept with " + wordTarget + " narration words and exactly six scenes.",
-    "Make each search term a simple two-to-four-word visual phrase likely to find reusable video on Wikimedia Commons.",
-    "The six on-screen text lines must be short, specific, and form a complete story. Return exactly six unique search terms and six scenes."
+    "Make each search term a simple, broad two-to-four-word visual phrase likely to find reusable video on Wikimedia Commons. Favor concrete places, objects, actions, nature, machines, and everyday scenes over names or highly specific events.",
+    "The six on-screen text lines must be short, specific, and form a complete story. Return exactly ten unique visual search terms plus exactly six scenes."
   ].join(" ");
 
   try {
@@ -4471,6 +4502,7 @@ export {
   createFixedWindowLimiter,
   findReusableVideos,
   inlineScriptSources,
+  reusableSearchTerms,
   reverifyCommonsVideos,
   renderViralRemix,
   revenueChannel,
