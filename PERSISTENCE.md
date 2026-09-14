@@ -19,8 +19,11 @@ If neither variable is configured, Forge deliberately reports `ephemeral-file` s
 - Project Vault (`pfProjectVault`)
 - Revenue Agent history (`pfRevenueTests`)
 - Opportunity Agent results
+- Viral Remix usage counters (scans, renders, and creator shares)
 - Money Agent settings
 - latest Command Center company plan
+
+Signed-in accounts also expose a private `/api/account/stats` summary for the Account page. It calculates saved projects, trend scans, measured tests, opportunities, Viral Remix activity, tracked views/orders, gross revenue, and net profit from the account copy.
 
 State writes use revision numbers. If another device changed the account copy, Forge returns a conflict instead of silently overwriting the newer data.
 
