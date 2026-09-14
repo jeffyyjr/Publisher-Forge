@@ -4,6 +4,7 @@
     revenueTests: "pfRevenueTests",
     trendHistory: "publisherForge.trendHistory.v1",
     opportunities: "publisherForge.moneyAgentOpportunities.v1",
+    usageStats: "publisherForge.usageStats.v1",
     moneyAgentSettings: "publisherForge.moneyAgentSettings.v2",
     commandCenterPlan: "publisherForge.commandCenterPlan.v1"
   });
@@ -25,6 +26,7 @@
       revenueTests: readJson(KEYS.revenueTests, []),
       trendHistory: readJson(KEYS.trendHistory, []),
       opportunities: readJson(KEYS.opportunities, []),
+      usageStats: readJson(KEYS.usageStats, {}),
       moneyAgentSettings: readJson(KEYS.moneyAgentSettings, {}),
       commandCenterPlan: readJson(KEYS.commandCenterPlan, null)
     };
@@ -34,7 +36,7 @@
     Object.entries(KEYS).forEach(([field, key]) => {
       const value = state?.[field];
       if (value == null && field === "commandCenterPlan") localStorage.removeItem(key);
-      else localStorage.setItem(key, JSON.stringify(value ?? (field === "moneyAgentSettings" ? {} : [])));
+      else localStorage.setItem(key, JSON.stringify(value ?? (["moneyAgentSettings", "usageStats"].includes(field) ? {} : [])));
     });
   }
 
@@ -62,6 +64,7 @@
 
   function empty(state) {
     return !(state.projectVault?.length || state.revenueTests?.length || state.trendHistory?.length || state.opportunities?.length ||
+      Object.values(state.usageStats || {}).some((value) => Number(value) > 0) ||
       Object.keys(state.moneyAgentSettings || {}).length || state.commandCenterPlan);
   }
 
