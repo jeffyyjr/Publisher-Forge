@@ -51,6 +51,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Opportunity Agent source validation that drops any listing URL that cannot be matched back to live web-search evidence
 - Pinterest Agent beta that creates seven-pin traffic campaigns for approved Forge products while keeping posting in Draft until an authorized account is connected and the user approves it
 - Viral Remix beta with live trend research, an original six-scene script, and automatic 9:16 video assembly
+- Viral Remix growth loop with one-tap starter topics, shareable topic deep links, and a post-render Web Share / copy-link action that routes new users through the public beta
 - Multi-source reusable-footage search across Wikimedia Commons plus optional Pixabay when `PIXABAY_API_KEY` is configured
 - Wikimedia footage remains limited to metadata-verified Public Domain, CC0, or CC BY; Pixabay footage is accepted only under the current Pixabay Content License
 - Automatic provider/license recheck before rendering, original voiceover, burned captions, posting copy, source/provider credits, license manifest, and downloadable video ZIP
