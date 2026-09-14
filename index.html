@@ -1954,6 +1954,12 @@
         switchView("revenue");
       });
 
+    const requestedInitialView =
+      new URLSearchParams(window.location.search).get("view");
+    if (["radar", "analyzer", "production", "viral", "revenue"].includes(requestedInitialView)) {
+      switchView(requestedInitialView);
+    }
+
     signalIds.forEach(function (id) {
       const input = document.getElementById(id);
 
@@ -3466,6 +3472,7 @@
       heading.textContent = (index + 1) + ". " +
         (source.title || "Reusable video");
       details.textContent = [
+        source.provider || "Wikimedia Commons",
         source.creator,
         source.resolution,
         source.durationSeconds ? source.durationSeconds + "s source" : ""
@@ -3526,7 +3533,7 @@
       document.getElementById("viralRightsNote").append(
         rightsLabel,
         document.createTextNode(
-          "Verified " + checked + ". Licenses will be checked again before rendering. Source credits are included automatically; review visible people, logos, and claims before publishing."
+          "Verified " + checked + ". Provider records and licenses will be checked again before rendering. Source/provider credits are included automatically; review visible people, logos, and claims before publishing."
         )
       );
 

@@ -22,6 +22,7 @@ const APP_VERSION = "0.22.0";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
+const PIXABAY_API_KEY = String(process.env.PIXABAY_API_KEY || "").trim();
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -81,8 +82,8 @@ const SECURITY_HEADERS = Object.freeze({
     "font-src 'self' data:",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "img-src 'self' data: blob: https://upload.wikimedia.org",
-    "media-src 'self' blob: https://upload.wikimedia.org",
+    "img-src 'self' data: blob: https://upload.wikimedia.org https://cdn.pixabay.com",
+    "media-src 'self' blob: https://upload.wikimedia.org https://cdn.pixabay.com",
     "object-src 'none'",
     "script-src 'self' " + INLINE_SCRIPT_HASHES.join(" "),
     "style-src 'self' 'unsafe-inline'"
@@ -691,6 +692,10 @@ function normalizeCommonsVideo(page, searchTerm = "") {
 
   return {
     id: String(page.pageid || page.title),
+    provider: "Wikimedia Commons",
+    providerKey: "commons",
+    providerId: String(page.pageid || page.title),
+    sourceKey: "commons:" + page.title,
     commonsTitle: page.title,
     title,
     description: commonsMetadata(metadata, "ImageDescription", 500),
@@ -783,6 +788,149 @@ function reusableSearchTerms(searchTerms) {
   return expanded.slice(0, 12);
 }
 
+function normalizePixabayVideo(hit, searchTerm = "") {
+  const renditions = ["medium", "small", "tiny"]
+    .map((key) => {
+      const item = hit?.videos?.[key] || {};
+      return {
+        key,
+        url: safeWebUrl(item.url, new Set(["cdn.pixabay.com"])),
+        posterUrl: safeWebUrl(item.thumbnail, new Set(["cdn.pixabay.com"])),
+        width: Number(item.width) || 0,
+        height: Number(item.height) || 0,
+        estimatedBytes: Number(item.size) || 0
+      };
+    })
+    .filter((item) =>
+      item.url &&
+      Math.max(item.width, item.height) >= 360 &&
+      (!item.estimatedBytes || item.estimatedBytes <= 36 * 1024 * 1024)
+    );
+
+  if (!hit?.id || !renditions.length) return null;
+
+  renditions.sort((a, b) => {
+    const aTarget = Math.abs(Math.max(a.width, a.height) - 1280);
+    const bTarget = Math.abs(Math.max(b.width, b.height) - 1280);
+    return aTarget - bTarget;
+  });
+  const rendition = renditions[0];
+  const sourceUrl = safeWebUrl(
+    hit.pageURL,
+    new Set(["pixabay.com", "www.pixabay.com"])
+  );
+  if (!sourceUrl) return null;
+
+  const creator = text(hit.user, 220) || "Pixabay contributor";
+  const creatorSlug = creator.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const creatorUrl = safeWebUrl(
+    creatorSlug && hit.user_id
+      ? "https://pixabay.com/users/" + creatorSlug + "-" + hit.user_id + "/"
+      : "",
+    new Set(["pixabay.com", "www.pixabay.com"])
+  );
+  const duration = Math.round(Number(hit.duration) || 0);
+  const title = text(hit.tags, 220) || "Pixabay video " + hit.id;
+  const qualityScore =
+    25 +
+    Math.min(24, Math.round(Math.max(rendition.width, rendition.height) / 45)) +
+    (duration >= 8 ? 12 : 0) +
+    Math.min(12, Math.round(Math.log10(Math.max(1, Number(hit.views) || 1)) * 3));
+
+  return {
+    id: String(hit.id),
+    provider: "Pixabay",
+    providerKey: "pixabay",
+    providerId: String(hit.id),
+    sourceKey: "pixabay:" + hit.id,
+    title,
+    description: text(hit.tags, 500),
+    creator,
+    creatorUrl,
+    license: "Pixabay Content License",
+    licenseClass: "pixabay-content",
+    licenseUrl: "https://pixabay.com/service/license-summary/",
+    attributionRequired: false,
+    attribution: "by " + creator + " via Pixabay",
+    sourceUrl,
+    mediaUrl: rendition.url,
+    posterUrl: rendition.posterUrl,
+    durationSeconds: duration,
+    width: rendition.width,
+    height: rendition.height,
+    resolution: rendition.width + "×" + rendition.height,
+    estimatedBytes: rendition.estimatedBytes,
+    searchTerm: text(searchTerm, 120),
+    qualityScore
+  };
+}
+
+async function queryPixabayVideos(searchTerm) {
+  if (!PIXABAY_API_KEY) return [];
+
+  const params = new URLSearchParams({
+    key: PIXABAY_API_KEY,
+    q: text(searchTerm, 100),
+    video_type: "all",
+    safesearch: "true",
+    order: "popular",
+    per_page: "30"
+  });
+  const response = await fetch(
+    "https://pixabay.com/api/videos/?" + params.toString(),
+    {
+      headers: {
+        "User-Agent": "PublisherForge/0.22 (https://github.com/jeffyyjr/Publisher-Forge)"
+      },
+      signal: AbortSignal.timeout(20000)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Pixabay reusable-footage search returned " + response.status + ".");
+  }
+
+  const data = await response.json();
+  return (Array.isArray(data?.hits) ? data.hits : [])
+    .map((hit) => normalizePixabayVideo(hit, searchTerm))
+    .filter(Boolean);
+}
+
+async function queryPixabayVideoById(id, searchTerm = "") {
+  if (!PIXABAY_API_KEY) {
+    throw new Error("A Pixabay source cannot be rechecked until PIXABAY_API_KEY is configured.");
+  }
+
+  const safeId = /^\d+$/.test(String(id || "")) ? String(id) : "";
+  if (!safeId) throw new Error("A Pixabay source identifier was invalid.");
+
+  const params = new URLSearchParams({
+    key: PIXABAY_API_KEY,
+    id: safeId,
+    safesearch: "true",
+    per_page: "3"
+  });
+  const response = await fetch(
+    "https://pixabay.com/api/videos/?" + params.toString(),
+    {
+      headers: {
+        "User-Agent": "PublisherForge/0.22 (https://github.com/jeffyyjr/Publisher-Forge)"
+      },
+      signal: AbortSignal.timeout(20000)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not recheck a Pixabay source.");
+  }
+
+  const data = await response.json();
+  const hit = (Array.isArray(data?.hits) ? data.hits : [])
+    .find((item) => String(item?.id) === safeId);
+  return hit ? normalizePixabayVideo(hit, searchTerm) : null;
+}
+
 async function findReusableVideos(searchTerms, count = 6) {
   const terms = reusableSearchTerms(searchTerms);
 
@@ -791,7 +939,15 @@ async function findReusableVideos(searchTerms, count = 6) {
   }
 
   const results = await Promise.allSettled(
-    terms.map((term) => queryCommonsVideos(term))
+    terms.map(async (term) => {
+      const providers = await Promise.allSettled([
+        queryCommonsVideos(term),
+        queryPixabayVideos(term)
+      ]);
+      return providers.flatMap((result) =>
+        result.status === "fulfilled" ? result.value : []
+      );
+    })
   );
   const groups = [];
 
@@ -809,20 +965,27 @@ async function findReusableVideos(searchTerms, count = 6) {
   });
 
   const selected = [];
-  const selectedTitles = new Set();
+  const selectedKeys = new Set();
+  const providerCounts = new Map();
 
   groups.forEach((group) => {
     if (selected.length >= count) return;
     const candidate = group.find((item) =>
-      !selectedTitles.has(item.commonsTitle)
-    );
+      !selectedKeys.has(item.sourceKey) &&
+      (providerCounts.get(item.providerKey) || 0) < Math.ceil(count * 0.75)
+    ) || group.find((item) => !selectedKeys.has(item.sourceKey));
     if (!candidate) return;
+
     selected.push(candidate);
-    selectedTitles.add(candidate.commonsTitle);
+    selectedKeys.add(candidate.sourceKey);
+    providerCounts.set(
+      candidate.providerKey,
+      (providerCounts.get(candidate.providerKey) || 0) + 1
+    );
   });
 
   const remaining = groups.flat()
-    .filter((item) => !selectedTitles.has(item.commonsTitle))
+    .filter((item) => !selectedKeys.has(item.sourceKey))
     .sort((a, b) => b.qualityScore - a.qualityScore)
     .slice(0, Math.max(0, count - selected.length));
   const videos = selected.concat(remaining)
@@ -831,7 +994,7 @@ async function findReusableVideos(searchTerms, count = 6) {
 
   if (videos.length < 3) {
     throw new Error(
-      "Fewer than three license-verified videos matched after the expanded reusable-footage search. Try a broader topic."
+      "Fewer than three rights-verified videos matched after the expanded multi-source search. Try a broader topic."
     );
   }
 
@@ -845,9 +1008,7 @@ async function reverifyCommonsVideos(titles) {
       .filter((item) => /^File:[^|]{1,250}$/i.test(item))
   )].slice(0, 6);
 
-  if (safeTitles.length < 3) {
-    throw new Error("Choose at least three license-verified source videos.");
-  }
+  if (!safeTitles.length) return [];
 
   const params = new URLSearchParams({
     action: "query",
@@ -863,14 +1024,14 @@ async function reverifyCommonsVideos(titles) {
     "https://commons.wikimedia.org/w/api.php?" + params.toString(),
     {
       headers: {
-        "User-Agent": "PublisherForge/0.20 (https://github.com/jeffyyjr/Publisher-Forge)"
+        "User-Agent": "PublisherForge/0.22 (https://github.com/jeffyyjr/Publisher-Forge)"
       },
       signal: AbortSignal.timeout(25000)
     }
   );
 
   if (!response.ok) {
-    throw new Error("Could not recheck the footage licenses.");
+    throw new Error("Could not recheck the Wikimedia Commons footage licenses.");
   }
 
   const data = await response.json();
@@ -880,11 +1041,57 @@ async function reverifyCommonsVideos(titles) {
       .filter(Boolean)
       .map((item) => [item.commonsTitle, item])
   );
-  const ordered = safeTitles.map((title) => verified.get(title)).filter(Boolean);
 
-  if (ordered.length !== safeTitles.length) {
+  return safeTitles.map((title) => verified.get(title)).filter(Boolean);
+}
+
+async function reverifyReusableVideos(requestedVideos) {
+  const requested = (Array.isArray(requestedVideos) ? requestedVideos : [])
+    .slice(0, 6)
+    .filter((item) => item && typeof item === "object");
+
+  if (requested.length < 3) {
+    throw new Error("Choose at least three rights-verified source videos.");
+  }
+
+  const commonsRequested = requested.filter((item) =>
+    (item.providerKey || "commons") === "commons"
+  );
+  const commonsFresh = await reverifyCommonsVideos(
+    commonsRequested.map((item) => item.commonsTitle)
+  );
+  const freshMap = new Map(
+    commonsFresh.map((item) => [item.sourceKey, item])
+  );
+
+  const pixabayRequested = requested.filter((item) =>
+    item.providerKey === "pixabay"
+  );
+  const pixabayFresh = await Promise.all(
+    pixabayRequested.map((item) =>
+      queryPixabayVideoById(item.providerId || item.id, item.searchTerm)
+    )
+  );
+  pixabayFresh.filter(Boolean).forEach((item) => {
+    freshMap.set(item.sourceKey, item);
+  });
+
+  const ordered = requested.map((item) => {
+    const providerKey = item.providerKey || "commons";
+    const sourceKey = item.sourceKey ||
+      (providerKey === "commons"
+        ? "commons:" + text(item.commonsTitle, 260)
+        : providerKey + ":" + text(item.providerId || item.id, 260));
+    const fresh = freshMap.get(sourceKey);
+    return fresh ? {
+      ...fresh,
+      searchTerm: text(item.searchTerm, 120)
+    } : null;
+  });
+
+  if (ordered.some((item) => !item)) {
     throw new Error(
-      "One or more source licenses changed or could not be verified. Run a new scan."
+      "One or more source licenses or provider records changed or could not be reverified. Run a new scan."
     );
   }
 
@@ -992,10 +1199,12 @@ function safeFilename(value) {
 function sourceCredits(sources) {
   return sources.map((source, index) => [
     String(index + 1) + ". " + source.title,
+    "Provider: " + (source.provider || "Wikimedia Commons"),
     "Creator: " + source.creator,
     "License: " + source.license + " — " + source.licenseUrl,
+    source.creatorUrl ? "Creator page: " + source.creatorUrl : "",
     "Source: " + source.sourceUrl
-  ].join("\n")).join("\n\n");
+  ].filter(Boolean).join("\n")).join("\n\n");
 }
 
 function postingCopy(plan, sources) {
@@ -1006,7 +1215,7 @@ function postingCopy(plan, sources) {
   return [
     plan.postCaption,
     hashtags,
-    "Production note: original AI-generated narration over licensed reusable footage.",
+    "Production note: original AI-generated narration over rights-verified reusable footage.",
     "",
     "FOOTAGE CREDITS",
     sourceCredits(sources)
@@ -1046,14 +1255,17 @@ function runFfmpeg(args, timeoutMs = 240000) {
   });
 }
 
-async function downloadCommonsVideo(source, destination) {
-  const allowedHosts = new Set(["upload.wikimedia.org"]);
+async function downloadReusableVideo(source, destination) {
+  const provider = source?.providerKey || "commons";
+  const allowedHosts = provider === "pixabay"
+    ? new Set(["cdn.pixabay.com"])
+    : new Set(["upload.wikimedia.org"]);
   const url = safeWebUrl(source.mediaUrl, allowedHosts);
   if (!url) throw new Error("A source video URL was not trusted.");
 
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "PublisherForge/0.20 (https://github.com/jeffyyjr/Publisher-Forge)"
+      "User-Agent": "PublisherForge/0.22 (https://github.com/jeffyyjr/Publisher-Forge)"
     },
     signal: AbortSignal.timeout(90000)
   });
@@ -1152,7 +1364,7 @@ async function renderViralRemix(
       ""
     ].join("\n");
 
-    await downloadCommonsVideo(source, inputPath);
+    await downloadReusableVideo(source, inputPath);
     await fs.writeFile(segmentCaptionPath, segmentSrt, "utf8");
     await runFfmpeg([
       "-hide_banner", "-loglevel", "error", "-y",
@@ -4183,6 +4395,10 @@ app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
 
     const videos = await findReusableVideos(searchTerms, 6);
     const rightsCheckedAt = new Date().toISOString();
+    const footageProviders = [
+      "Wikimedia Commons",
+      ...(PIXABAY_API_KEY ? ["Pixabay"] : [])
+    ];
 
     res.json({
       status: "READY_TO_RENDER",
@@ -4193,12 +4409,13 @@ app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
       topic,
       plan,
       videos,
+      footageProviders,
       trendSources: getSources(response),
       rightsPolicy: {
-        accepted: ["Public Domain", "CC0", "CC BY"],
+        accepted: ["Public Domain", "CC0", "CC BY", "Pixabay Content License"],
         rejected: ["Unknown", "Standard social-platform license", "CC BY-NC", "CC BY-ND", "CC BY-SA"],
         note:
-          "Trend research supplies the idea. Only metadata-verified reusable footage is downloaded, and every license is rechecked before rendering."
+          "Trend research supplies the idea. Forge searches configured reusable-footage providers, transforms the footage into a new narrated edit, and rechecks every provider record or license immediately before rendering."
       },
       humanApprovalRequired: true
     });
@@ -4235,10 +4452,6 @@ app.post(
   const requestedVideos = Array.isArray(req.body.videos)
     ? req.body.videos.slice(0, 6)
     : [];
-  const titles = requestedVideos.length
-    ? requestedVideos.map((item) => item?.commonsTitle)
-    : [];
-
   if (!plan.narration || plan.scenes.length < 3) {
     return res.status(400).json({
       error: "Remix plan is incomplete",
@@ -4251,14 +4464,7 @@ app.post(
   let tempDirectory = "";
 
   try {
-    const requestedTerms = new Map(requestedVideos.map((item) => [
-      text(item?.commonsTitle, 260),
-      text(item?.searchTerm, 120)
-    ]));
-    const sources = (await reverifyCommonsVideos(titles)).map((source) => ({
-      ...source,
-      searchTerm: requestedTerms.get(source.commonsTitle) || ""
-    }));
+    const sources = await reverifyReusableVideos(requestedVideos);
     tempDirectory = await fs.mkdtemp(tempPrefix);
     const rendered = await renderViralRemix(
       plan,
@@ -4286,7 +4492,7 @@ app.post(
       plan,
       rights: {
         checkedAt: createdAt,
-        acceptedLicenses: ["Public Domain", "CC0", "CC BY"],
+        acceptedLicenses: [...new Set(sources.map((source) => source.license))],
         allSourcesReverified: true,
         sources
       },
@@ -4305,12 +4511,12 @@ app.post(
       "BEFORE POSTING",
       "1. Watch the MP4 once and confirm every visual fits the narration.",
       "2. Paste posting-copy.txt into the platform caption or description.",
-      "3. Keep the source credits intact, especially for CC BY footage.",
+      "3. Keep the included source/provider credits intact; CC BY attribution is mandatory and provider credits help preserve a clean audit trail.",
       "4. Use the platform's AI or synthetic-media disclosure when its rules require it.",
       "5. Publish only after your approval; Publisher Forge does not auto-post.",
       "",
       "RIGHTS NOTE",
-      "Every included source was rechecked as Public Domain, CC0, or CC BY immediately before rendering. This metadata check does not clear separate privacy, publicity, trademark, endorsement, or local-law issues visible in the footage.",
+      "Every included source was rechecked against its current provider record immediately before rendering. Wikimedia clips must remain Public Domain, CC0, or CC BY; Pixabay clips must remain available under the Pixabay Content License. This check does not clear separate privacy, publicity, trademark, endorsement, or local-law issues visible in the footage.",
       "",
       "FILES",
       "captions.srt — editable caption timing",
@@ -4504,9 +4710,12 @@ export {
   inlineScriptSources,
   reusableSearchTerms,
   reverifyCommonsVideos,
+  reverifyReusableVideos,
   renderViralRemix,
   revenueChannel,
   normalizedRemixPlan,
   remixCaptions,
-  runFfmpeg
+  runFfmpeg,
+  queryPixabayVideos,
+  normalizePixabayVideo
 };
