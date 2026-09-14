@@ -9,17 +9,69 @@ const SESSION_COOKIE = "pf_session";
 const SESSION_DAYS = 30;
 const MAX_STATE_BYTES = 1_500_000;
 
+function unescapeMountPath(value) {
+  return String(value || "")
+    .replace(/\\040/g, " ")
+    .replace(/\\011/g, "\t")
+    .replace(/\\012/g, "\n")
+    .replace(/\\134/g, "\\");
+}
+
+function dedicatedMountFor(targetPath) {
+  if (process.platform !== "linux") return null;
+  try {
+    const target = path.resolve(targetPath);
+    const lines = fs.readFileSync("/proc/self/mountinfo", "utf8").split("\n");
+    let best = null;
+    for (const line of lines) {
+      if (!line) continue;
+      const fields = line.split(" ");
+      if (fields.length < 6) continue;
+      const mountPoint = path.resolve(unescapeMountPath(fields[4]));
+      const inside = target === mountPoint || target.startsWith(mountPoint + path.sep);
+      if (!inside || mountPoint === path.parse(mountPoint).root) continue;
+      if (!best || mountPoint.length > best.length) best = mountPoint;
+    }
+    return best;
+  } catch (error) {
+    return null;
+  }
+}
+
+function persistentPathAvailable(targetPath) {
+  if (process.env.NODE_ENV === "test") return false;
+  if (process.env.PF_ASSUME_PERSISTENT_STORAGE === "1") return true;
+  return Boolean(dedicatedMountFor(targetPath));
+}
+
+function ephemeralConfig(mode = "ephemeral-file") {
+  const fallbackDir = path.join(os.tmpdir(), "publisher-forge-data");
+  fs.mkdirSync(fallbackDir, { recursive: true });
+  return {
+    path: path.join(fallbackDir, "publisher-forge.sqlite"),
+    persistent: false,
+    mode
+  };
+}
+
 function databaseConfig() {
   if (process.env.NODE_ENV === "test") {
     return { path: ":memory:", persistent: false, mode: "test-memory" };
   }
   const explicitPath = String(process.env.PF_DB_PATH || "").trim();
   if (explicitPath) {
-    fs.mkdirSync(path.dirname(explicitPath), { recursive: true });
+    const directory = path.dirname(explicitPath);
+    if (!persistentPathAvailable(directory)) {
+      return ephemeralConfig("configured-path-not-mounted");
+    }
+    fs.mkdirSync(directory, { recursive: true });
     return { path: explicitPath, persistent: true, mode: "persistent-file" };
   }
   const dataDir = String(process.env.PF_DATA_DIR || "").trim();
   if (dataDir) {
+    if (!persistentPathAvailable(dataDir)) {
+      return ephemeralConfig("configured-directory-not-mounted");
+    }
     fs.mkdirSync(dataDir, { recursive: true });
     return {
       path: path.join(dataDir, "publisher-forge.sqlite"),
@@ -27,13 +79,7 @@ function databaseConfig() {
       mode: "persistent-directory"
     };
   }
-  const fallbackDir = path.join(os.tmpdir(), "publisher-forge-data");
-  fs.mkdirSync(fallbackDir, { recursive: true });
-  return {
-    path: path.join(fallbackDir, "publisher-forge.sqlite"),
-    persistent: false,
-    mode: "ephemeral-file"
-  };
+  return ephemeralConfig();
 }
 
 function createStore(config = databaseConfig()) {
@@ -381,6 +427,7 @@ function registerAccountPersistence(application, options = {}) {
 export {
   createStore,
   databaseConfig,
+  dedicatedMountFor,
   normalizeState,
   accountStats,
   registerAccountPersistence
