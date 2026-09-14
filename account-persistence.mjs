@@ -8,6 +8,15 @@ import { normalizeHistory } from "./trend-evidence.mjs";
 const SESSION_COOKIE = "pf_session";
 const SESSION_DAYS = 30;
 const MAX_STATE_BYTES = 1_500_000;
+const QUOTA_TIMEZONE = String(process.env.PF_QUOTA_TIMEZONE || "America/New_York").trim() || "America/New_York";
+const DAILY_QUOTAS = Object.freeze({
+  trendRadar: { label: "Trend Radar scans", limit: 3 },
+  analysis: { label: "AI analysis + review calls", limit: 6 },
+  productBuild: { label: "Full product builds", limit: 1 },
+  artGeneration: { label: "AI artwork batches", limit: 4 },
+  viralScout: { label: "Viral Remix scans", limit: 2 },
+  viralRender: { label: "Viral Remix renders", limit: 1 }
+});
 
 function unescapeMountPath(value) {
   return String(value || "")
@@ -107,6 +116,16 @@ function createStore(config = databaseConfig()) {
       revision INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS daily_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      usage_date TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, usage_date, feature)
+    );
+    CREATE INDEX IF NOT EXISTS daily_usage_user_date_idx
+      ON daily_usage(user_id, usage_date);
   `);
   return { db, config };
 }
@@ -225,6 +244,43 @@ function publicUser(row) {
   return row ? { id: row.id, email: row.email, createdAt: row.created_at } : null;
 }
 
+function adminEmails() {
+  return new Set(
+    String(process.env.PF_ADMIN_EMAILS || process.env.PF_ADMIN_EMAIL || "")
+      .split(",")
+      .map(normalizeEmail)
+      .filter(Boolean)
+  );
+}
+
+function isAdminUser(user) {
+  return Boolean(user?.email && adminEmails().has(normalizeEmail(user.email)));
+}
+
+function quotaDate(timestamp = Date.now()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: QUOTA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(timestamp));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return values.year + "-" + values.month + "-" + values.day;
+}
+
+function nextQuotaReset(timestamp = Date.now()) {
+  const day = quotaDate(timestamp);
+  let low = timestamp;
+  let high = timestamp + 36 * 60 * 60 * 1000;
+  while (quotaDate(high) === day) high += 12 * 60 * 60 * 1000;
+  while (high - low > 1000) {
+    const mid = Math.floor((low + high) / 2);
+    if (quotaDate(mid) === day) low = mid;
+    else high = mid;
+  }
+  return new Date(high).toISOString();
+}
+
 function accountStats(state) {
   const normalized = normalizeState(state);
   const revenueTests = normalized.revenueTests;
@@ -272,6 +328,14 @@ function registerAccountPersistence(application, options = {}) {
   const findState = db.prepare("SELECT state_json, revision, updated_at FROM user_state WHERE user_id = ?");
   const insertState = db.prepare("INSERT INTO user_state (user_id,state_json,revision,updated_at) VALUES (?,?,1,?)");
   const updateState = db.prepare("UPDATE user_state SET state_json = ?, revision = revision + 1, updated_at = ? WHERE user_id = ?");
+  const findDailyUsage = db.prepare("SELECT feature, count FROM daily_usage WHERE user_id = ? AND usage_date = ?");
+  const findFeatureUsage = db.prepare("SELECT count FROM daily_usage WHERE user_id = ? AND usage_date = ? AND feature = ?");
+  const incrementFeatureUsage = db.prepare(`
+    INSERT INTO daily_usage (user_id,usage_date,feature,count,updated_at)
+    VALUES (?,?,?,?,?)
+    ON CONFLICT(user_id,usage_date,feature)
+    DO UPDATE SET count = daily_usage.count + 1, updated_at = excluded.updated_at
+  `);
 
   function authenticated(req) {
     const token = cookieMap(req.headers.cookie)[SESSION_COOKIE];
@@ -295,6 +359,76 @@ function registerAccountPersistence(application, options = {}) {
     }
     return auth;
   }
+
+  function quotaPayload(user) {
+    const admin = isAdminUser(user);
+    const day = quotaDate();
+    const usageRows = admin ? [] : findDailyUsage.all(user.id, day);
+    const usage = Object.fromEntries(usageRows.map((row) => [row.feature, Number(row.count) || 0]));
+    const limits = Object.fromEntries(
+      Object.entries(DAILY_QUOTAS).map(([feature, config]) => {
+        const used = admin ? 0 : (usage[feature] || 0);
+        return [feature, {
+          label: config.label,
+          limit: admin ? null : config.limit,
+          used,
+          remaining: admin ? null : Math.max(0, config.limit - used)
+        }];
+      })
+    );
+    return {
+      admin,
+      date: day,
+      timezone: QUOTA_TIMEZONE,
+      resetAt: nextQuotaReset(),
+      limits
+    };
+  }
+
+  function consumeQuota(req, res, feature) {
+    const auth = requireAuth(req, res);
+    if (!auth) return false;
+    const config = DAILY_QUOTAS[feature];
+    if (!config) {
+      res.status(500).json({ error: "Unknown beta limit" });
+      return false;
+    }
+    if (isAdminUser(auth.user)) {
+      req.publisherForgeUser = publicUser(auth.user);
+      req.publisherForgeAdmin = true;
+      return true;
+    }
+
+    const day = quotaDate();
+    const current = Number(findFeatureUsage.get(auth.user.id, day, feature)?.count) || 0;
+    if (current >= config.limit) {
+      const resetAt = nextQuotaReset();
+      const seconds = Math.max(1, Math.ceil((Date.parse(resetAt) - Date.now()) / 1000));
+      res.set("Retry-After", String(seconds));
+      res.status(429).json({
+        error: "Daily beta limit reached",
+        code: "DAILY_LIMIT",
+        feature,
+        message: config.label + " limit reached for today. It resets at midnight " + QUOTA_TIMEZONE + ".",
+        resetAt,
+        quota: quotaPayload(auth.user)
+      });
+      return false;
+    }
+
+    incrementFeatureUsage.run(auth.user.id, day, feature, 1, new Date().toISOString());
+    req.publisherForgeUser = publicUser(auth.user);
+    req.publisherForgeAdmin = false;
+    return true;
+  }
+
+  application.locals.publisherForgeQuota = {
+    consume: consumeQuota,
+    snapshot(req) {
+      const auth = authenticated(req);
+      return auth ? quotaPayload(auth.user) : null;
+    }
+  };
 
   function issueSession(req, res, userId) {
     const token = crypto.randomBytes(32).toString("base64url");
@@ -325,6 +459,7 @@ function registerAccountPersistence(application, options = {}) {
       status: "READY",
       signedIn: Boolean(auth),
       user: auth ? publicUser(auth.user) : null,
+      admin: Boolean(auth && isAdminUser(auth.user)),
       storagePersistent: Boolean(config.persistent),
       storageMode: config.mode
     });
@@ -392,6 +527,12 @@ function registerAccountPersistence(application, options = {}) {
     });
   });
 
+  application.get("/api/account/limits", syncLimiter, (req, res) => {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    res.json(quotaPayload(auth.user));
+  });
+
   application.put("/api/account/state", syncLimiter, (req, res) => {
     if (!requireSameOrigin(req, res)) return;
     const auth = requireAuth(req, res);
@@ -430,5 +571,7 @@ export {
   dedicatedMountFor,
   normalizeState,
   accountStats,
+  quotaDate,
+  nextQuotaReset,
   registerAccountPersistence
 };
