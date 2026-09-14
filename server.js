@@ -182,6 +182,14 @@ const limitExport = createFixedWindowLimiter({
   message: "Wait a few minutes before creating another large export."
 });
 
+function accountQuota(feature) {
+  return function publisherForgeAccountQuota(req, res, next) {
+    const quota = app.locals.publisherForgeQuota;
+    if (!quota || process.env.NODE_ENV === "test") return next();
+    if (quota.consume(req, res, feature)) next();
+  };
+}
+
 const trendReportSchema = {
   type: "object",
   properties: {
@@ -3163,7 +3171,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.post("/api/analyze", limitAI, async (req, res) => {
+app.post("/api/analyze", limitAI, accountQuota("analysis"), async (req, res) => {
   const title = text(req.body.title, 200);
   const market = platform(req.body.platform);
 
@@ -3211,7 +3219,7 @@ app.post("/api/analyze", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/product-brief", limitAI, async (req, res) => {
+app.post("/api/product-brief", limitAI, accountQuota("analysis"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.title, 200);
@@ -3249,7 +3257,7 @@ app.post("/api/product-brief", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/production-package", limitAI, async (req, res) => {
+app.post("/api/production-package", limitAI, accountQuota("productBuild"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.title, 200);
@@ -3315,7 +3323,7 @@ app.post("/api/production-package", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/quality-review", limitAI, async (req, res) => {
+app.post("/api/quality-review", limitAI, accountQuota("analysis"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.title, 200);
@@ -3475,7 +3483,7 @@ app.post("/api/quality-review", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/revise-package", limitAI, async (req, res) => {
+app.post("/api/revise-package", limitAI, accountQuota("analysis"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.title, 200);
@@ -3528,7 +3536,7 @@ app.post("/api/revise-package", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/generate-cover", limitAI, async (req, res) => {
+app.post("/api/generate-cover", limitAI, accountQuota("artGeneration"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.packageTitle || req.body.title, 200);
@@ -3581,7 +3589,7 @@ app.post("/api/generate-cover", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/generate-interior-art", limitAI, async (req, res) => {
+app.post("/api/generate-interior-art", limitAI, accountQuota("artGeneration"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const title = text(req.body.packageTitle || req.body.title, 200);
@@ -4231,7 +4239,7 @@ app.post("/api/export-pdf", async (req, res) => {
   }
 });
 
-app.post("/api/revenue-review", limitAI, async (req, res) => {
+app.post("/api/revenue-review", limitAI, accountQuota("analysis"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   try {
@@ -4341,7 +4349,7 @@ app.post("/api/revenue-review", limitAI, async (req, res) => {
   }
 });
 
-app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
+app.post("/api/viral-remix/scout", limitAI, accountQuota("viralScout"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const selectedPlatform = viralPlatform(req.body.platform);
@@ -4434,6 +4442,7 @@ app.post(
   "/api/viral-remix/render",
   limitAI,
   limitVideoRender,
+  accountQuota("viralRender"),
   async (req, res) => {
   if (!requireOpenAI(res)) return;
   if (!ffmpegPath && !process.env.FFMPEG_PATH) {
@@ -4569,7 +4578,7 @@ app.post(
   }
 );
 
-app.post("/api/trend-radar", limitAI, async (req, res) => {
+app.post("/api/trend-radar", limitAI, accountQuota("trendRadar"), async (req, res) => {
   if (!requireOpenAI(res)) return;
 
   const market = platform(req.body.platform, true);
