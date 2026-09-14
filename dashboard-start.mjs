@@ -85,9 +85,11 @@ function registerMoneyDashboard(application = app) {
       event,
       source: launchField(req.body?.source || "direct"),
       campaign: launchField(req.body?.campaign || "public-beta"),
+      content: launchField(req.body?.content || "", 100),
       path: launchField(req.body?.path || "/launch", 120)
     };
 
+    application.locals.publisherForgeGrowth?.recordLaunch(req, res, record);
     console.log(JSON.stringify(record));
     res.status(204).end();
   });
@@ -145,6 +147,25 @@ function registerMoneyDashboard(application = app) {
       "Content-Type": "text/javascript; charset=utf-8"
     });
     res.sendFile(path.join(__dirname, "account-badge.js"));
+  });
+
+  application.get(["/admin/growth", "/growth-dashboard.html"], (req, res) => {
+    if (!application.locals.publisherForgeGrowth?.isAdmin(req)) {
+      return res.redirect(302, "/account");
+    }
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(__dirname, "growth-dashboard.html"));
+  });
+
+  application.get("/growth-dashboard.js", (req, res) => {
+    if (!application.locals.publisherForgeGrowth?.isAdmin(req)) {
+      return res.status(403).end();
+    }
+    res.set({
+      "Cache-Control": "no-store",
+      "Content-Type": "text/javascript; charset=utf-8"
+    });
+    res.sendFile(path.join(__dirname, "growth-dashboard.js"));
   });
 
   return application;
