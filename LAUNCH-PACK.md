@@ -182,6 +182,7 @@ Events currently include:
 - `view_demo`
 - `view_repo`
 - `feedback`
+- `viral_share`
 
 The server writes these as one-line JSON records prefixed with `publisher_forge_launch`. On Render, search service logs for that prefix to see traffic and CTA activity without adding a paid analytics service.
 
@@ -197,8 +198,9 @@ UTM/source values are accepted from the launch URL and truncated before logging.
 6. Create the Product Hunt account now if needed; new accounts currently have a one-week wait before they can submit a product.
 7. Post the short social announcement and Indie Hackers story first.
 8. Invite early users to report problems, not to praise the product.
-9. Track: landing views → app opens → account attempts → feedback.
-10. Do not add another major agent until outside-user friction gives a stronger reason than internal brainstorming.
+9. Track: landing views → app opens → Viral Remix opens → completed renders → creator shares → account attempts → feedback.
+10. Use the built-in Viral Remix share action after a successful render so creator traffic returns through the measured public-beta funnel.
+11. Do not add another major agent until outside-user friction gives a stronger reason than internal brainstorming.
 
 ## What comes after initial traffic
 

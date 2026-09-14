@@ -43,6 +43,11 @@
     h1{max-width:840px;margin:0;font-size:clamp(2.65rem,8vw,5.7rem);line-height:.96;letter-spacing:-.055em}
     .hero-copy{max-width:760px;margin:22px 0 0;color:#c8d0da;font-size:clamp(1.03rem,2.5vw,1.28rem)}
     .hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+    .starter-wrap{margin-top:22px}
+    .starter-label{margin:0 0 8px;color:var(--muted);font-size:.82rem;font-weight:800}
+    .starter-chips{display:flex;flex-wrap:wrap;gap:8px}
+    .starter-chip{display:inline-flex;align-items:center;min-height:38px;padding:8px 11px;border:1px solid #3b4655;border-radius:999px;background:#111821;color:#dfe5ed;text-decoration:none;font-size:.82rem;font-weight:800}
+    .starter-chip:hover{border-color:#735020;background:#1b170f}
     .proof{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:26px}
     .proof div{padding:13px;border:1px solid var(--line);border-radius:13px;background:#10151c}
     .proof strong{display:block;color:var(--green);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
@@ -113,6 +118,15 @@
           <a class="btn secondary" href="/?view=viral" data-launch-event="open_viral">Create a Short</a>
           <a class="btn secondary" href="/account" data-launch-event="create_account">Create a beta account</a>
           <a class="btn secondary" href="#demo" data-launch-event="view_demo">See the 60-second flow</a>
+        </div>
+        <div class="starter-wrap">
+          <p class="starter-label">Want to test the fastest path? Pick a starter topic:</p>
+          <div class="starter-chips" aria-label="Viral Remix starter topics">
+            <a class="starter-chip" href="/?view=viral&topic=Crazy%20weather%20phenomena" data-launch-event="open_viral">Crazy weather</a>
+            <a class="starter-chip" href="/?view=viral&topic=Deep%20ocean%20discoveries" data-launch-event="open_viral">Deep ocean</a>
+            <a class="starter-chip" href="/?view=viral&topic=Space%20mysteries" data-launch-event="open_viral">Space mysteries</a>
+            <a class="starter-chip" href="/?view=viral&topic=Weird%20animal%20behavior" data-launch-event="open_viral">Weird animals</a>
+          </div>
         </div>
         <div class="proof" aria-label="Current beta capabilities">
           <div><strong>Live</strong><span>KDP + Etsy research</span></div>
