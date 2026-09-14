@@ -12,6 +12,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Live KDP/Etsy/Shopify Trend Radar with cited public web sources
 - Saved Trend Radar research history (last 12 attempts, including failures and timing), refresh restoration, JSON download, and account sync
 - Email/password sign-up and sign-in with synced per-account stats for projects, scans, Viral Remix renders/shares, measured results, views, orders, gross revenue, and net profit
+- Account-based daily beta allowances protect AI/video costs: 3 Trend Radar scans, 6 AI analysis/review calls, 1 full product build, 4 AI artwork batches, 2 Viral Remix scans, and 1 Viral Remix render per day; configured admin accounts are unlimited
 - RV logbook and large-print Thanksgiving activity research presets that do not run paid scans until requested
 - Explicit public-evidence limits: saved scans are not verified sales, score changes are not search growth, and source lists do not establish per-idea corroboration
 - Consistent opportunity scoring and make/validate/skip decisions
