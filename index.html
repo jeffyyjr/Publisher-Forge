@@ -3593,6 +3593,21 @@
       }
     }
 
+    function trackViralLaunchEvent(event) {
+      fetch("/api/launch-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event,
+          source: "viral_remix",
+          campaign: "creator_loop",
+          path: "/?view=viral"
+        }),
+        keepalive: true,
+        credentials: "same-origin"
+      }).catch(function () {});
+    }
+
     async function scanViralRemix() {
       const payload = {
         topic: document.getElementById("viralTopic").value.trim(),
@@ -3622,6 +3637,7 @@
         }
 
         renderViralRemix(data, false);
+        trackViralLaunchEvent("viral_scan_complete");
         toast(data.videos.length + " reusable clips verified");
       } catch (error) {
         setViralMessage(
@@ -3681,6 +3697,7 @@
         document.getElementById("viralProgress").textContent =
           "Remix package downloaded. Preview the MP4 and paste the included posting copy when you publish.";
         viralShareButton.disabled = false;
+        trackViralLaunchEvent("viral_render_complete");
         toast("Viral Remix video downloaded");
       } catch (error) {
         document.getElementById("viralProgress").textContent = error.message;
@@ -3724,18 +3741,7 @@
           toast("Share link copied");
         }
 
-        fetch("/api/launch-event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "viral_share",
-            source: "viral_remix",
-            campaign: "creator_loop",
-            path: "/?view=viral"
-          }),
-          keepalive: true,
-          credentials: "same-origin"
-        }).catch(function () {});
+        trackViralLaunchEvent("viral_share");
       } catch (error) {
         if (error && error.name === "AbortError") return;
         toast("Sharing was blocked by the browser");
