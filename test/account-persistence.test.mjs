@@ -81,6 +81,7 @@ test("account registration creates a session and versioned state", async () => {
         }],
         trendHistory: [{ scannedAt: "2026-09-12T12:00:00Z", platform: "KDP", niche: "RV records", opportunities: [{ title: "RV test" }], sources: [] }],
         opportunities: [{ title: "Opportunity test" }],
+        usageStats: { viralScans: 4, viralRenders: 3, viralShares: 2 },
         moneyAgentSettings: { orchestrator: { mode: "balanced" } },
         commandCenterPlan: null
       }
@@ -106,6 +107,9 @@ test("account registration creates a session and versioned state", async () => {
   assert.equal(stats.stats.orders, 8);
   assert.equal(stats.stats.grossRevenue, 96.5);
   assert.equal(stats.stats.netProfit, 61.25);
+  assert.equal(stats.stats.viralScans, 4);
+  assert.equal(stats.stats.viralRenders, 3);
+  assert.equal(stats.stats.viralShares, 2);
 
   const stale = await fetch(baseUrl + "/api/account/state", {
     method: "PUT",
