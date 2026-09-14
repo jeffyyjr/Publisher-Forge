@@ -4,6 +4,13 @@ import { after, before, test } from "node:test";
 import "../dashboard-start.mjs";
 import { app } from "../server.js";
 
+app.post("/__test/quota/:feature", (req, res) => {
+  const quota = app.locals.publisherForgeQuota;
+  if (!quota) return res.status(500).json({ error: "Quota system missing" });
+  if (!quota.consume(req, res, req.params.feature)) return;
+  res.json({ ok: true });
+});
+
 let server;
 let baseUrl;
 
@@ -31,6 +38,7 @@ test("account page and sync helper are served", async () => {
   assert.match(html, /Save This Device to Account/);
   assert.match(html, /id="statProjects"/);
   assert.match(html, /id="statProfit"/);
+  assert.match(html, /id="quotaGrid"/);
   assert.equal(sync.status, 200);
   assert.match(sync.headers.get("content-type") || "", /javascript/);
   assert.equal(badge.status, 200);
@@ -55,6 +63,18 @@ test("account registration creates a session and versioned state", async () => {
   assert.match(cookie || "", /pf_session=/);
   assert.match(cookie || "", /HttpOnly/);
   assert.match(cookie || "", /SameSite=Lax/);
+
+  const limitsResponse = await fetch(baseUrl + "/api/account/limits", {
+    headers: { Cookie: cookie }
+  });
+  const limits = await limitsResponse.json();
+  assert.equal(limitsResponse.status, 200);
+  assert.equal(limits.admin, false);
+  assert.equal(limits.timezone, "America/New_York");
+  assert.equal(limits.limits.trendRadar.limit, 3);
+  assert.equal(limits.limits.viralScout.limit, 2);
+  assert.equal(limits.limits.viralRender.limit, 1);
+  assert.equal(limits.limits.productBuild.limit, 1);
 
   const initial = await fetch(baseUrl + "/api/account/state", {
     headers: { Cookie: cookie }
@@ -119,4 +139,30 @@ test("account registration creates a session and versioned state", async () => {
   const conflict = await stale.json();
   assert.equal(stale.status, 409);
   assert.equal(conflict.conflict, true);
+
+  for (let i = 0; i < 3; i += 1) {
+    const use = await fetch(baseUrl + "/__test/quota/trendRadar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: "{}"
+    });
+    assert.equal(use.status, 200);
+  }
+
+  const blocked = await fetch(baseUrl + "/__test/quota/trendRadar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: "{}"
+  });
+  const blockedBody = await blocked.json();
+  assert.equal(blocked.status, 429);
+  assert.equal(blockedBody.code, "DAILY_LIMIT");
+  assert.equal(blockedBody.feature, "trendRadar");
+  assert.match(blockedBody.message, /resets at midnight/i);
+
+  const updatedLimits = await fetch(baseUrl + "/api/account/limits", {
+    headers: { Cookie: cookie }
+  }).then((response) => response.json());
+  assert.equal(updatedLimits.limits.trendRadar.used, 3);
+  assert.equal(updatedLimits.limits.trendRadar.remaining, 0);
 });
