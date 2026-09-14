@@ -171,6 +171,33 @@ function publicUser(row) {
   return row ? { id: row.id, email: row.email, createdAt: row.created_at } : null;
 }
 
+function accountStats(state) {
+  const normalized = normalizeState(state);
+  const revenueTests = normalized.revenueTests;
+  const projects = normalized.projectVault;
+  const trendHistory = normalized.trendHistory;
+  const opportunities = normalized.opportunities;
+  const totals = revenueTests.reduce((sum, item) => {
+    const metrics = safeObject(item?.metrics);
+    sum.grossRevenue += Number(metrics.grossRevenue) || 0;
+    sum.netProfit += Number(metrics.netProfit) || 0;
+    sum.orders += Number(metrics.orders) || 0;
+    sum.views += Number(metrics.views) || 0;
+    return sum;
+  }, { grossRevenue: 0, netProfit: 0, orders: 0, views: 0 });
+
+  return {
+    projects: projects.length,
+    revenueTests: revenueTests.length,
+    trendScans: trendHistory.length,
+    opportunities: opportunities.length,
+    grossRevenue: Math.round(totals.grossRevenue * 100) / 100,
+    netProfit: Math.round(totals.netProfit * 100) / 100,
+    orders: Math.round(totals.orders),
+    views: Math.round(totals.views)
+  };
+}
+
 function registerAccountPersistence(application, options = {}) {
   const store = options.store || createStore();
   const { db, config } = store;
@@ -297,6 +324,17 @@ function registerAccountPersistence(application, options = {}) {
     res.json(statePayload(auth.user.id));
   });
 
+  application.get("/api/account/stats", syncLimiter, (req, res) => {
+    const auth = requireAuth(req, res);
+    if (!auth) return;
+    const payload = statePayload(auth.user.id);
+    res.json({
+      revision: payload.revision,
+      updatedAt: payload.updatedAt,
+      stats: accountStats(payload.state)
+    });
+  });
+
   application.put("/api/account/state", syncLimiter, (req, res) => {
     if (!requireSameOrigin(req, res)) return;
     const auth = requireAuth(req, res);
@@ -333,5 +371,6 @@ export {
   createStore,
   databaseConfig,
   normalizeState,
+  accountStats,
   registerAccountPersistence
 };
