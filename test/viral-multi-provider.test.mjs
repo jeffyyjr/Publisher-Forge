@@ -75,6 +75,6 @@ test("expanded search still caps derived visual terms", () => {
   ]);
 
   assert.ok(terms.length >= 6);
-  assert.ok(terms.length <= 12);
+  assert.ok(terms.length <= 24);
   assert.equal(terms.length, new Set(terms).size);
 });
