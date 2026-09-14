@@ -108,6 +108,39 @@ function renderStats(value) {
   byId("statProfit").textContent = money(stats.netProfit);
 }
 
+function renderLimits(data) {
+  const grid = byId("quotaGrid");
+  const reset = byId("quotaReset");
+  grid.innerHTML = "";
+  if (!data) {
+    reset.textContent = "Usage limits are unavailable.";
+    return;
+  }
+
+  if (data.admin) {
+    reset.textContent = "Admin account · daily beta limits are disabled.";
+  } else {
+    const resetAt = data.resetAt ? new Date(data.resetAt) : null;
+    reset.textContent = resetAt && !Number.isNaN(resetAt.getTime())
+      ? "Daily limits reset " + resetAt.toLocaleString([], { dateStyle: "short", timeStyle: "short" }) +
+        " (" + data.timezone + ")."
+      : "Daily limits reset at midnight " + data.timezone + ".";
+  }
+
+  Object.values(data.limits || {}).forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "stat quota" + (data.admin ? " admin" : "");
+    const strong = document.createElement("strong");
+    strong.textContent = data.admin
+      ? "Unlimited"
+      : String(item.remaining ?? 0) + " / " + String(item.limit ?? 0);
+    const label = document.createElement("span");
+    label.textContent = item.label || "Beta usage";
+    card.append(strong, label);
+    grid.appendChild(card);
+  });
+}
+
 function renderStorage(status) {
   const node = byId("storageStatus");
   if (status.storagePersistent) {
@@ -124,16 +157,18 @@ async function refreshStatus() {
   renderStorage(statusData);
   setSignedIn(Boolean(statusData.signedIn));
   if (statusData.signedIn) {
-    byId("accountEmail").textContent = statusData.user?.email || "Signed in";
+    byId("accountEmail").textContent =
+      (statusData.user?.email || "Signed in") + (statusData.admin ? " · Admin" : "");
     await refreshSyncState();
   }
 }
 
 async function refreshSyncState() {
   try {
-    const [data, statsData] = await Promise.all([
+    const [data, statsData, limitsData] = await Promise.all([
       request("/api/account/state", { headers: {} }),
-      request("/api/account/stats", { headers: {} })
+      request("/api/account/stats", { headers: {} }),
+      request("/api/account/limits", { headers: {} })
     ]);
     const local = localState();
     const remoteCount = (data.state?.projectVault?.length || 0) +
@@ -142,6 +177,7 @@ async function refreshSyncState() {
       (local.revenueTests?.length || 0) + (local.opportunities?.length || 0);
     byId("syncStatus").textContent = `Account revision ${data.revision} · this device has ${localCount} tracked items · account copy has ${remoteCount} tracked items.`;
     renderStats(statsData.stats);
+    renderLimits(limitsData);
   } catch (error) {
     byId("syncStatus").textContent = error.message;
   }
