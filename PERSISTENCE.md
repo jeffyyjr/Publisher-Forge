@@ -20,6 +20,7 @@ If neither variable is configured, Forge deliberately reports `ephemeral-file` s
 - Revenue Agent history (`pfRevenueTests`)
 - Opportunity Agent results
 - Viral Remix usage counters (scans, renders, and creator shares)
+- daily beta quota counters keyed by signed-in account and local quota date
 - Money Agent settings
 - latest Command Center company plan
 
@@ -37,3 +38,7 @@ State writes use revision numbers. If another device changed the account copy, F
 - account writes reject cross-origin browser requests
 - authentication and sync endpoints are rate limited
 - external publishing, job applications, posting, and spending remain human-approval protected
+
+## Beta access controls
+
+Set `PF_ADMIN_EMAILS` to a comma-separated list of trusted account emails that should bypass daily beta usage limits. Set `PF_QUOTA_TIMEZONE` to the IANA timezone used for daily resets; production defaults to `America/New_York`.
