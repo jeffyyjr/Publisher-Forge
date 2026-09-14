@@ -51,8 +51,9 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Opportunity Agent source validation that drops any listing URL that cannot be matched back to live web-search evidence
 - Pinterest Agent beta that creates seven-pin traffic campaigns for approved Forge products while keeping posting in Draft until an authorized account is connected and the user approves it
 - Viral Remix beta with live trend research, an original six-scene script, and automatic 9:16 video assembly
-- Reusable-footage search limited to Wikimedia Commons videos whose metadata verifies Public Domain, CC0, or CC BY rights
-- Automatic license recheck before rendering, original voiceover, burned captions, posting copy, source credits, license manifest, and downloadable video ZIP
+- Multi-source reusable-footage search across Wikimedia Commons plus optional Pixabay when `PIXABAY_API_KEY` is configured
+- Wikimedia footage remains limited to metadata-verified Public Domain, CC0, or CC BY; Pixabay footage is accepted only under the current Pixabay Content License
+- Automatic provider/license recheck before rendering, original voiceover, burned captions, posting copy, source/provider credits, license manifest, and downloadable video ZIP
 - Strict rejection of unknown, ordinary social-platform, noncommercial, no-derivatives, and share-alike footage licenses
 - Security Gate beta with automated runtime-policy, dependency, secret, and code scanning before release
 - Safe staging-only ZAP baseline workflow with an exact target allowlist and production denylist
@@ -82,3 +83,12 @@ Add authenticated accounts, persistent project and opportunity storage, payments
 
 ## Security Gate
 Run `npm run security:gate` to execute the local release policy, runtime security tests, and dependency audit. The GitHub workflow adds Gitleaks and CodeQL results to the same normalized report. See `security/README.md` for staging configuration, release enforcement, and the future MobSF mobile layer.
+
+
+## Optional Viral Remix footage providers
+
+Viral Remix works without an extra footage API key by using Wikimedia Commons. To widen the reusable video pool, configure:
+
+- `PIXABAY_API_KEY` — enables Pixabay video search and provider re-verification. Get a key from Pixabay's API page and keep it only in server-side environment variables.
+
+Publisher Forge never exposes the key to the browser. Pixabay results are transformed into narrated multi-source edits rather than redistributed as standalone stock clips, and the generated package preserves provider/source records for review.
