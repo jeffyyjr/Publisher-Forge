@@ -18,7 +18,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const APP_VERSION = "0.22.0";
+const APP_VERSION = "0.23.0";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
@@ -360,14 +360,14 @@ const viralRemixSchema = {
     },
     searchTerms: {
       type: "array",
-      minItems: 10,
-      maxItems: 10,
+      minItems: 16,
+      maxItems: 16,
       items: { type: "string" }
     },
     scenes: {
       type: "array",
-      minItems: 6,
-      maxItems: 6,
+      minItems: 10,
+      maxItems: 10,
       items: {
         type: "object",
         properties: {
@@ -758,7 +758,7 @@ function reusableSearchTerms(searchTerms) {
     (Array.isArray(searchTerms) ? searchTerms : [])
       .map((item) => text(item, 120))
       .filter(Boolean)
-  )].slice(0, 10);
+  )].slice(0, 16);
   const stopWords = new Set([
     "a", "an", "and", "at", "by", "for", "from", "in", "into",
     "of", "on", "the", "to", "with"
@@ -779,13 +779,13 @@ function reusableSearchTerms(searchTerms) {
     for (const variant of variants) {
       const cleaned = text(variant, 120);
       if (cleaned && !expanded.includes(cleaned)) expanded.push(cleaned);
-      if (expanded.length >= 12) break;
+      if (expanded.length >= 24) break;
     }
 
-    if (expanded.length >= 12) break;
+    if (expanded.length >= 24) break;
   }
 
-  return expanded.slice(0, 12);
+  return expanded.slice(0, 24);
 }
 
 function normalizePixabayVideo(hit, searchTerm = "") {
@@ -1006,7 +1006,7 @@ async function reverifyCommonsVideos(titles) {
     (Array.isArray(titles) ? titles : [])
       .map((item) => text(item, 260))
       .filter((item) => /^File:[^|]{1,250}$/i.test(item))
-  )].slice(0, 6);
+  )].slice(0, 15);
 
   if (!safeTitles.length) return [];
 
@@ -1047,7 +1047,7 @@ async function reverifyCommonsVideos(titles) {
 
 async function reverifyReusableVideos(requestedVideos) {
   const requested = (Array.isArray(requestedVideos) ? requestedVideos : [])
-    .slice(0, 6)
+    .slice(0, 15)
     .filter((item) => item && typeof item === "object");
 
   if (requested.length < 3) {
@@ -1126,7 +1126,7 @@ function trimNarration(value, duration) {
 function normalizedRemixPlan(value, duration) {
   const plan = value && typeof value === "object" ? value : {};
   const scenes = Array.isArray(plan.scenes)
-    ? plan.scenes.slice(0, 6).map((scene) => ({
+    ? plan.scenes.slice(0, 10).map((scene) => ({
         searchTerm: text(scene?.searchTerm, 120),
         narration: text(scene?.narration, 700),
         onScreenText: text(scene?.onScreenText, 180)
@@ -1148,7 +1148,7 @@ function normalizedRemixPlan(value, duration) {
       ? plan.hashtags.slice(0, 10).map((item) => text(item, 80)).filter(Boolean)
       : [],
     searchTerms: Array.isArray(plan.searchTerms)
-      ? plan.searchTerms.slice(0, 10).map((item) => text(item, 120)).filter(Boolean)
+      ? plan.searchTerms.slice(0, 16).map((item) => text(item, 120)).filter(Boolean)
       : [],
     scenes
   };
@@ -1330,7 +1330,7 @@ async function renderViralRemix(
       const wanted = String(source.searchTerm || "").toLowerCase();
       return plan.scenes.find((scene) =>
         String(scene.searchTerm || "").toLowerCase() === wanted
-      ) || plan.scenes[index] || {};
+      ) || plan.scenes[index % Math.max(1, plan.scenes.length)] || {};
     })
   };
   const segmentPaths = [];
@@ -3157,7 +3157,9 @@ app.get("/api/health", (req, res) => {
     coverStudioAvailable: Boolean(client),
     securityGateAvailable: true,
     viralRemixAvailable: Boolean(client && (ffmpegPath || process.env.FFMPEG_PATH)),
-    reusableFootageProvider: "Wikimedia Commons"
+    reusableFootageProvider: PIXABAY_API_KEY
+      ? "Wikimedia Commons + Pixabay"
+      : "Wikimedia Commons"
   });
 });
 
@@ -4357,9 +4359,9 @@ app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
       : "Choose a broad, brand-safe topic with clear current momentum and useful evergreen value.",
     "Use current public evidence, but do not copy, quote, summarize, name, or imitate a specific creator or viral video.",
     "Avoid celebrities, copyrighted characters, private people, breaking tragedies, medical or financial claims, dangerous stunts, political persuasion, and content centered on children.",
-    "Create a genuinely original " + duration + "-second narrated video concept with " + wordTarget + " narration words and exactly six scenes.",
-    "Make each search term a simple, broad two-to-four-word visual phrase likely to find reusable video on Wikimedia Commons. Favor concrete places, objects, actions, nature, machines, and everyday scenes over names or highly specific events.",
-    "The six on-screen text lines must be short, specific, and form a complete story. Return exactly ten unique visual search terms plus exactly six scenes."
+    "Create a genuinely original " + duration + "-second narrated video concept with " + wordTarget + " narration words and exactly ten scenes.",
+    "Make each search term a simple, broad two-to-four-word visual phrase likely to find reusable video on Wikimedia Commons or Pixabay. Favor concrete places, objects, actions, nature, machines, and everyday scenes over names or highly specific events.",
+    "The ten on-screen text lines must be short, specific, and form a complete story. Return exactly sixteen unique visual search terms plus exactly ten scenes. Design the scene changes for quick short-form pacing rather than long static shots."
   ].join(" ");
 
   try {
@@ -4393,7 +4395,8 @@ app.post("/api/viral-remix/scout", limitAI, async (req, res) => {
       throw new Error("The original remix script was incomplete. Please try again.");
     }
 
-    const videos = await findReusableVideos(searchTerms, 6);
+    const clipTarget = duration === 30 ? 8 : duration === 60 ? 12 : 10;
+    const videos = await findReusableVideos(searchTerms, clipTarget);
     const rightsCheckedAt = new Date().toISOString();
     const footageProviders = [
       "Wikimedia Commons",
@@ -4450,7 +4453,7 @@ app.post(
   const duration = viralDuration(req.body.duration);
   const plan = normalizedRemixPlan(req.body.plan, duration);
   const requestedVideos = Array.isArray(req.body.videos)
-    ? req.body.videos.slice(0, 6)
+    ? req.body.videos.slice(0, 15)
     : [];
   if (!plan.narration || plan.scenes.length < 3) {
     return res.status(400).json({
@@ -4503,7 +4506,7 @@ app.post(
       }
     };
     const readme = [
-      "PUBLISHER FORGE — VIRAL REMIX BETA",
+      "PUBLISHER FORGE — VIRAL REMIX 2.0",
       "",
       "READY FILE",
       videoFilename + " — original vertical video with narration and burned captions",
