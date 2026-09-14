@@ -4716,5 +4716,6 @@ export {
   normalizedRemixPlan,
   remixCaptions,
   runFfmpeg,
-  queryPixabayVideos
+  queryPixabayVideos,
+  normalizePixabayVideo
 };
