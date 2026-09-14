@@ -22,12 +22,22 @@ test("account page and sync helper are served", async () => {
   const page = await fetch(baseUrl + "/account");
   const html = await page.text();
   const sync = await fetch(baseUrl + "/account-sync.js");
+  const badge = await fetch(baseUrl + "/account-badge.js");
+  const appPage = await fetch(baseUrl + "/");
+  const appHtml = await appPage.text();
 
   assert.equal(page.status, 200);
   assert.match(html, /Publisher Forge — Account/);
   assert.match(html, /Save This Device to Account/);
+  assert.match(html, /id="statProjects"/);
+  assert.match(html, /id="statProfit"/);
   assert.equal(sync.status, 200);
   assert.match(sync.headers.get("content-type") || "", /javascript/);
+  assert.equal(badge.status, 200);
+  assert.match(badge.headers.get("content-type") || "", /javascript/);
+  assert.match(appHtml, /id="accountLink"/);
+  assert.match(appHtml, /\/account-sync\.js/);
+  assert.match(appHtml, /\/account-badge\.js/);
 });
 
 test("account registration creates a session and versioned state", async () => {
@@ -60,9 +70,17 @@ test("account registration creates a session and versioned state", async () => {
       baseRevision: 0,
       state: {
         projectVault: [{ title: "Persistent test", platform: "KDP" }],
-        revenueTests: [],
+        revenueTests: [{
+          title: "Video test",
+          metrics: {
+            views: 1200,
+            orders: 8,
+            grossRevenue: 96.50,
+            netProfit: 61.25
+          }
+        }],
         trendHistory: [{ scannedAt: "2026-09-12T12:00:00Z", platform: "KDP", niche: "RV records", opportunities: [{ title: "RV test" }], sources: [] }],
-        opportunities: [],
+        opportunities: [{ title: "Opportunity test" }],
         moneyAgentSettings: { orchestrator: { mode: "balanced" } },
         commandCenterPlan: null
       }
@@ -74,6 +92,20 @@ test("account registration creates a session and versioned state", async () => {
   assert.equal(saved.state.projectVault[0].title, "Persistent test");
   assert.equal(saved.state.trendHistory[0].opportunities[0].title, "RV test");
   assert.equal(saved.state.trendHistory[0].evidenceStatus, "NO_VERIFIED_SOURCES");
+
+  const statsResponse = await fetch(baseUrl + "/api/account/stats", {
+    headers: { Cookie: cookie }
+  });
+  const stats = await statsResponse.json();
+  assert.equal(statsResponse.status, 200);
+  assert.equal(stats.stats.projects, 1);
+  assert.equal(stats.stats.revenueTests, 1);
+  assert.equal(stats.stats.trendScans, 1);
+  assert.equal(stats.stats.opportunities, 1);
+  assert.equal(stats.stats.views, 1200);
+  assert.equal(stats.stats.orders, 8);
+  assert.equal(stats.stats.grossRevenue, 96.5);
+  assert.equal(stats.stats.netProfit, 61.25);
 
   const stale = await fetch(baseUrl + "/api/account/state", {
     method: "PUT",
