@@ -1603,6 +1603,17 @@
             </div>
 
             <div class="field">
+              <label>Fast starters</label>
+              <div class="result-actions" style="margin-top:0" aria-label="Viral Remix starter topics">
+                <button class="btn secondary" type="button" data-viral-topic="Crazy weather phenomena">Crazy weather</button>
+                <button class="btn secondary" type="button" data-viral-topic="Deep ocean discoveries">Deep ocean</button>
+                <button class="btn secondary" type="button" data-viral-topic="Space mysteries">Space mysteries</button>
+                <button class="btn secondary" type="button" data-viral-topic="Weird animal behavior">Weird animals</button>
+              </div>
+              <p class="radar-form-note">Starter buttons only fill the topic. They do not run a paid scan until you tap Find viral angle.</p>
+            </div>
+
+            <div class="field">
               <label for="viralPlatform">Destination</label>
               <select id="viralPlatform">
                 <option value="Both">TikTok + YouTube Shorts</option>
@@ -1687,6 +1698,10 @@
               <button class="btn secondary" id="viralCopyButton" type="button"
                 disabled>
                 Copy post + credits
+              </button>
+              <button class="btn secondary" id="viralShareButton" type="button"
+                disabled>
+                Share Publisher Forge
               </button>
               <button class="btn secondary" id="viralRevenueButton" type="button"
                 disabled>
@@ -1884,6 +1899,8 @@
       document.getElementById("viralRenderButton");
     const viralCopyButton =
       document.getElementById("viralCopyButton");
+    const viralShareButton =
+      document.getElementById("viralShareButton");
     const viralRevenueButton =
       document.getElementById("viralRevenueButton");
 
@@ -1954,10 +1971,16 @@
         switchView("revenue");
       });
 
-    const requestedInitialView =
-      new URLSearchParams(window.location.search).get("view");
+    const initialParams = new URLSearchParams(window.location.search);
+    const requestedInitialView = initialParams.get("view");
     if (["radar", "analyzer", "production", "viral", "revenue"].includes(requestedInitialView)) {
       switchView(requestedInitialView);
+    }
+
+    const requestedViralTopic =
+      String(initialParams.get("topic") || "").trim().slice(0, 180);
+    if (requestedInitialView === "viral" && requestedViralTopic) {
+      document.getElementById("viralTopic").value = requestedViralTopic;
     }
 
     signalIds.forEach(function (id) {
@@ -3432,6 +3455,7 @@
       document.getElementById("viralResult").classList.remove("visible");
       viralRenderButton.disabled = true;
       viralCopyButton.disabled = true;
+      viralShareButton.disabled = true;
       viralRevenueButton.disabled = true;
 
       const empty = document.getElementById("viralEmpty");
@@ -3556,6 +3580,7 @@
 
       viralRenderButton.disabled = false;
       viralCopyButton.disabled = false;
+      viralShareButton.disabled = true;
       viralRevenueButton.disabled = false;
       document.getElementById("viralProgress").textContent = restored
         ? "Saved scan restored. Every source will be rechecked before rendering."
@@ -3655,12 +3680,65 @@
         }, 1000);
         document.getElementById("viralProgress").textContent =
           "Remix package downloaded. Preview the MP4 and paste the included posting copy when you publish.";
+        viralShareButton.disabled = false;
         toast("Viral Remix video downloaded");
       } catch (error) {
         document.getElementById("viralProgress").textContent = error.message;
         toast("Video render stopped");
       } finally {
         loading(viralRenderButton, false, "Create remix video ZIP");
+      }
+    }
+
+    async function shareViralRemix() {
+      if (!activeViralRemix || viralShareButton.disabled) {
+        toast("Create the remix video first");
+        return;
+      }
+
+      const topic = String(
+        activeViralRemix.plan?.trendTitle ||
+        document.getElementById("viralTopic").value ||
+        "Viral Remix"
+      ).trim().slice(0, 180);
+      const shareUrl = new URL("/launch", window.location.origin);
+      shareUrl.searchParams.set("utm_source", "viral_share");
+      shareUrl.searchParams.set("utm_campaign", "creator_loop");
+      if (topic) shareUrl.searchParams.set("topic", topic);
+
+      const shareText =
+        "I made a short with Publisher Forge. Try the public beta and build your own.";
+
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: "Publisher Forge",
+            text: shareText,
+            url: shareUrl.toString()
+          });
+          toast("Publisher Forge shared");
+        } else {
+          await navigator.clipboard.writeText(
+            shareText + "\n" + shareUrl.toString()
+          );
+          toast("Share link copied");
+        }
+
+        fetch("/api/launch-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "viral_share",
+            source: "viral_remix",
+            campaign: "creator_loop",
+            path: "/?view=viral"
+          }),
+          keepalive: true,
+          credentials: "same-origin"
+        }).catch(function () {});
+      } catch (error) {
+        if (error && error.name === "AbortError") return;
+        toast("Sharing was blocked by the browser");
       }
     }
 
@@ -4816,6 +4894,7 @@
 
     viralScanButton.addEventListener("click", scanViralRemix);
     viralRenderButton.addEventListener("click", downloadViralRemix);
+    viralShareButton.addEventListener("click", shareViralRemix);
     viralRevenueButton.addEventListener("click", openRevenueFromViral);
     viralCopyButton.addEventListener("click", async function () {
       if (!activeViralPost) return;
@@ -4827,6 +4906,15 @@
         toast("Copy was blocked by the browser");
       }
     });
+    document.querySelectorAll("[data-viral-topic]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        const topic = String(button.dataset.viralTopic || "").trim().slice(0, 180);
+        document.getElementById("viralTopic").value = topic;
+        document.getElementById("viralTopic").focus();
+        toast("Starter topic loaded");
+      });
+    });
+
     document.getElementById("viralTopic")
       .addEventListener("keydown", function (event) {
         if (event.key === "Enter") scanViralRemix();
