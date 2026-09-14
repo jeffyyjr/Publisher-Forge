@@ -416,7 +416,14 @@ function registerAccountPersistence(application, options = {}) {
       return false;
     }
 
-    incrementFeatureUsage.run(auth.user.id, day, feature, 1, new Date().toISOString());
+    const usageTimestamp = new Date().toISOString();
+    incrementFeatureUsage.run(auth.user.id, day, feature, 1, usageTimestamp);
+    console.log(JSON.stringify({
+      type: "publisher_forge_usage",
+      timestamp: usageTimestamp,
+      event: "quota_consumed",
+      feature
+    }));
     req.publisherForgeUser = publicUser(auth.user);
     req.publisherForgeAdmin = false;
     return true;
@@ -482,6 +489,11 @@ function registerAccountPersistence(application, options = {}) {
     try {
       insertUser.run(id, email, record.salt, record.hash, now, now);
       issueSession(req, res, id);
+      console.log(JSON.stringify({
+        type: "publisher_forge_account",
+        timestamp: now,
+        event: "account_created"
+      }));
       res.status(201).json({ user: { id, email, createdAt: now } });
     } catch (error) {
       res.status(500).json({ error: "Account could not be created" });
