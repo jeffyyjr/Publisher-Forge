@@ -1,7 +1,6 @@
 import "./start.mjs";
 import { app, createFixedWindowLimiter } from "./server.js";
 import { registerAccountPersistence } from "./account-persistence.mjs";
-import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -14,8 +13,6 @@ const LAUNCH_EVENTS = new Set([
   "open_viral",
   "create_account",
   "view_demo",
-  "guest_demo_started",
-  "guest_demo_completed",
   "view_repo",
   "feedback",
   "viral_scan_complete",
@@ -47,72 +44,6 @@ registerAccountPersistence(app, {
   authLimiter: accountAuthLimiter,
   syncLimiter: accountSyncLimiter
 });
-
-// Conversion demo: signed-out visitors get one real Trend Radar scan before signup.
-// Signed-in users continue through the normal account quota system.
-const accountQuota = app.locals.publisherForgeQuota;
-const guestTrendUses = new Map();
-const GUEST_TREND_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-function cookieValue(req, name) {
-  const pairs = String(req.headers.cookie || "").split(";");
-  for (const pair of pairs) {
-    const index = pair.indexOf("=");
-    if (index < 1) continue;
-    if (pair.slice(0, index).trim() === name) {
-      try { return decodeURIComponent(pair.slice(index + 1).trim()); }
-      catch (error) { return pair.slice(index + 1).trim(); }
-    }
-  }
-  return "";
-}
-
-function guestKey(req) {
-  const visitor = cookieValue(req, "pf_visit");
-  const fallback = String(req.ip || "unknown") + "|" + String(req.headers["user-agent"] || "").slice(0, 160);
-  return crypto.createHash("sha256").update(visitor || fallback).digest("hex").slice(0, 32);
-}
-
-if (accountQuota?.consume) {
-  const consumeAccountQuota = accountQuota.consume.bind(accountQuota);
-  accountQuota.consume = function consumeWithGuestDemo(req, res, feature) {
-    // A session cookie means this is an account user; preserve normal limits and auth checks.
-    if (cookieValue(req, "pf_session") || feature !== "trendRadar") {
-      return consumeAccountQuota(req, res, feature);
-    }
-
-    const key = guestKey(req);
-    const now = Date.now();
-    const lastUse = guestTrendUses.get(key) || 0;
-    if (lastUse && now - lastUse < GUEST_TREND_WINDOW_MS) {
-      res.status(401).json({
-        error: "Free demo already used",
-        code: "GUEST_DEMO_USED",
-        message: "You used your free Trend Radar scan. Create a free account to save your research, run more scans, and continue building."
-      });
-      return false;
-    }
-
-    // Keep the map bounded on long-running instances.
-    if (guestTrendUses.size > 5000) {
-      for (const [storedKey, usedAt] of guestTrendUses) {
-        if (now - usedAt >= GUEST_TREND_WINDOW_MS) guestTrendUses.delete(storedKey);
-      }
-    }
-
-    guestTrendUses.set(key, now);
-    req.publisherForgeGuestDemo = true;
-    app.locals.publisherForgeGrowth?.recordLaunch(req, res, {
-      event: "guest_demo_started",
-      source: "guest-demo",
-      campaign: "conversion-demo",
-      content: "trend-radar",
-      path: req.path,
-      feature: "trendRadar"
-    });
-    return true;
-  };
-}
 
 function launchField(value, max = 80) {
   return String(value || "")
