@@ -31,7 +31,7 @@
     <div class="top">
       <div>
         <h1>Publisher Forge — Growth Dashboard</h1>
-        <p class="muted">Admin-only funnel: traffic → app opens → signups → real feature use.</p>
+        <p class="muted">Admin-only funnel: traffic → app opens → free demo → signups → real feature use.</p>
       </div>
       <div class="actions">
         <a class="pill" href="/account">Account</a>
@@ -52,6 +52,9 @@
       <div class="grid">
         <div class="metric"><strong id="visitors">0</strong><span>Unique launch visitors</span></div>
         <div class="metric"><strong id="appOpens">0</strong><span>App opens</span></div>
+        <div class="metric"><strong id="demoStarts">0</strong><span>Free demos started</span></div>
+        <div class="metric"><strong id="demoCompletions">0</strong><span>Free demos completed</span></div>
+        <div class="metric"><strong id="demoCompletionRate">0%</strong><span>Demo completion</span></div>
         <div class="metric"><strong id="signups">0</strong><span>New accounts</span></div>
         <div class="metric"><strong id="signupConversion">0%</strong><span>Visitor → signup</span></div>
         <div class="metric"><strong id="featureUses">0</strong><span>Costed feature uses</span></div>
@@ -66,7 +69,7 @@
         <h2>Traffic sources & promo angles</h2>
         <div class="tableWrap">
           <table>
-            <thead><tr><th>Source</th><th>Campaign</th><th>Angle</th><th class="num">Visitors</th><th class="num">App opens</th><th class="num">Signups</th><th class="num">Conv.</th><th class="num">Uses</th></tr></thead>
+            <thead><tr><th>Source</th><th>Campaign</th><th>Angle</th><th class="num">Visitors</th><th class="num">App opens</th><th class="num">Demo starts</th><th class="num">Demo done</th><th class="num">Signups</th><th class="num">Conv.</th><th class="num">Uses</th></tr></thead>
             <tbody id="sourceRows"></tbody>
           </table>
         </div>
