@@ -127,6 +127,13 @@ function createStore(config = databaseConfig()) {
     );
     CREATE INDEX IF NOT EXISTS daily_usage_user_date_idx
       ON daily_usage(user_id, usage_date);
+    CREATE TABLE IF NOT EXISTS guest_usage (
+      visitor_key TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (visitor_key, feature)
+    );
     CREATE TABLE IF NOT EXISTS growth_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       occurred_at TEXT NOT NULL,
@@ -377,6 +384,15 @@ function registerAccountPersistence(application, options = {}) {
     ON CONFLICT(user_id,usage_date,feature)
     DO UPDATE SET count = daily_usage.count + 1, updated_at = excluded.updated_at
   `);
+  const findGuestUsage = db.prepare(
+    "SELECT count FROM guest_usage WHERE visitor_key = ? AND feature = ?"
+  );
+  const incrementGuestUsage = db.prepare(`
+    INSERT INTO guest_usage (visitor_key,feature,count,updated_at)
+    VALUES (?,?,?,?)
+    ON CONFLICT(visitor_key,feature)
+    DO UPDATE SET count = guest_usage.count + 1, updated_at = excluded.updated_at
+  `);
   const insertGrowthEvent = db.prepare(`
     INSERT INTO growth_events
       (occurred_at,event,source,campaign,content,path,feature,visitor_key,user_key)
@@ -394,6 +410,8 @@ function registerAccountPersistence(application, options = {}) {
       COUNT(DISTINCT CASE WHEN event='page_view' THEN visitor_key END) AS visitors,
       SUM(CASE WHEN event='open_app' THEN 1 ELSE 0 END) AS app_opens,
       SUM(CASE WHEN event='account_created' THEN 1 ELSE 0 END) AS signups,
+      SUM(CASE WHEN event='guest_demo_started' THEN 1 ELSE 0 END) AS demo_starts,
+      SUM(CASE WHEN event='guest_demo_completed' THEN 1 ELSE 0 END) AS demo_completions,
       SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses
     FROM growth_events
     WHERE occurred_at >= ?
@@ -404,6 +422,8 @@ function registerAccountPersistence(application, options = {}) {
       COUNT(DISTINCT CASE WHEN event='page_view' THEN visitor_key END) AS visitors,
       SUM(CASE WHEN event='open_app' THEN 1 ELSE 0 END) AS app_opens,
       SUM(CASE WHEN event='account_created' THEN 1 ELSE 0 END) AS signups,
+      SUM(CASE WHEN event='guest_demo_started' THEN 1 ELSE 0 END) AS demo_starts,
+      SUM(CASE WHEN event='guest_demo_completed' THEN 1 ELSE 0 END) AS demo_completions,
       SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses
     FROM growth_events
     WHERE occurred_at >= ?
@@ -468,6 +488,11 @@ function registerAccountPersistence(application, options = {}) {
         visitors,
         appOpens: Number(totals.app_opens) || 0,
         signups,
+        demoStarts: Number(totals.demo_starts) || 0,
+        demoCompletions: Number(totals.demo_completions) || 0,
+        demoCompletionRate: Number(totals.demo_starts)
+          ? Math.round((Number(totals.demo_completions) / Number(totals.demo_starts)) * 1000) / 10
+          : 0,
         featureUses: Number(totals.feature_uses) || 0,
         signupConversion: visitors ? Math.round((signups / visitors) * 1000) / 10 : 0,
         activeUsers: active,
@@ -482,6 +507,11 @@ function registerAccountPersistence(application, options = {}) {
         visitors: Number(row.visitors) || 0,
         appOpens: Number(row.app_opens) || 0,
         signups: Number(row.signups) || 0,
+        demoStarts: Number(row.demo_starts) || 0,
+        demoCompletions: Number(row.demo_completions) || 0,
+        demoCompletionRate: Number(row.demo_starts)
+          ? Math.round((Number(row.demo_completions) / Number(row.demo_starts)) * 1000) / 10
+          : 0,
         featureUses: Number(row.feature_uses) || 0,
         signupConversion: Number(row.visitors)
           ? Math.round((Number(row.signups) / Number(row.visitors)) * 1000) / 10
@@ -544,13 +574,60 @@ function registerAccountPersistence(application, options = {}) {
   }
 
   function consumeQuota(req, res, feature) {
-    const auth = requireAuth(req, res);
-    if (!auth) return false;
     const config = DAILY_QUOTAS[feature];
     if (!config) {
       res.status(500).json({ error: "Unknown beta limit" });
       return false;
     }
+
+    const auth = authenticated(req);
+    if (!auth) {
+      if (feature !== "trendRadar") {
+        res.status(401).json({ error: "Sign in required" });
+        return false;
+      }
+
+      const visitKey = visitorKey(req, res);
+      const current = Number(findGuestUsage.get(visitKey, feature)?.count) || 0;
+      if (current >= 1) {
+        res.status(401).json({
+          error: "Free demo complete",
+          code: "GUEST_DEMO_USED",
+          feature,
+          message: "You used the free Trend Radar scan. Create a free account to save this research and keep building."
+        });
+        return false;
+      }
+
+      const usageTimestamp = new Date().toISOString();
+      incrementGuestUsage.run(visitKey, feature, 1, usageTimestamp);
+      const attribution = latestVisitorAttribution.get(visitKey) || {};
+      recordGrowth(req, res, "guest_demo_started", {
+        ...attribution,
+        feature,
+        visitorKey: visitKey
+      });
+
+      res.once("finish", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          recordGrowth(req, res, "guest_demo_completed", {
+            ...attribution,
+            feature,
+            visitorKey: visitKey
+          });
+        }
+      });
+
+      console.log(JSON.stringify({
+        type: "publisher_forge_guest",
+        timestamp: usageTimestamp,
+        event: "guest_demo_started",
+        feature
+      }));
+      req.publisherForgeGuest = true;
+      return true;
+    }
+
     if (isAdminUser(auth.user)) {
       req.publisherForgeUser = publicUser(auth.user);
       req.publisherForgeAdmin = true;
