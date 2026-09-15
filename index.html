@@ -776,6 +776,34 @@
       font-size:.8rem;
     }
 
+    .guest-cta {
+      margin-top:18px;
+      padding:16px;
+      border:1px solid #704719;
+      border-radius:14px;
+      background:linear-gradient(180deg,#24170b,#15100b);
+    }
+
+    .guest-cta strong {
+      display:block;
+      color:var(--gold);
+      font-size:1rem;
+    }
+
+    .guest-cta p {
+      margin:7px 0 13px;
+      color:#dce2ea;
+      font-size:.86rem;
+    }
+
+    .guest-cta a {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:100%;
+      text-decoration:none;
+    }
+
     .radar-meta {
       margin:0 0 6px;
       color:var(--gold);
@@ -1197,7 +1225,8 @@
             </button>
 
             <p class="radar-form-note">
-              A live scan can take a little longer than a normal analysis.
+              New here? Your first live Trend Radar scan is free — no signup required.
+              Live web research can take a little longer than a normal analysis.
             </p>
             <div class="field">
               <h3>This week's product tests</h3>
@@ -1240,6 +1269,15 @@
             <div class="sources" id="sourcesSection" hidden>
               <h3>Web sources</h3>
               <ol class="source-list" id="sourceList"></ol>
+            </div>
+
+            <div class="guest-cta" id="guestCta" hidden>
+              <strong>Your free scan is complete.</strong>
+              <p>
+                Create a free account to save this research to your account,
+                run more scans, and continue into Analyzer and Production.
+              </p>
+              <a class="btn primary" href="/account">Create free account &amp; continue</a>
             </div>
           </div>
         </article>
@@ -3901,6 +3939,27 @@
         sourceList.children.length === 0;
     }
 
+    async function updateGuestCta(forceVisible) {
+      const cta = document.getElementById("guestCta");
+      if (!cta) return;
+
+      if (forceVisible) {
+        cta.hidden = false;
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/account/status", {
+          cache: "no-store",
+          credentials: "same-origin"
+        });
+        const status = await readJson(response);
+        cta.hidden = Boolean(status.signedIn);
+      } catch (error) {
+        cta.hidden = false;
+      }
+    }
+
     async function scanTrends() {
       const scanStartedAt = Date.now();
       const market =
@@ -3932,6 +3991,9 @@
         const data = await readJson(response);
 
         if (!response.ok) {
+          if (data.code === "GUEST_DEMO_USED") {
+            await updateGuestCta(true);
+          }
           throw new Error(
             data.message ||
             data.error ||
@@ -3940,6 +4002,7 @@
         }
 
         renderRadar(data);
+        await updateGuestCta(false);
         window.dispatchEvent(new CustomEvent("publisherForge:trendScan", { detail: { ...data, durationMs: Date.now() - scanStartedAt } }));
       } catch (error) {
         window.dispatchEvent(new CustomEvent("publisherForge:trendFailure", { detail: {
