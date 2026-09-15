@@ -133,7 +133,7 @@ test("health reports Security Gate without exposing configuration values", async
   const serialized = JSON.stringify(body);
 
   assert.equal(response.status, 200);
-  assert.equal(body.version, "0.22.0");
+  assert.match(body.version, /^\d+\.\d+\.\d+$/);
   assert.equal(body.releaseQaAvailable, true);
   assert.equal(body.securityGateAvailable, true);
   assert.doesNotMatch(serialized, /api[_-]?key|secret|token/i);

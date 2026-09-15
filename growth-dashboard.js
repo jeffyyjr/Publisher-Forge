@@ -24,7 +24,7 @@
     if (!rows?.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 8;
+      td.colSpan = 10;
       td.className = "empty";
       td.textContent = "No tracked traffic yet for this range.";
       tr.appendChild(td);
@@ -40,6 +40,8 @@
         text(row.content || "—"),
         number(row.visitors),
         number(row.appOpens),
+        number(row.demoStarts),
+        number(row.demoCompletions),
         number(row.signups),
         pct(row.signupConversion),
         number(row.featureUses)
@@ -98,8 +100,11 @@
     );
     const winner = ranked[0];
     if (!winner) return "No clear source winner yet.";
+    if ((totals.demoStarts || 0) > 0 && (totals.signups || 0) === 0) {
+      return "People are trying the free scan but not creating accounts yet. Tighten the post-demo signup promise before increasing traffic spend.";
+    }
     if ((winner.signups || 0) === 0 && (winner.featureUses || 0) === 0) {
-      return "People are landing but not converting yet. Tighten the landing-page promise before increasing post volume.";
+      return "People are landing but not starting or converting yet. Tighten the landing-page promise before increasing post volume.";
     }
     const angle = winner.content ? " / " + winner.content : "";
     return "Current winner: " + winner.source + angle +
@@ -121,6 +126,9 @@
     const totals = data.totals || {};
     setMetric("visitors", number(totals.visitors));
     setMetric("appOpens", number(totals.appOpens));
+    setMetric("demoStarts", number(totals.demoStarts));
+    setMetric("demoCompletions", number(totals.demoCompletions));
+    setMetric("demoCompletionRate", pct(totals.demoCompletionRate));
     setMetric("signups", number(totals.signups));
     setMetric("signupConversion", pct(totals.signupConversion));
     setMetric("featureUses", number(totals.featureUses));

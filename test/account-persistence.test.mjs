@@ -47,6 +47,36 @@ test("account page and sync helper are served", async () => {
   assert.match(appHtml, /id="accountLink"/);
   assert.match(appHtml, /\/account-sync\.js/);
   assert.match(appHtml, /\/account-badge\.js/);
+  assert.match(appHtml, /id="guestCta"/);
+  assert.match(appHtml, /first live Trend Radar scan is free/i);
+});
+
+test("anonymous visitors get one Trend Radar demo before signup", async () => {
+  const first = await fetch(baseUrl + "/__test/quota/trendRadar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}"
+  });
+  const visitorCookie = (first.headers.get("set-cookie") || "").split(";")[0];
+  assert.equal(first.status, 200);
+  assert.match(visitorCookie, /pf_visit=/);
+
+  const second = await fetch(baseUrl + "/__test/quota/trendRadar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: visitorCookie },
+    body: "{}"
+  });
+  const secondBody = await second.json();
+  assert.equal(second.status, 401);
+  assert.equal(secondBody.code, "GUEST_DEMO_USED");
+  assert.match(secondBody.message, /create a free account/i);
+
+  const protectedFeature = await fetch(baseUrl + "/__test/quota/analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: visitorCookie },
+    body: "{}"
+  });
+  assert.equal(protectedFeature.status, 401);
 });
 
 test("account registration creates a session and versioned state", async () => {
@@ -69,8 +99,6 @@ test("account registration creates a session and versioned state", async () => {
   const register = await fetch(baseUrl + "/api/account/register", {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: visitorCookie },
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password: "strong-test-password" })
   });
   const registered = await register.json();
@@ -200,6 +228,9 @@ test("account registration creates a session and versioned state", async () => {
     assert.equal(growthResponse.status, 200);
     assert.equal(growth.totals.visitors, 1);
     assert.equal(growth.totals.signups, 1);
+    assert.equal(growth.totals.demoStarts, 1);
+    assert.equal(growth.totals.demoCompletions, 1);
+    assert.equal(growth.totals.demoCompletionRate, 100);
     assert.equal(growth.totals.featureUses, 3);
     assert.equal(growth.sources[0].source, "tiktok");
     assert.equal(growth.sources[0].campaign, "beta_feeler");
