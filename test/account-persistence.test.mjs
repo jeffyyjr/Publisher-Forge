@@ -99,8 +99,6 @@ test("account registration creates a session and versioned state", async () => {
   const register = await fetch(baseUrl + "/api/account/register", {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: visitorCookie },
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password: "strong-test-password" })
   });
   const registered = await register.json();
