@@ -5,7 +5,16 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
-import { normalizeBrowserSteps, runBrowserWorkflow } from "./browser-runner.mjs";
+import {
+  normalizeBrowserSteps,
+  runBrowserWorkflow,
+  startRecording,
+  recordingClick,
+  recordingFill,
+  recordingAssert,
+  finishRecording,
+  cancelRecording
+} from "./browser-runner.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 10000);
@@ -13,6 +22,7 @@ const DATA_DIR = process.env.WG_DATA_DIR || join(__dirname, ".data");
 const DATA_FILE = join(DATA_DIR, "workflow-guardian.json");
 const MAX_BODY = 512_000;
 const DEFAULT_TIMEOUT_MS = 12_000;
+const MAX_WORKFLOWS = 25;
 
 let state = { workflows: [], runs: [], incidents: [] };
 
@@ -279,13 +289,17 @@ function enrichedWorkflows() {
 }
 
 async function serveEvidence(pathname, res) {
-  const match = pathname.match(/^\/evidence\/([0-9a-f-]{36})\.png$/i);
-  if (!match) return false;
+  const runMatch = pathname.match(/^\/evidence\/([0-9a-f-]{36})\.png$/i);
+  const recorderMatch = pathname.match(/^\/recording-evidence\/([0-9a-f-]{36})\.png$/i);
+  if (!runMatch && !recorderMatch) return false;
+
+  const folder = runMatch ? "screenshots" : "recordings";
+  const id = (runMatch || recorderMatch)[1];
   try {
-    const image = await readFile(join(DATA_DIR, "screenshots", `${match[1]}.png`));
+    const image = await readFile(join(DATA_DIR, folder, `${id}.png`));
     res.writeHead(200, {
       "content-type": "image/png",
-      "cache-control": "private, max-age=60"
+      "cache-control": "no-store"
     });
     res.end(image);
   } catch {
@@ -317,6 +331,9 @@ async function route(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/workflows") {
     try {
+      if (state.workflows.length >= MAX_WORKFLOWS) {
+        return json(res, 429, { error: "Beta limit reached: delete an old workflow before creating another." });
+      }
       const input = normalizeWorkflow(await readJson(req));
       await validateWorkflowTargets(input);
       const now = new Date().toISOString();
@@ -328,6 +345,73 @@ async function route(req, res) {
         lastStatus: "unknown",
         nextRunAt: now
       };
+      state.workflows.unshift(workflow);
+      await persist();
+      return json(res, 201, { workflow });
+    } catch (error) {
+      return json(res, 400, { error: String(error?.message || error) });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/recordings/start") {
+    try {
+      const body = await readJson(req);
+      const target = String(body.url || "").trim().slice(0, 1000);
+      if (!target) return json(res, 400, { error: "Starting URL is required" });
+      const recording = await startRecording({ url: target, dataDir: DATA_DIR, validatePublicUrl });
+      return json(res, 201, { recording });
+    } catch (error) {
+      return json(res, 400, { error: String(error?.message || error) });
+    }
+  }
+
+  const recordingMatch = url.pathname.match(/^\/api\/recordings\/([^/]+)\/(click|fill|assert|finish|cancel)$/);
+  if (req.method === "POST" && recordingMatch) {
+    const [, id, action] = recordingMatch;
+    try {
+      const body = await readJson(req);
+      if (action === "click") {
+        const recording = await recordingClick({ id, x: body.x, y: body.y, dataDir: DATA_DIR });
+        return json(res, 200, { recording });
+      }
+      if (action === "fill") {
+        const recording = await recordingFill({ id, value: body.value, dataDir: DATA_DIR });
+        return json(res, 200, { recording });
+      }
+      if (action === "assert") {
+        const recording = await recordingAssert({ id, text: body.text, dataDir: DATA_DIR });
+        return json(res, 200, { recording });
+      }
+      if (action === "cancel") {
+        await cancelRecording(id);
+        return json(res, 200, { ok: true });
+      }
+
+      if (state.workflows.length >= MAX_WORKFLOWS) {
+        await cancelRecording(id);
+        return json(res, 429, { error: "Beta limit reached: delete an old workflow before saving this recording." });
+      }
+
+      const finished = await finishRecording(id);
+      const name = String(body.name || "Recorded workflow").trim().slice(0, 100);
+      const intervalMinutes = Math.min(1440, Math.max(1, Number(body.intervalMinutes || 15)));
+      const firstNavigate = finished.steps.find((step) => step.type === "navigate");
+      if (!firstNavigate?.url) throw new Error("Recorded workflow is missing a starting URL");
+
+      const workflow = {
+        id: randomUUID(),
+        name,
+        url: firstNavigate.url,
+        expectedText: "",
+        intervalMinutes,
+        mode: "browser",
+        steps: finished.steps,
+        createdAt: new Date().toISOString(),
+        lastRunAt: null,
+        lastStatus: "unknown",
+        nextRunAt: new Date().toISOString()
+      };
+      await validateWorkflowTargets(workflow);
       state.workflows.unshift(workflow);
       await persist();
       return json(res, 201, { workflow });
