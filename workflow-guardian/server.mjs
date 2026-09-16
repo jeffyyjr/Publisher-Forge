@@ -384,6 +384,38 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Workflow Guardian v0.2 listening on ${PORT}`);
+
+  if (process.env.WG_BROWSER_SMOKE_TEST === "1") {
+    const smokeRunId = randomUUID();
+    runBrowserWorkflow({
+      workflow: {
+        id: "browser-smoke-test",
+        name: "Browser smoke test",
+        mode: "browser",
+        url: "https://example.com",
+        steps: [
+          { type: "navigate", url: "https://example.com" },
+          { type: "assertText", selector: "", text: "Example Domain" }
+        ]
+      },
+      runId: smokeRunId,
+      dataDir: DATA_DIR,
+      validatePublicUrl
+    }).then((result) => {
+      console.log("WG_BROWSER_SMOKE_TEST", JSON.stringify({
+        ok: result.ok,
+        error: result.error || null,
+        steps: result.evidence?.steps?.map((step) => ({
+          position: step.position,
+          type: step.type,
+          ok: step.ok,
+          error: step.error || null
+        })) || []
+      }));
+    }).catch((error) => {
+      console.error("WG_BROWSER_SMOKE_TEST_FATAL", error);
+    });
+  }
 });
 
 setInterval(() => {
