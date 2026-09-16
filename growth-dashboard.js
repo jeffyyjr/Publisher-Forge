@@ -10,12 +10,34 @@
     return (Number(value) || 0).toFixed(1).replace(/\.0$/, "") + "%";
   }
 
+  function rate(part, whole) {
+    return Number(whole) ? Math.round((Number(part) / Number(whole)) * 1000) / 10 : 0;
+  }
+
   function text(value) {
     return String(value || "");
   }
 
   function setMetric(id, value) {
     byId(id).textContent = value;
+  }
+
+  function setStage(id, count, conversion, label) {
+    const node = byId(id);
+    if (!node) return;
+    node.querySelector("strong").textContent = number(count);
+    node.querySelector("span").textContent = label;
+    const detail = node.querySelector("small");
+    if (detail) detail.textContent = conversion == null ? "Entry point" : pct(conversion) + " from previous step";
+  }
+
+  function renderJourney(totals) {
+    setStage("journeyVisitors", totals.visitors, null, "Launch visitors");
+    setStage("journeyOpens", totals.appOpens, rate(totals.appOpens, totals.visitors), "Opened Forge");
+    setStage("journeyDemo", totals.demoStarts, rate(totals.demoStarts, totals.appOpens || totals.visitors), "Started free scan");
+    setStage("journeyDone", totals.demoCompletions, rate(totals.demoCompletions, totals.demoStarts), "Completed free scan");
+    setStage("journeySignup", totals.signups, rate(totals.signups, totals.demoCompletions || totals.visitors), "Created account");
+    setStage("journeyUse", totals.featureUses, rate(totals.featureUses, totals.signups), "Signed-in feature uses");
   }
 
   function renderSources(rows) {
@@ -88,38 +110,30 @@
 
   function recommendation(data) {
     const rows = data.sources || [];
-    const totals = data.totals || {};
-    if ((totals.visitors || 0) < 10) {
-      return "Traffic sample is still small. Keep the current feelers running until at least 10 tracked visitors land.";
-    }
+    const t = data.totals || {};
+    if ((t.visitors || 0) < 10) return "Traffic sample is still small. Get to at least 10 tracked visitors before judging channels; watch which step below loses people.";
+    if ((t.appOpens || 0) < (t.visitors || 0) * 0.5) return "Biggest bottleneck: launch page → Forge. Tighten the main promise and free-scan CTA before adding more traffic.";
+    if ((t.demoStarts || 0) < (t.appOpens || 0) * 0.5) return "Biggest bottleneck: Forge open → free scan. Make the first action more obvious and reduce choices for new visitors.";
+    if ((t.demoStarts || 0) && (t.demoCompletions || 0) < (t.demoStarts || 0) * 0.7) return "Biggest bottleneck: scan completion. Check scan speed/errors before promoting harder.";
+    if ((t.demoCompletions || 0) && (t.signups || 0) < (t.demoCompletions || 0) * 0.25) return "Biggest bottleneck: completed scan → account. Strengthen the reason to save the research and continue building.";
+    if ((t.signups || 0) && (t.featureUses || 0) < (t.signups || 0) * 0.5) return "Biggest bottleneck: signup → second Forge action. The new return-to-Forge handoff is the step to watch now.";
+
     const ranked = [...rows].sort((a, b) =>
-      (b.signups - a.signups) ||
-      (b.featureUses - a.featureUses) ||
-      (b.signupConversion - a.signupConversion) ||
-      (b.visitors - a.visitors)
+      (b.featureUses - a.featureUses) || (b.signups - a.signups) ||
+      (b.signupConversion - a.signupConversion) || (b.visitors - a.visitors)
     );
     const winner = ranked[0];
     if (!winner) return "No clear source winner yet.";
-    if ((totals.demoStarts || 0) > 0 && (totals.signups || 0) === 0) {
-      return "People are trying the free scan but not creating accounts yet. Tighten the post-demo signup promise before increasing traffic spend.";
-    }
-    if ((winner.signups || 0) === 0 && (winner.featureUses || 0) === 0) {
-      return "People are landing but not starting or converting yet. Tighten the landing-page promise before increasing post volume.";
-    }
     const angle = winner.content ? " / " + winner.content : "";
-    return "Current winner: " + winner.source + angle +
-      ". It has " + number(winner.signups) + " signup(s), " +
-      number(winner.featureUses) + " paid-feature use(s), and " +
-      pct(winner.signupConversion) + " visitor-to-signup conversion. Push this angle before adding new channels.";
+    return "Healthy funnel so far. Current source leader: " + winner.source + angle +
+      " with " + number(winner.signups) + " signup(s), " + number(winner.featureUses) +
+      " signed-in feature use(s), and " + pct(winner.signupConversion) + " visitor-to-signup conversion.";
   }
 
   async function load() {
     const status = byId("status");
     status.textContent = "Loading " + days + "-day growth data…";
-    const response = await fetch("/api/admin/growth?days=" + days, {
-      cache: "no-store",
-      credentials: "same-origin"
-    });
+    const response = await fetch("/api/admin/growth?days=" + days, { cache: "no-store", credentials: "same-origin" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Growth dashboard unavailable");
 
@@ -135,6 +149,7 @@
     setMetric("activeUsers", number(totals.activeUsers));
     setMetric("returningUsers", number(totals.returningUsers));
     setMetric("returningRate", pct(totals.returningRate));
+    renderJourney(totals);
     renderSources(data.sources || []);
     renderFeatures(data.features || []);
     byId("recommendation").textContent = recommendation(data);
@@ -145,12 +160,9 @@
     button.addEventListener("click", async () => {
       days = Number(button.dataset.days) || 30;
       document.querySelectorAll("[data-days]").forEach((node) => node.classList.toggle("active", node === button));
-      try { await load(); }
-      catch (error) { byId("status").textContent = error.message; }
+      try { await load(); } catch (error) { byId("status").textContent = error.message; }
     });
   });
 
-  load().catch((error) => {
-    byId("status").textContent = error.message;
-  });
+  load().catch((error) => { byId("status").textContent = error.message; });
 })();
