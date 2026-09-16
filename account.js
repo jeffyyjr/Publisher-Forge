@@ -58,6 +58,20 @@ function saveMeta(revision, state) {
   }));
 }
 
+function safeReturnPath() {
+  const params = new URLSearchParams(window.location.search);
+  const requested = String(params.get("return") || "").trim();
+  if (requested.startsWith("/") && !requested.startsWith("//")) return requested;
+
+  const state = localState();
+  const hasGuestResearch = Array.isArray(state.trendHistory) && state.trendHistory.length > 0;
+  return hasGuestResearch ? "/?view=radar&onboard=1" : "/?view=radar&onboard=1";
+}
+
+function continueToForge() {
+  window.location.assign(safeReturnPath());
+}
+
 async function request(url, options = {}) {
   const response = await fetch(url, {
     cache: "no-store",
@@ -192,9 +206,10 @@ async function register() {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
-  showMessage("Account created. Saving this device so your stats start immediately.", "good");
+  showMessage("Account created. Saving this device and returning you to Forge…", "good");
   await refreshStatus();
   await saveDevice();
+  continueToForge();
 }
 
 async function login() {
@@ -204,8 +219,9 @@ async function login() {
     method: "POST",
     body: JSON.stringify({ email, password })
   });
-  showMessage("Signed in. Check the two copies before choosing which one to keep.", "good");
+  showMessage("Signed in. Returning you to Forge…", "good");
   await refreshStatus();
+  continueToForge();
 }
 
 async function saveDevice() {
