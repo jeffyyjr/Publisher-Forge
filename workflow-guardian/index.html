@@ -6,88 +6,162 @@
 <meta name="theme-color" content="#08111a">
 <title>Workflow Guardian</title>
 <style>
-:root{color-scheme:dark;--bg:#08111a;--panel:#0f1b27;--panel2:#0a141e;--line:#26384a;--text:#f4f7fb;--muted:#91a2b4;--green:#57dd91;--red:#ff7b89;--gold:#ffca72;--blue:#70b7ff}
+:root{color-scheme:dark;--bg:#08111a;--panel:#0f1b27;--line:#26384a;--text:#f4f7fb;--muted:#91a2b4;--green:#57dd91;--red:#ff7b89;--gold:#ffca72;--blue:#70b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% -10%,#277cc522,transparent 28rem),var(--bg);color:var(--text);font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
-button,input,select{font:inherit}.shell{width:min(1120px,100%);margin:auto;padding:20px 16px 70px}
+button,input,select{font:inherit}.shell{width:min(1180px,100%);margin:auto;padding:20px 16px 70px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:16px}.brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:46px;height:46px;border:1px solid #31506d;border-radius:14px;background:#0d2234;color:var(--blue);font-weight:950}.brand h1{margin:0;font-size:1.08rem}.brand p{margin:2px 0 0;color:var(--muted);font-size:.78rem}
-.badge{padding:7px 10px;border:1px solid #31506d;border-radius:999px;background:#0c1924;color:#b8d8f5;font-size:.74rem;font-weight:850}
-.hero{padding:60px 0 28px}.eyebrow{margin:0 0 7px;color:var(--blue);font-size:.74rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.hero h2{max-width:830px;margin:0;font-size:clamp(2.3rem,7vw,4.8rem);line-height:1;letter-spacing:-.05em}.hero p{max-width:760px;margin:18px 0 0;color:#c3d0dc;font-size:1.04rem}
+.badge{padding:7px 10px;border:1px solid #31506d;border-radius:999px;background:#0c1924;color:#b8d8f5;font-size:.74rem;font-weight:850}.hero{padding:54px 0 28px}.eyebrow{margin:0 0 7px;color:var(--blue);font-size:.74rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.hero h2{max-width:860px;margin:0;font-size:clamp(2.35rem,7vw,4.9rem);line-height:1;letter-spacing:-.05em}.hero p{max-width:780px;margin:18px 0 0;color:#c3d0dc;font-size:1.04rem}
 .grid{display:grid;gap:16px}.panel{border:1px solid var(--line);border-radius:19px;background:linear-gradient(180deg,#122131,#0b151f);box-shadow:0 18px 55px #0005}.head{padding:18px;border-bottom:1px solid var(--line)}.head h3{margin:0;font-size:1.15rem}.head p{margin:6px 0 0;color:var(--muted);font-size:.86rem}.body{padding:18px}
 .field{margin-bottom:14px}.field label{display:block;margin-bottom:6px;color:#dce6ef;font-size:.82rem;font-weight:800}.field input,.field select{width:100%;min-height:48px;padding:0 12px;border:1px solid #33495c;border-radius:11px;background:#071019;color:var(--text);outline:0}.field input:focus,.field select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #70b7ff18}
+.mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:16px}.mode-btn{min-height:43px;border:1px solid #344b5f;border-radius:10px;background:#0c1721;color:var(--muted);font-weight:850;cursor:pointer}.mode-btn.active{border-color:#3f80b7;background:#10283b;color:#ddecfa}
 .btn{min-height:46px;padding:10px 14px;border:0;border-radius:11px;background:#2e92ee;color:#06111a;font-weight:900;cursor:pointer}.btn.secondary{border:1px solid #395066;background:#172536;color:var(--text)}.btn.danger{border:1px solid #6b3640;background:#2a151a;color:#ffb5bd}.btn:disabled{opacity:.55;cursor:wait}.wide{width:100%}
-.note{margin:11px 0 0;color:var(--muted);font-size:.76rem}.statusline{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.status{font-size:.72rem;font-weight:950;letter-spacing:.07em;text-transform:uppercase}.status.passing{color:var(--green)}.status.failing{color:var(--red)}.status.unknown{color:var(--gold)}
+.note{margin:11px 0 0;color:var(--muted);font-size:.76rem}.warning{margin:12px 0;padding:11px;border:1px solid #6b5227;border-radius:11px;background:#241b0b;color:#f2d6a0;font-size:.78rem}
+.steps{display:grid;gap:9px;margin:12px 0}.step{padding:11px;border:1px solid #30465a;border-radius:12px;background:#09131c}.step-top{display:flex;align-items:center;gap:8px}.step-num{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:8px;background:#11293d;color:var(--blue);font-size:.78rem;font-weight:950}.step select{min-width:0;flex:1;min-height:40px;padding:0 8px;border:1px solid #33495c;border-radius:9px;background:#071019;color:var(--text)}.step button{width:36px;height:36px;border:1px solid #61343d;border-radius:9px;background:#29151a;color:#ffadb7;cursor:pointer}.step-fields{display:grid;gap:8px;margin-top:9px}.step-fields input{width:100%;min-height:42px;padding:0 10px;border:1px solid #33495c;border-radius:9px;background:#071019;color:var(--text)}
+.statusline{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.status{font-size:.72rem;font-weight:950;letter-spacing:.07em;text-transform:uppercase}.status.passing{color:var(--green)}.status.failing{color:var(--red)}.status.unknown{color:var(--gold)}
 .workflow-list,.incident-list{display:grid;gap:11px}.empty{padding:28px 10px;color:var(--muted);text-align:center}.workflow{padding:15px;border:1px solid #2a3d4f;border-radius:14px;background:#0a141e}.workflow h4{margin:0 0 4px}.url{overflow:hidden;color:var(--muted);font-size:.77rem;text-overflow:ellipsis;white-space:nowrap}.meta{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.chip{padding:5px 8px;border:1px solid #31475a;border-radius:999px;color:#b5c4d2;font-size:.7rem}.error{margin:10px 0 0;padding:10px;border:1px solid #633742;border-radius:10px;background:#29141a;color:#ffc0c7;font-size:.8rem}.okbox{margin:10px 0 0;padding:10px;border:1px solid #2c5940;border-radius:10px;background:#0d2218;color:#b7efd0;font-size:.8rem}.actions{display:flex;gap:8px;margin-top:12px}.actions .btn{flex:1}
-.incident{padding:14px;border:1px solid #334658;border-radius:13px;background:#0b151f}.incident.open{border-color:#6b3640}.incident.resolved{border-color:#2c5940}.incident strong{display:block}.incident span{display:block;margin-top:4px;color:var(--muted);font-size:.78rem}
+.step-log{display:grid;gap:6px;margin-top:10px}.step-log div{padding:7px 9px;border:1px solid #2b3f50;border-radius:9px;background:#08121a;color:#b7c7d6;font-size:.75rem}.evidence-img{display:block;width:100%;margin-top:10px;border:1px solid #4d3940;border-radius:11px;background:#080b0f}.incident{padding:14px;border:1px solid #334658;border-radius:13px;background:#0b151f}.incident.open{border-color:#6b3640}.incident.resolved{border-color:#2c5940}.incident strong{display:block}.incident span{display:block;margin-top:4px;color:var(--muted);font-size:.78rem}.incident a{display:inline-block;margin-top:8px;color:#9bcfff;font-size:.78rem}
 footer{padding:28px 0;color:#72869a;font-size:.75rem}
-@media(min-width:820px){.grid.main{grid-template-columns:360px minmax(0,1fr);align-items:start}.grid.lower{grid-template-columns:1fr 1fr}.sticky{position:sticky;top:18px}}
+[hidden]{display:none!important}
+@media(min-width:860px){.grid.main{grid-template-columns:410px minmax(0,1fr);align-items:start}.grid.lower{grid-template-columns:1fr 1fr}.sticky{position:sticky;top:18px}.step-fields.two{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
 <main class="shell">
 <header class="top">
   <div class="brand"><div class="mark">WG</div><div><h1>Workflow Guardian</h1><p>Critical workflow reliability</p></div></div>
-  <span class="badge">Standalone MVP · v0.1</span>
+  <span class="badge">Standalone MVP · v0.2</span>
 </header>
 
 <section class="hero">
-  <p class="eyebrow">Catch recurring workflow failures</p>
-  <h2>Know when the workflow breaks before your team has to troubleshoot it.</h2>
-  <p>Define the page your operation depends on, what success should look like, and how often to check it. Guardian records evidence when the expected result disappears.</p>
+  <p class="eyebrow">Synthetic browser monitoring</p>
+  <h2>Replay the workflow. Catch the exact step that breaks.</h2>
+  <p>Guardian can now run real browser steps — navigate, click, fill, wait, and assert — then capture screenshot evidence when a critical workflow fails.</p>
 </section>
 
 <section class="grid main">
   <article class="panel sticky">
-    <div class="head"><h3>Add a critical workflow</h3><p>v0.1 checks public web pages and success text. Browser recording comes next.</p></div>
+    <div class="head"><h3>Create a workflow monitor</h3><p>Use a simple page check or build a multi-step browser replay.</p></div>
     <div class="body">
+      <div class="mode-tabs">
+        <button class="mode-btn active" id="simpleMode" type="button">Page check</button>
+        <button class="mode-btn" id="browserMode" type="button">Browser flow</button>
+      </div>
+
       <form id="workflowForm">
         <div class="field"><label for="name">Workflow name</label><input id="name" maxlength="100" placeholder="New member signup" required></div>
-        <div class="field"><label for="url">Public URL to check</label><input id="url" type="url" placeholder="https://example.com/signup" required></div>
-        <div class="field"><label for="expectedText">Success text (optional)</label><input id="expectedText" maxlength="500" placeholder="Create account"></div>
-        <div class="field"><label for="intervalMinutes">Check every</label><select id="intervalMinutes"><option value="5">5 minutes</option><option value="15" selected>15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option></select></div>
+        <div class="field"><label for="url">Starting public URL</label><input id="url" type="url" placeholder="https://example.com/signup" required></div>
+
+        <div id="simpleFields">
+          <div class="field"><label for="expectedText">Success text (optional)</label><input id="expectedText" maxlength="500" placeholder="Create account"></div>
+        </div>
+
+        <div id="browserFields" hidden>
+          <div class="warning">Browser flows can fill normal fields, but v0.2 deliberately blocks password inputs. Secret storage/login replay comes after encryption and account isolation.</div>
+          <div class="steps" id="steps"></div>
+          <button class="btn secondary wide" id="addStep" type="button">+ Add browser step</button>
+          <p class="note">Selectors are CSS selectors for now. Example: <code>#submit</code>, <code>button[type=submit]</code>, <code>input[name=email]</code>.</p>
+        </div>
+
+        <div class="field" style="margin-top:14px"><label for="intervalMinutes">Check every</label><select id="intervalMinutes"><option value="5">5 minutes</option><option value="15" selected>15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option></select></div>
         <button class="btn wide" id="createButton" type="submit">Create workflow monitor</button>
       </form>
-      <p class="note">For safety, private-network URLs and URLs containing credentials are rejected.</p>
+      <p class="note">Private/local network targets and credential-bearing URLs are blocked.</p>
     </div>
   </article>
 
   <article class="panel">
-    <div class="head"><h3>Monitored workflows</h3><p>Passing, failing, last evidence, and one-click rechecks.</p></div>
+    <div class="head"><h3>Monitored workflows</h3><p>Passing, failing, step evidence, and one-click rechecks.</p></div>
     <div class="body"><div id="workflowList" class="workflow-list"><div class="empty">No workflows yet.</div></div></div>
   </article>
 </section>
 
 <section class="grid lower" style="margin-top:16px">
   <article class="panel">
-    <div class="head"><h3>Incident timeline</h3><p>A failure opens an incident. A successful recheck resolves it automatically.</p></div>
+    <div class="head"><h3>Incident timeline</h3><p>A failure opens an incident. A later successful replay resolves it automatically.</p></div>
     <div class="body"><div id="incidentList" class="incident-list"><div class="empty">No incidents yet.</div></div></div>
   </article>
   <article class="panel">
-    <div class="head"><h3>What v0.1 proves</h3><p>The smallest version of the reliability loop.</p></div>
+    <div class="head"><h3>v0.2 reliability loop</h3><p>The product is now testing browser behavior, not just HTTP uptime.</p></div>
     <div class="body">
-      <div class="okbox">✓ Define a workflow check</div>
-      <div class="okbox">✓ Replay manually or on a schedule</div>
-      <div class="okbox">✓ Detect bad status or missing success text</div>
-      <div class="okbox">✓ Capture final URL, status, duration, and response evidence</div>
-      <div class="okbox">✓ Open and automatically resolve incidents</div>
-      <div class="note">Next: browser recorder, screenshots, click/fill/assert steps, Slack/email alerts, then team accounts.</div>
+      <div class="okbox">✓ Real headless Chromium replay</div>
+      <div class="okbox">✓ Navigate / click / fill / wait / assert steps</div>
+      <div class="okbox">✓ Exact failed-step reporting</div>
+      <div class="okbox">✓ Screenshot evidence on browser failure</div>
+      <div class="okbox">✓ Scheduled rechecks + auto-resolved incidents</div>
+      <div class="note">Next: no-code click recorder, encrypted secrets/login sessions, and Slack/email alerts.</div>
     </div>
   </article>
 </section>
 
-<footer>Workflow Guardian · standalone reliability monitor · no connection to Publisher Forge at runtime</footer>
+<footer>Workflow Guardian · standalone reliability monitor · no Publisher Forge runtime dependency</footer>
 </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const when = (iso) => iso ? new Date(iso).toLocaleString() : "Never";
+let mode = "simple";
+let stepCounter = 0;
 
 async function api(path, options={}) {
   const res = await fetch(path, {headers:{"content-type":"application/json"}, ...options});
   let body = {};
   try { body = await res.json(); } catch {}
-  if (!res.ok) throw new Error(body.error || "Request failed");
+  if (!res.ok) throw new Error(body.error || body.run?.error || "Request failed");
   return body;
+}
+
+function setMode(next) {
+  mode = next;
+  $("simpleMode").classList.toggle("active", next === "simple");
+  $("browserMode").classList.toggle("active", next === "browser");
+  $("simpleFields").hidden = next !== "simple";
+  $("browserFields").hidden = next !== "browser";
+  if (next === "browser" && !$("steps").children.length) {
+    addStep("navigate", {url:$("url").value});
+    addStep("assertText");
+  }
+}
+
+function stepFields(type, values={}) {
+  if (type === "navigate") return '<input class="step-url" placeholder="https://example.com/page" value="' + esc(values.url || "") + '">';
+  if (type === "click") return '<input class="step-selector" placeholder="CSS selector, e.g. button[type=submit]" value="' + esc(values.selector || "") + '">';
+  if (type === "fill") return '<div class="step-fields two"><input class="step-selector" placeholder="CSS selector" value="' + esc(values.selector || "") + '"><input class="step-value" placeholder="Value to enter (no passwords)" value="' + esc(values.value || "") + '"></div>';
+  if (type === "assertText") return '<div class="step-fields two"><input class="step-selector" placeholder="Selector (optional; blank = whole page)" value="' + esc(values.selector || "") + '"><input class="step-text" placeholder="Expected text" value="' + esc(values.text || "") + '"></div>';
+  return '<input class="step-ms" type="number" min="100" max="10000" step="100" value="' + esc(values.ms || 1000) + '" placeholder="Milliseconds">';
+}
+
+function addStep(type="click", values={}) {
+  stepCounter += 1;
+  const row = document.createElement("div");
+  row.className = "step";
+  row.dataset.id = String(stepCounter);
+  row.innerHTML = '<div class="step-top"><span class="step-num"></span><select class="step-type">' +
+    '<option value="navigate">Navigate</option><option value="click">Click</option><option value="fill">Fill field</option><option value="assertText">Assert text</option><option value="wait">Wait</option>' +
+    '</select><button type="button" class="remove-step" aria-label="Remove step">×</button></div><div class="step-fields step-dynamic"></div>';
+  $("steps").appendChild(row);
+  row.querySelector(".step-type").value = type;
+  row.querySelector(".step-dynamic").innerHTML = stepFields(type, values);
+  row.querySelector(".step-type").addEventListener("change", (e) => {
+    row.querySelector(".step-dynamic").innerHTML = stepFields(e.target.value);
+  });
+  row.querySelector(".remove-step").addEventListener("click", () => { row.remove(); renumberSteps(); });
+  renumberSteps();
+}
+
+function renumberSteps() {
+  [...$("steps").children].forEach((row, i) => row.querySelector(".step-num").textContent = String(i + 1));
+}
+
+function collectSteps() {
+  return [...$("steps").children].map((row) => {
+    const type = row.querySelector(".step-type").value;
+    if (type === "navigate") return {type, url:row.querySelector(".step-url")?.value || ""};
+    if (type === "click") return {type, selector:row.querySelector(".step-selector")?.value || ""};
+    if (type === "fill") return {type, selector:row.querySelector(".step-selector")?.value || "", value:row.querySelector(".step-value")?.value || ""};
+    if (type === "assertText") return {type, selector:row.querySelector(".step-selector")?.value || "", text:row.querySelector(".step-text")?.value || ""};
+    return {type, ms:Number(row.querySelector(".step-ms")?.value || 1000)};
+  });
 }
 
 async function load() {
@@ -96,9 +170,18 @@ async function load() {
   renderIncidents(incidents);
 }
 
+function renderSteps(run) {
+  const steps = run?.evidence?.steps;
+  if (!Array.isArray(steps) || !steps.length) return "";
+  return '<div class="step-log">' + steps.map((s) =>
+    '<div>' + (s.ok ? '✓' : '✕') + ' Step ' + esc(s.position) + ' · ' + esc(s.type) +
+    (s.error ? ' · ' + esc(s.error) : '') + ' · ' + esc(s.durationMs) + ' ms</div>'
+  ).join("") + '</div>';
+}
+
 function renderWorkflows(items) {
   if (!items.length) {
-    $("workflowList").innerHTML = '<div class="empty">No workflows yet. Add the first critical workflow on the left.</div>';
+    $("workflowList").innerHTML = '<div class="empty">No workflows yet. Build the first monitor on the left.</div>';
     return;
   }
   $("workflowList").innerHTML = items.map((w) => {
@@ -107,12 +190,13 @@ function renderWorkflows(items) {
     const evidence = run?.evidence || {};
     const detail = run
       ? (run.ok
-          ? '<div class="okbox">Last check passed · ' + esc(run.durationMs) + ' ms · HTTP ' + esc(evidence.statusCode ?? "—") + '</div>'
-          : '<div class="error">' + esc(run.error || "Workflow failed") + '<br><span style="color:#d6aab0">HTTP ' + esc(evidence.statusCode ?? "—") + ' · ' + esc(run.durationMs) + ' ms</span></div>')
+          ? '<div class="okbox">Last check passed · ' + esc(run.durationMs) + ' ms' + (evidence.statusCode ? ' · HTTP ' + esc(evidence.statusCode) : '') + '</div>'
+          : '<div class="error">' + esc(run.error || "Workflow failed") + '<br><span style="color:#d6aab0">' + esc(run.durationMs) + ' ms</span></div>' + renderSteps(run) +
+            (evidence.screenshotUrl ? '<a href="' + esc(evidence.screenshotUrl) + '" target="_blank" rel="noopener"><img class="evidence-img" src="' + esc(evidence.screenshotUrl) + '" alt="Failure screenshot evidence"></a>' : ''))
       : '';
     return '<div class="workflow">' +
       '<div class="statusline"><div><h4>' + esc(w.name) + '</h4><div class="url">' + esc(w.url) + '</div></div><span class="status ' + esc(status) + '">' + esc(status) + '</span></div>' +
-      '<div class="meta"><span class="chip">Every ' + esc(w.intervalMinutes) + 'm</span><span class="chip">Last: ' + esc(when(w.lastRunAt)) + '</span>' + (w.expectedText ? '<span class="chip">Expect: ' + esc(w.expectedText) + '</span>' : '') + '</div>' +
+      '<div class="meta"><span class="chip">' + esc((w.mode || "http") === "browser" ? "Browser replay" : "Page check") + '</span><span class="chip">Every ' + esc(w.intervalMinutes) + 'm</span><span class="chip">Last: ' + esc(when(w.lastRunAt)) + '</span>' + ((w.steps || []).length ? '<span class="chip">' + esc(w.steps.length) + ' steps</span>' : '') + '</div>' +
       detail +
       '<div class="actions"><button class="btn secondary" onclick="runNow(\'' + w.id + '\', this)">Run now</button><button class="btn danger" onclick="removeWorkflow(\'' + w.id + '\')">Delete</button></div>' +
       '</div>';
@@ -128,15 +212,17 @@ function renderIncidents(items) {
     '<div class="incident ' + (i.resolvedAt ? 'resolved' : 'open') + '"><strong>' +
     esc(i.resolvedAt ? 'RESOLVED · ' + i.workflowName : 'OPEN · ' + i.workflowName) +
     '</strong><span>' + esc(i.summary) + '</span><span>Opened ' + esc(when(i.openedAt)) +
-    (i.resolvedAt ? ' · Resolved ' + esc(when(i.resolvedAt)) : '') + '</span></div>'
+    (i.resolvedAt ? ' · Resolved ' + esc(when(i.resolvedAt)) : '') + '</span>' +
+    (i.screenshotUrl ? '<a href="' + esc(i.screenshotUrl) + '" target="_blank" rel="noopener">View failure screenshot →</a>' : '') +
+    '</div>'
   ).join("");
 }
 
 window.runNow = async (id, button) => {
   button.disabled = true;
-  button.textContent = "Checking…";
+  button.textContent = "Replaying…";
   try { await api("/api/workflows/" + id + "/run", {method:"POST"}); }
-  catch (error) { /* failures are expected and recorded */ }
+  catch {}
   finally { await load(); button.disabled = false; button.textContent = "Run now"; }
 };
 
@@ -146,23 +232,28 @@ window.removeWorkflow = async (id) => {
   await load();
 };
 
+$("simpleMode").addEventListener("click", () => setMode("simple"));
+$("browserMode").addEventListener("click", () => setMode("browser"));
+$("addStep").addEventListener("click", () => addStep("click"));
+
 $("workflowForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $("createButton");
   button.disabled = true;
   button.textContent = "Creating…";
   try {
-    await api("/api/workflows", {
-      method:"POST",
-      body:JSON.stringify({
-        name:$("name").value,
-        url:$("url").value,
-        expectedText:$("expectedText").value,
-        intervalMinutes:Number($("intervalMinutes").value)
-      })
-    });
+    const payload = {
+      name:$("name").value,
+      url:$("url").value,
+      expectedText:mode === "simple" ? $("expectedText").value : "",
+      intervalMinutes:Number($("intervalMinutes").value),
+      steps:mode === "browser" ? collectSteps() : []
+    };
+    await api("/api/workflows", {method:"POST", body:JSON.stringify(payload)});
     event.target.reset();
     $("intervalMinutes").value = "15";
+    $("steps").innerHTML = "";
+    setMode("simple");
     await load();
   } catch (error) {
     alert(error.message);
