@@ -5,12 +5,13 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
+import { normalizeBrowserSteps, runBrowserWorkflow } from "./browser-runner.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 10000);
 const DATA_DIR = process.env.WG_DATA_DIR || join(__dirname, ".data");
 const DATA_FILE = join(DATA_DIR, "workflow-guardian.json");
-const MAX_BODY = 256_000;
+const MAX_BODY = 512_000;
 const DEFAULT_TIMEOUT_MS = 12_000;
 
 let state = { workflows: [], runs: [], incidents: [] };
@@ -86,7 +87,7 @@ function isPrivateIp(ip) {
   );
 }
 
-async function validatePublicUrl(input) {
+export async function validatePublicUrl(input) {
   let url;
   try {
     url = new URL(input);
@@ -122,7 +123,7 @@ async function safeFetch(startUrl, timeoutMs = DEFAULT_TIMEOUT_MS) {
         method: "GET",
         redirect: "manual",
         headers: {
-          "user-agent": "WorkflowGuardian/0.1 (+synthetic-monitor)",
+          "user-agent": "WorkflowGuardian/0.2 (+synthetic-monitor)",
           accept: "text/html,text/plain,application/json;q=0.8,*/*;q=0.5"
         },
         signal: controller.signal
@@ -149,11 +150,20 @@ function normalizeWorkflow(input) {
   const url = String(input.url || "").trim().slice(0, 1000);
   const expectedText = String(input.expectedText || "").trim().slice(0, 500);
   const intervalMinutes = Math.min(1440, Math.max(1, Number(input.intervalMinutes || 15)));
+  const steps = normalizeBrowserSteps(input.steps || []);
+  const mode = steps.length ? "browser" : "http";
 
   if (!name) throw new Error("Workflow name is required");
   if (!url) throw new Error("Target URL is required");
 
-  return { name, url, expectedText, intervalMinutes };
+  return { name, url, expectedText, intervalMinutes, mode, steps };
+}
+
+async function validateWorkflowTargets(workflow) {
+  await validatePublicUrl(workflow.url);
+  for (const step of workflow.steps || []) {
+    if (step.type === "navigate") await validatePublicUrl(step.url);
+  }
 }
 
 function latestRun(workflowId) {
@@ -164,12 +174,37 @@ function activeIncident(workflowId) {
   return state.incidents.find((incident) => incident.workflowId === workflowId && !incident.resolvedAt) || null;
 }
 
+async function runHttpWorkflow(workflow) {
+  const { response, finalUrl } = await safeFetch(workflow.url);
+  const body = (await response.text()).slice(0, 100_000);
+  const statusOk = response.status >= 200 && response.status < 400;
+  const textOk = !workflow.expectedText || body.toLowerCase().includes(workflow.expectedText.toLowerCase());
+
+  return {
+    ok: statusOk && textOk,
+    error: !statusOk
+      ? `Unexpected HTTP status ${response.status}`
+      : (!textOk ? `Expected text not found: "${workflow.expectedText}"` : null),
+    evidence: {
+      mode: "http",
+      requestedUrl: workflow.url,
+      finalUrl,
+      statusCode: response.status,
+      statusOk,
+      expectedText: workflow.expectedText || null,
+      expectedTextFound: workflow.expectedText ? textOk : null,
+      responseSnippet: body.replace(/\s+/g, " ").trim().slice(0, 700)
+    }
+  };
+}
+
 async function runWorkflow(workflow, source = "manual") {
   const started = Date.now();
   const run = {
     id: randomUUID(),
     workflowId: workflow.id,
     workflowName: workflow.name,
+    workflowMode: workflow.mode || "http",
     source,
     startedAt: new Date(started).toISOString(),
     finishedAt: null,
@@ -178,31 +213,23 @@ async function runWorkflow(workflow, source = "manual") {
   };
 
   try {
-    const { response, finalUrl } = await safeFetch(workflow.url);
-    const body = (await response.text()).slice(0, 100_000);
-    const statusOk = response.status >= 200 && response.status < 400;
-    const textOk = !workflow.expectedText || body.toLowerCase().includes(workflow.expectedText.toLowerCase());
+    const result = workflow.mode === "browser"
+      ? await runBrowserWorkflow({
+          workflow,
+          runId: run.id,
+          dataDir: DATA_DIR,
+          validatePublicUrl
+        })
+      : await runHttpWorkflow(workflow);
 
-    run.ok = statusOk && textOk;
-    run.evidence = {
-      requestedUrl: workflow.url,
-      finalUrl,
-      statusCode: response.status,
-      statusOk,
-      expectedText: workflow.expectedText || null,
-      expectedTextFound: workflow.expectedText ? textOk : null,
-      responseSnippet: body.replace(/\s+/g, " ").trim().slice(0, 700)
-    };
-
-    if (!run.ok) {
-      run.error = !statusOk
-        ? `Unexpected HTTP status ${response.status}`
-        : `Expected text not found: "${workflow.expectedText}"`;
-    }
+    run.ok = Boolean(result.ok);
+    run.error = result.error || null;
+    run.evidence = result.evidence || {};
   } catch (error) {
     run.ok = false;
     run.error = error?.name === "AbortError" ? "Workflow check timed out" : String(error?.message || error);
     run.evidence = {
+      mode: workflow.mode || "http",
       requestedUrl: workflow.url,
       expectedText: workflow.expectedText || null
     };
@@ -227,11 +254,13 @@ async function runWorkflow(workflow, source = "manual") {
       openedAt: run.finishedAt,
       resolvedAt: null,
       latestRunId: run.id,
-      summary: run.error || "Workflow failed"
+      summary: run.error || "Workflow failed",
+      screenshotUrl: run.evidence?.screenshotUrl || null
     });
   } else if (!run.ok && incident) {
     incident.latestRunId = run.id;
     incident.summary = run.error || incident.summary;
+    incident.screenshotUrl = run.evidence?.screenshotUrl || incident.screenshotUrl || null;
   } else if (run.ok && incident) {
     incident.resolvedAt = run.finishedAt;
     incident.resolutionRunId = run.id;
@@ -249,11 +278,29 @@ function enrichedWorkflows() {
   }));
 }
 
+async function serveEvidence(pathname, res) {
+  const match = pathname.match(/^\/evidence\/([0-9a-f-]{36})\.png$/i);
+  if (!match) return false;
+  try {
+    const image = await readFile(join(DATA_DIR, "screenshots", `${match[1]}.png`));
+    res.writeHead(200, {
+      "content-type": "image/png",
+      "cache-control": "private, max-age=60"
+    });
+    res.end(image);
+  } catch {
+    json(res, 404, { error: "Evidence image not found" });
+  }
+  return true;
+}
+
 async function route(req, res) {
   const url = new URL(req.url, "http://localhost");
 
+  if (req.method === "GET" && await serveEvidence(url.pathname, res)) return;
+
   if (req.method === "GET" && url.pathname === "/health") {
-    return json(res, 200, { ok: true, product: "Workflow Guardian", version: "0.1.0" });
+    return json(res, 200, { ok: true, product: "Workflow Guardian", version: "0.2.0", browserReplay: true });
   }
 
   if (req.method === "GET" && url.pathname === "/api/workflows") {
@@ -271,7 +318,7 @@ async function route(req, res) {
   if (req.method === "POST" && url.pathname === "/api/workflows") {
     try {
       const input = normalizeWorkflow(await readJson(req));
-      await validatePublicUrl(input.url);
+      await validateWorkflowTargets(input);
       const now = new Date().toISOString();
       const workflow = {
         id: randomUUID(),
@@ -336,7 +383,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Workflow Guardian listening on ${PORT}`);
+  console.log(`Workflow Guardian v0.2 listening on ${PORT}`);
 });
 
 setInterval(() => {
