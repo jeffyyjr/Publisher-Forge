@@ -2,9 +2,13 @@ import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 const STEP_TIMEOUT_MS = 12_000;
 const MAX_STEPS = 20;
+const RECORDING_TTL_MS = 10 * 60_000;
+const MAX_RECORDING_SESSIONS = 2;
+const recordings = new Map();
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -61,6 +65,222 @@ async function launchBrowser() {
   });
 }
 
+async function securePage(page, validatePublicUrl) {
+  const checkedHosts = new Map();
+  page.setDefaultTimeout(STEP_TIMEOUT_MS);
+  page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
+  await page.setRequestInterception(true);
+  page.on("request", async (request) => {
+    try {
+      const target = request.url();
+      const parsed = new URL(target);
+      if (!["http:", "https:"].includes(parsed.protocol)) return request.continue();
+
+      const key = parsed.hostname;
+      if (!checkedHosts.has(key)) {
+        await validatePublicUrl(target);
+        checkedHosts.set(key, true);
+      }
+      return request.continue();
+    } catch {
+      return request.abort("blockedbyclient");
+    }
+  });
+}
+
+async function stableSelectorAt(page, x, y) {
+  return page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+
+    function escapeCss(value) {
+      if (window.CSS?.escape) return CSS.escape(value);
+      return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+    }
+
+    function selectorFor(node) {
+      if (!node || node.nodeType !== 1) return null;
+      if (node.id) return "#" + escapeCss(node.id);
+
+      for (const attr of ["data-testid", "data-test", "data-qa", "name", "aria-label"]) {
+        const value = node.getAttribute(attr);
+        if (value) return node.tagName.toLowerCase() + "[" + attr + "=\"" + String(value).replace(/"/g, "\\\"") + "\"]";
+      }
+
+      const parts = [];
+      let current = node;
+      while (current && current.nodeType === 1 && parts.length < 5) {
+        let part = current.tagName.toLowerCase();
+        const parent = current.parentElement;
+        if (parent) {
+          const siblings = [...parent.children].filter((child) => child.tagName === current.tagName);
+          if (siblings.length > 1) part += ":nth-of-type(" + (siblings.indexOf(current) + 1) + ")";
+        }
+        parts.unshift(part);
+        current = parent;
+      }
+      return parts.join(" > ");
+    }
+
+    return {
+      selector: selectorFor(el),
+      tag: el.tagName.toLowerCase(),
+      type: String(el.getAttribute("type") || "").toLowerCase(),
+      text: String(el.innerText || el.textContent || "").trim().slice(0, 160)
+    };
+  }, { x, y });
+}
+
+async function recorderScreenshot(session, dataDir) {
+  const dir = join(dataDir, "recordings");
+  await mkdir(dir, { recursive: true });
+  const filename = `${session.id}.png`;
+  await session.page.screenshot({ path: join(dir, filename), fullPage: false });
+  session.updatedAt = Date.now();
+  return `/recording-evidence/${filename}?v=${session.updatedAt}`;
+}
+
+async function closeRecording(id) {
+  const session = recordings.get(id);
+  if (!session) return;
+  recordings.delete(id);
+  await session.browser.close().catch(() => {});
+}
+
+function cleanupRecordings() {
+  const cutoff = Date.now() - RECORDING_TTL_MS;
+  for (const [id, session] of recordings) {
+    if (session.updatedAt < cutoff) closeRecording(id).catch(() => {});
+  }
+}
+
+setInterval(cleanupRecordings, 60_000).unref();
+
+export async function startRecording({ url, dataDir, validatePublicUrl }) {
+  cleanupRecordings();
+  if (recordings.size >= MAX_RECORDING_SESSIONS) {
+    throw new Error("Two recorder sessions are already active. Finish or cancel one first.");
+  }
+
+  await validatePublicUrl(url);
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+  await securePage(page, validatePublicUrl);
+
+  const session = {
+    id: randomUUID(),
+    browser,
+    page,
+    steps: [{ type: "navigate", url }],
+    startedAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  recordings.set(session.id, session);
+
+  try {
+    const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+    if (response && response.status() >= 400) throw new Error(`Navigation returned HTTP ${response.status()}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const screenshotUrl = await recorderScreenshot(session, dataDir);
+    return {
+      id: session.id,
+      screenshotUrl,
+      currentUrl: page.url(),
+      steps: session.steps
+    };
+  } catch (error) {
+    await closeRecording(session.id);
+    throw error;
+  }
+}
+
+export async function recordingClick({ id, x, y, dataDir }) {
+  const session = recordings.get(id);
+  if (!session) throw new Error("Recorder session expired. Start again.");
+  const hit = await stableSelectorAt(session.page, Number(x), Number(y));
+  if (!hit?.selector) throw new Error("Could not identify the clicked element");
+
+  session.steps.push({ type: "click", selector: hit.selector });
+  await session.page.locator(hit.selector).click();
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  return {
+    screenshotUrl: await recorderScreenshot(session, dataDir),
+    currentUrl: session.page.url(),
+    hit,
+    steps: session.steps
+  };
+}
+
+export async function recordingFill({ id, value, dataDir }) {
+  const session = recordings.get(id);
+  if (!session) throw new Error("Recorder session expired. Start again.");
+
+  const active = await session.page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;
+    const type = String(el.getAttribute("type") || "").toLowerCase();
+    if (type === "password") return { password: true };
+
+    function escapeCss(value) {
+      if (window.CSS?.escape) return CSS.escape(value);
+      return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+    }
+    if (el.id) return { selector: "#" + escapeCss(el.id), password: false };
+    for (const attr of ["data-testid", "data-test", "data-qa", "name", "aria-label"]) {
+      const attrValue = el.getAttribute(attr);
+      if (attrValue) {
+        return {
+          selector: el.tagName.toLowerCase() + "[" + attr + "=\"" + String(attrValue).replace(/"/g, "\\\"") + "\"]",
+          password: false
+        };
+      }
+    }
+    return null;
+  });
+
+  if (active?.password) throw new Error("Password fields are blocked until encrypted secret storage is added.");
+  if (!active?.selector) throw new Error("Tap an input field in the screenshot first.");
+
+  const safeValue = String(value ?? "").slice(0, 2000);
+  await session.page.locator(active.selector).fill(safeValue);
+  session.steps.push({ type: "fill", selector: active.selector, value: safeValue });
+  return {
+    screenshotUrl: await recorderScreenshot(session, dataDir),
+    currentUrl: session.page.url(),
+    steps: session.steps
+  };
+}
+
+export async function recordingAssert({ id, text, dataDir }) {
+  const session = recordings.get(id);
+  if (!session) throw new Error("Recorder session expired. Start again.");
+  const expected = clean(text, 500);
+  if (!expected) throw new Error("Expected text is required");
+
+  const found = await session.page.evaluate((value) => (document.body?.innerText || "").includes(value), expected);
+  if (!found) throw new Error("That text is not currently visible on the page.");
+
+  session.steps.push({ type: "assertText", selector: "", text: expected });
+  return {
+    screenshotUrl: await recorderScreenshot(session, dataDir),
+    currentUrl: session.page.url(),
+    steps: session.steps
+  };
+}
+
+export async function finishRecording(id) {
+  const session = recordings.get(id);
+  if (!session) throw new Error("Recorder session expired. Start again.");
+  const steps = normalizeBrowserSteps(session.steps);
+  await closeRecording(id);
+  return { steps };
+}
+
+export async function cancelRecording(id) {
+  await closeRecording(id);
+  return { ok: true };
+}
+
 export async function runBrowserWorkflow({ workflow, runId, dataDir, validatePublicUrl }) {
   const screenshotsDir = join(dataDir, "screenshots");
   await mkdir(screenshotsDir, { recursive: true });
@@ -69,31 +289,7 @@ export async function runBrowserWorkflow({ workflow, runId, dataDir, validatePub
 
   const browser = await launchBrowser();
   const page = await browser.newPage();
-  page.setDefaultTimeout(STEP_TIMEOUT_MS);
-  page.setDefaultNavigationTimeout(STEP_TIMEOUT_MS);
-
-  const checkedHosts = new Map();
-  await page.setRequestInterception(true);
-  page.on("request", async (request) => {
-    try {
-      const target = request.url();
-      const parsed = new URL(target);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return request.continue();
-      }
-
-      const cacheKey = parsed.hostname;
-      let ok = checkedHosts.get(cacheKey);
-      if (ok === undefined) {
-        await validatePublicUrl(target);
-        ok = true;
-        checkedHosts.set(cacheKey, ok);
-      }
-      return request.continue();
-    } catch {
-      return request.abort("blockedbyclient");
-    }
-  });
+  await securePage(page, validatePublicUrl);
 
   const steps = workflow.steps?.length
     ? workflow.steps
@@ -129,18 +325,14 @@ export async function runBrowserWorkflow({ workflow, runId, dataDir, validatePub
           const response = await page.goto(step.url, { waitUntil: "domcontentloaded" });
           item.url = step.url;
           item.statusCode = response?.status() ?? null;
-          if (response && response.status() >= 400) {
-            throw new Error(`Navigation returned HTTP ${response.status()}`);
-          }
+          if (response && response.status() >= 400) throw new Error(`Navigation returned HTTP ${response.status()}`);
         } else if (step.type === "click") {
           item.selector = step.selector;
           await page.locator(step.selector).click();
         } else if (step.type === "fill") {
           item.selector = step.selector;
           const inputType = await page.$eval(step.selector, (el) => String(el.getAttribute("type") || "").toLowerCase());
-          if (inputType === "password") {
-            throw new Error("Password fields are not supported in v0.2. Secret storage comes next.");
-          }
+          if (inputType === "password") throw new Error("Password fields are not supported yet. Secret storage comes next.");
           await page.locator(step.selector).fill(step.value);
           item.valueLength = step.value.length;
         } else if (step.type === "assertText") {
