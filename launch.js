@@ -7,19 +7,17 @@
   };
   const sharedTopic = String(params.get("topic") || "").trim().slice(0, 180);
 
-  // Make the primary public-beta CTA demonstrate value before asking for signup.
-  const primaryBetaCtas = Array.from(document.querySelectorAll('a.btn[data-launch-event="open_app"]'));
-  primaryBetaCtas.forEach((node, index) => {
+  // Every primary launch CTA enters the same low-friction guest Trend Radar path.
+  // Preserve attribution so we can measure which outside channel creates real use.
+  document.querySelectorAll('a[data-launch-event="open_app"]').forEach((node) => {
     const target = new URL("/", window.location.origin);
     target.searchParams.set("view", "radar");
     target.searchParams.set("guest", "1");
+    target.searchParams.set("onboard", "1");
     target.searchParams.set("utm_source", campaign.source);
     target.searchParams.set("utm_campaign", campaign.campaign);
     if (campaign.content) target.searchParams.set("utm_content", campaign.content);
     node.setAttribute("href", target.pathname + target.search);
-    if (index === 0 || /try the beta/i.test(node.textContent || "")) {
-      node.textContent = "Try a free live scan";
-    }
   });
 
   if (sharedTopic) {
