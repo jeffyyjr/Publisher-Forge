@@ -19,6 +19,7 @@ button,input,select{font:inherit}.shell{width:min(1180px,100%);margin:auto;paddi
 .steps{display:grid;gap:9px;margin:12px 0}.step{padding:11px;border:1px solid #30465a;border-radius:12px;background:#09131c}.step-top{display:flex;align-items:center;gap:8px}.step-num{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:8px;background:#11293d;color:var(--blue);font-size:.78rem;font-weight:950}.step select{min-width:0;flex:1;min-height:40px;padding:0 8px;border:1px solid #33495c;border-radius:9px;background:#071019;color:var(--text)}.step button{width:36px;height:36px;border:1px solid #61343d;border-radius:9px;background:#29151a;color:#ffadb7;cursor:pointer}.step-fields{display:grid;gap:8px;margin-top:9px}.step-fields input{width:100%;min-height:42px;padding:0 10px;border:1px solid #33495c;border-radius:9px;background:#071019;color:var(--text)}
 .statusline{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.status{font-size:.72rem;font-weight:950;letter-spacing:.07em;text-transform:uppercase}.status.passing{color:var(--green)}.status.failing{color:var(--red)}.status.unknown{color:var(--gold)}
 .workflow-list,.incident-list{display:grid;gap:11px}.empty{padding:28px 10px;color:var(--muted);text-align:center}.workflow{padding:15px;border:1px solid #2a3d4f;border-radius:14px;background:#0a141e}.workflow h4{margin:0 0 4px}.url{overflow:hidden;color:var(--muted);font-size:.77rem;text-overflow:ellipsis;white-space:nowrap}.meta{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.chip{padding:5px 8px;border:1px solid #31475a;border-radius:999px;color:#b5c4d2;font-size:.7rem}.error{margin:10px 0 0;padding:10px;border:1px solid #633742;border-radius:10px;background:#29141a;color:#ffc0c7;font-size:.8rem}.okbox{margin:10px 0 0;padding:10px;border:1px solid #2c5940;border-radius:10px;background:#0d2218;color:#b7efd0;font-size:.8rem}.actions{display:flex;gap:8px;margin-top:12px}.actions .btn{flex:1}
+.recorder{margin-bottom:16px}.recorder-grid{display:grid;gap:12px}.recorder-screen{position:relative;overflow:hidden;border:1px solid #37526a;border-radius:14px;background:#050a0f}.recorder-screen img{display:block;width:100%;height:auto;cursor:crosshair}.recorder-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.recorder-status{margin:10px 0 0;color:#b9cddd;font-size:.8rem}.recorded-steps{display:grid;gap:6px;margin-top:10px}.recorded-steps div{padding:7px 9px;border:1px solid #2d4355;border-radius:9px;background:#07121b;color:#b8c8d6;font-size:.75rem}
 .step-log{display:grid;gap:6px;margin-top:10px}.step-log div{padding:7px 9px;border:1px solid #2b3f50;border-radius:9px;background:#08121a;color:#b7c7d6;font-size:.75rem}.evidence-img{display:block;width:100%;margin-top:10px;border:1px solid #4d3940;border-radius:11px;background:#080b0f}.incident{padding:14px;border:1px solid #334658;border-radius:13px;background:#0b151f}.incident.open{border-color:#6b3640}.incident.resolved{border-color:#2c5940}.incident strong{display:block}.incident span{display:block;margin-top:4px;color:var(--muted);font-size:.78rem}.incident a{display:inline-block;margin-top:8px;color:#9bcfff;font-size:.78rem}
 footer{padding:28px 0;color:#72869a;font-size:.75rem}
 [hidden]{display:none!important}
@@ -29,13 +30,39 @@ footer{padding:28px 0;color:#72869a;font-size:.75rem}
 <main class="shell">
 <header class="top">
   <div class="brand"><div class="mark">WG</div><div><h1>Workflow Guardian</h1><p>Critical workflow reliability</p></div></div>
-  <span class="badge">Standalone MVP · v0.2</span>
+  <span class="badge">Standalone MVP · v0.3</span>
 </header>
 
 <section class="hero">
   <p class="eyebrow">Synthetic browser monitoring</p>
   <h2>Replay the workflow. Catch the exact step that breaks.</h2>
-  <p>Guardian can now run real browser steps — navigate, click, fill, wait, and assert — then capture screenshot evidence when a critical workflow fails.</p>
+  <p>Guardian can replay real browser steps and now includes a guided recorder: open a site, tap through the workflow, add assertions, then save it as a scheduled reliability monitor.</p>
+</section>
+
+
+<section class="panel recorder">
+  <div class="head"><h3>Guided Recorder <span style="color:var(--blue);font-size:.7rem">BETA</span></h3><p>No selectors required. Start a remote browser and tap the screenshot to record the workflow.</p></div>
+  <div class="body">
+    <div id="recorderSetup" class="recorder-grid">
+      <div class="field"><label for="recordName">Workflow name</label><input id="recordName" maxlength="100" placeholder="New member signup"></div>
+      <div class="field"><label for="recordUrl">Starting public URL</label><input id="recordUrl" type="url" placeholder="https://example.com/signup"></div>
+      <div class="field"><label for="recordInterval">Replay every</label><select id="recordInterval"><option value="5">5 minutes</option><option value="15" selected>15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></div>
+      <button class="btn wide" id="startRecorder" type="button">Start guided recorder</button>
+      <p class="note">Recorder sessions expire after 10 minutes. Password fields are intentionally blocked until encrypted secret storage is added.</p>
+    </div>
+
+    <div id="recorderLive" hidden>
+      <div class="recorder-screen"><img id="recorderImage" alt="Interactive remote browser screenshot"></div>
+      <div class="recorder-toolbar">
+        <button class="btn secondary" id="recordAssert" type="button">+ Assert visible text</button>
+        <button class="btn secondary" id="recordRefresh" type="button">Refresh view</button>
+        <button class="btn" id="recordSave" type="button">Save monitor</button>
+        <button class="btn danger" id="recordCancel" type="button">Cancel</button>
+      </div>
+      <p class="recorder-status" id="recorderStatus">Tap the screenshot to record a click.</p>
+      <div class="recorded-steps" id="recordedSteps"></div>
+    </div>
+  </div>
 </section>
 
 <section class="grid main">
@@ -102,6 +129,8 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&am
 const when = (iso) => iso ? new Date(iso).toLocaleString() : "Never";
 let mode = "simple";
 let stepCounter = 0;
+let recordingId = null;
+let lastRecording = null;
 
 async function api(path, options={}) {
   const res = await fetch(path, {headers:{"content-type":"application/json"}, ...options});
@@ -231,6 +260,145 @@ window.removeWorkflow = async (id) => {
   await api("/api/workflows/" + id, {method:"DELETE"});
   await load();
 };
+
+
+function renderRecordedSteps(steps=[]) {
+  $("recordedSteps").innerHTML = steps.map((s, i) => {
+    let detail = s.url || s.selector || s.text || (s.ms ? s.ms + " ms" : "");
+    if (s.type === "fill") detail = s.selector + " · value length " + String((s.value || "").length);
+    return '<div>' + (i + 1) + '. ' + esc(s.type) + (detail ? ' · ' + esc(detail) : '') + '</div>';
+  }).join("");
+}
+
+function updateRecorder(recording) {
+  lastRecording = recording;
+  if (recording?.screenshotUrl) {
+    $("recorderImage").src = recording.screenshotUrl;
+  }
+  renderRecordedSteps(recording?.steps || []);
+  $("recorderStatus").textContent = recording?.currentUrl
+    ? "Live browser: " + recording.currentUrl + " · tap the screenshot to record the next click."
+    : "Tap the screenshot to record the next click.";
+}
+
+async function startRecorder() {
+  const url = $("recordUrl").value.trim();
+  const name = $("recordName").value.trim();
+  if (!name || !url) return alert("Add a workflow name and starting URL first.");
+
+  $("startRecorder").disabled = true;
+  $("startRecorder").textContent = "Opening browser…";
+  try {
+    const {recording} = await api("/api/recordings/start", {
+      method:"POST",
+      body:JSON.stringify({url})
+    });
+    recordingId = recording.id;
+    $("recorderSetup").hidden = true;
+    $("recorderLive").hidden = false;
+    updateRecorder(recording);
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    $("startRecorder").disabled = false;
+    $("startRecorder").textContent = "Start guided recorder";
+  }
+}
+
+$("recorderImage").addEventListener("click", async (event) => {
+  if (!recordingId) return;
+  const image = $("recorderImage");
+  const rect = image.getBoundingClientRect();
+  const x = Math.round((event.clientX - rect.left) * (image.naturalWidth / rect.width));
+  const y = Math.round((event.clientY - rect.top) * (image.naturalHeight / rect.height));
+  $("recorderStatus").textContent = "Recording click…";
+
+  try {
+    const {recording} = await api("/api/recordings/" + recordingId + "/click", {
+      method:"POST",
+      body:JSON.stringify({x,y})
+    });
+    updateRecorder(recording);
+
+    if (["input","textarea"].includes(recording.hit?.tag) && recording.hit?.type !== "password") {
+      const value = prompt("Enter the value Guardian should type into this field. Cancel if this was only a click.");
+      if (value !== null) {
+        $("recorderStatus").textContent = "Recording field value…";
+        const filled = await api("/api/recordings/" + recordingId + "/fill", {
+          method:"POST",
+          body:JSON.stringify({value})
+        });
+        updateRecorder(filled.recording);
+      }
+    }
+  } catch (error) {
+    $("recorderStatus").textContent = error.message;
+  }
+});
+
+$("recordAssert").addEventListener("click", async () => {
+  if (!recordingId) return;
+  const expected = prompt("What text proves this step succeeded?");
+  if (!expected) return;
+  try {
+    const {recording} = await api("/api/recordings/" + recordingId + "/assert", {
+      method:"POST",
+      body:JSON.stringify({text:expected})
+    });
+    updateRecorder(recording);
+    $("recorderStatus").textContent = "Assertion recorded. Continue tapping or save the monitor.";
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+$("recordRefresh").addEventListener("click", () => {
+  if (lastRecording?.screenshotUrl) {
+    const base = lastRecording.screenshotUrl.split("?")[0];
+    $("recorderImage").src = base + "?v=" + Date.now();
+  }
+});
+
+$("recordSave").addEventListener("click", async () => {
+  if (!recordingId) return;
+  $("recordSave").disabled = true;
+  $("recordSave").textContent = "Saving…";
+  try {
+    await api("/api/recordings/" + recordingId + "/finish", {
+      method:"POST",
+      body:JSON.stringify({
+        name:$("recordName").value.trim(),
+        intervalMinutes:Number($("recordInterval").value)
+      })
+    });
+    recordingId = null;
+    lastRecording = null;
+    $("recorderLive").hidden = true;
+    $("recorderSetup").hidden = false;
+    $("recorderImage").removeAttribute("src");
+    $("recordedSteps").innerHTML = "";
+    $("recorderStatus").textContent = "Tap the screenshot to record a click.";
+    await load();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    $("recordSave").disabled = false;
+    $("recordSave").textContent = "Save monitor";
+  }
+});
+
+$("recordCancel").addEventListener("click", async () => {
+  if (recordingId) {
+    await api("/api/recordings/" + recordingId + "/cancel", {method:"POST",body:"{}"}).catch(() => {});
+  }
+  recordingId = null;
+  lastRecording = null;
+  $("recorderLive").hidden = true;
+  $("recorderSetup").hidden = false;
+  $("recordedSteps").innerHTML = "";
+});
+
+$("startRecorder").addEventListener("click", startRecorder);
 
 $("simpleMode").addEventListener("click", () => setMode("simple"));
 $("browserMode").addEventListener("click", () => setMode("browser"));
