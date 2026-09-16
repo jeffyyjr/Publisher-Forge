@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b0f">
-  <meta name="description" content="Publisher Forge uses specialized AI agents to research opportunities, build original products, run release QA, and prepare marketplace-ready publishing packages.">
-  <meta property="og:title" content="Publisher Forge — AI product publishing pipeline">
-  <meta property="og:description" content="Research → build → QA → package. A working AI-agent beta for turning product ideas into release-ready marketplace files.">
+  <meta name="description" content="Run a free live Publisher Forge Trend Radar scan to find product opportunities using current public web signals. No signup required for your first scan.">
+  <meta property="og:title" content="Find a product idea worth building in 60 seconds">
+  <meta property="og:description" content="Run one free live Trend Radar scan. No signup required. Get ranked product opportunities, evidence, and a path to build what looks promising.">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
-  <title>Publisher Forge — Public Beta</title>
+  <title>Find a product idea worth building | Publisher Forge</title>
   <style>
     :root{
       color-scheme:dark;
@@ -28,46 +28,50 @@
       font:16px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif
     }
     a{color:inherit}
-    .shell{width:min(1120px,100%);margin:auto;padding:20px 18px 70px}
+    .shell{width:min(1080px,100%);margin:auto;padding:20px 18px 70px}
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px}
     .brand{display:flex;align-items:center;gap:11px;text-decoration:none}
     .mark{display:grid;place-items:center;width:44px;height:44px;border:1px solid #71491b;border-radius:13px;background:#23170c;color:var(--gold);font-weight:950}
     .brand strong{display:block;font-size:1rem}.brand small{display:block;color:var(--muted);font-size:.73rem}
-    .top-actions{display:flex;gap:8px;align-items:center}
-    .pill,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;border-radius:11px;text-decoration:none;font-weight:850}
+    .pill,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:11px 15px;border-radius:12px;text-decoration:none;font-weight:900}
     .pill{border:1px solid var(--line);background:#11161d;color:#dce2ea}
     .btn{border:0;background:linear-gradient(135deg,var(--orange),#ff7919);color:#1d0d00;box-shadow:0 8px 24px #ff7a1922}
     .btn.secondary{border:1px solid #3b4655;background:#202832;color:var(--text);box-shadow:none}
-    .hero{display:grid;gap:28px;padding:72px 0 42px}
+    .hero{display:grid;gap:28px;padding:72px 0 36px}
     .eyebrow{margin:0 0 10px;color:var(--gold);font-size:.78rem;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
-    h1{max-width:840px;margin:0;font-size:clamp(2.65rem,8vw,5.7rem);line-height:.96;letter-spacing:-.055em}
-    .hero-copy{max-width:760px;margin:22px 0 0;color:#c8d0da;font-size:clamp(1.03rem,2.5vw,1.28rem)}
+    h1{max-width:900px;margin:0;font-size:clamp(2.75rem,8vw,5.85rem);line-height:.96;letter-spacing:-.055em}
+    .hero-copy{max-width:760px;margin:22px 0 0;color:#c8d0da;font-size:clamp(1.05rem,2.5vw,1.28rem)}
     .hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
-    .starter-wrap{margin-top:22px}
-    .starter-label{margin:0 0 8px;color:var(--muted);font-size:.82rem;font-weight:800}
-    .starter-chips{display:flex;flex-wrap:wrap;gap:8px}
-    .starter-chip{display:inline-flex;align-items:center;min-height:38px;padding:8px 11px;border:1px solid #3b4655;border-radius:999px;background:#111821;color:#dfe5ed;text-decoration:none;font-size:.82rem;font-weight:800}
-    .starter-chip:hover{border-color:#735020;background:#1b170f}
-    .proof{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:26px}
-    .proof div{padding:13px;border:1px solid var(--line);border-radius:13px;background:#10151c}
-    .proof strong{display:block;color:var(--green);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
-    .proof span{display:block;margin-top:3px;color:var(--muted);font-size:.82rem}
-    .section{padding:48px 0}
-    .section-head{max-width:740px;margin-bottom:20px}
+    .hero-actions .btn:first-child{min-height:56px;padding:14px 22px;font-size:1.04rem}
+    .trust{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+    .trust span{padding:7px 10px;border:1px solid #304137;border-radius:999px;background:#101a15;color:#bce7cb;font-size:.78rem;font-weight:800}
+    .micro{max-width:680px;margin:13px 0 0;color:var(--muted);font-size:.82rem}
+    .section{padding:44px 0}
+    .section-head{max-width:760px;margin-bottom:20px}
     .section h2{margin:0;font-size:clamp(1.8rem,4vw,2.8rem);letter-spacing:-.035em}
     .section-head p{margin:10px 0 0;color:var(--muted)}
-    .grid{display:grid;gap:13px}
-    .card{padding:20px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#171c24,#0f1319);box-shadow:0 18px 50px #0000003a}
-    .card .num{display:grid;place-items:center;width:32px;height:32px;margin-bottom:16px;border:1px solid #704719;border-radius:9px;background:#24170b;color:var(--gold);font-weight:950}
-    .card h3{margin:0;font-size:1.02rem}.card p{margin:8px 0 0;color:var(--muted);font-size:.9rem}
-    .pipeline{display:grid;gap:9px;padding:18px;border:1px solid var(--line);border-radius:20px;background:#0d1117}
-    .stage{display:flex;align-items:center;gap:12px;padding:15px;border:1px solid #303947;border-radius:14px;background:#141a22}
-    .stage b{display:grid;place-items:center;width:32px;height:32px;flex:none;border-radius:10px;background:#ff9d2e16;color:var(--gold)}
-    .stage strong{display:block}.stage small{display:block;color:var(--muted);margin-top:2px}
-    .arrow{text-align:center;color:#6f7a89;font-weight:900}
-    .beta{display:grid;gap:16px;padding:24px;border:1px solid #6c491f;border-radius:20px;background:linear-gradient(135deg,#25170a,#15110d 65%,#10151c)}
-    .beta h2{margin:0}.beta p{margin:0;color:#c8d0da}
-    .beta .note{color:#aeb7c4;font-size:.86rem}
+    .proof-grid{display:grid;gap:12px}
+    .proof-card{padding:20px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#171c24,#0f1319);box-shadow:0 18px 50px #0000003a}
+    .proof-card strong{display:block;margin-bottom:7px;font-size:1.02rem}
+    .proof-card p{margin:0;color:var(--muted);font-size:.9rem}
+    .sample{
+      display:grid;gap:14px;padding:22px;border:1px solid #5f431f;border-radius:20px;
+      background:linear-gradient(145deg,#1c160e,#10151c 62%)
+    }
+    .sample-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .sample-top h3{margin:0;font-size:1.2rem}.sample-top p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
+    .example-tag{padding:5px 8px;border:1px solid #705020;border-radius:999px;color:var(--gold);font-size:.7rem;font-weight:900;white-space:nowrap}
+    .sample-grid{display:grid;gap:10px}
+    .sample-item{padding:13px;border:1px solid #343e4a;border-radius:13px;background:#0c1117}
+    .sample-item b{display:block;color:#e8edf3}.sample-item span{display:block;margin-top:3px;color:var(--muted);font-size:.82rem}
+    .flow{display:grid;gap:10px}
+    .step{display:flex;gap:13px;align-items:flex-start;padding:16px;border:1px solid var(--line);border-radius:15px;background:#11171f}
+    .step b{display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:10px;background:#ff9d2e16;color:var(--gold)}
+    .step strong{display:block}.step span{display:block;margin-top:3px;color:var(--muted);font-size:.86rem}
+    .secondary-path{display:grid;gap:16px;padding:22px;border:1px solid var(--line);border-radius:20px;background:#0d1218}
+    .secondary-path h2{margin:0}.secondary-path p{margin:6px 0 0;color:var(--muted)}
+    .starter-chips{display:flex;flex-wrap:wrap;gap:8px}
+    .starter-chip{display:inline-flex;align-items:center;min-height:40px;padding:8px 11px;border:1px solid #3b4655;border-radius:999px;background:#111821;color:#dfe5ed;text-decoration:none;font-size:.82rem;font-weight:800}
     .faq{display:grid;gap:10px}
     details{border:1px solid var(--line);border-radius:14px;background:#10151c}
     summary{padding:15px 16px;cursor:pointer;font-weight:850}
@@ -75,18 +79,17 @@
     footer{padding-top:38px;color:#7f8a99;font-size:.82rem}
     footer a{color:#bcc5d0}
     @media(min-width:760px){
-      .hero{padding:92px 0 58px}
-      .proof{grid-template-columns:repeat(4,minmax(0,1fr))}
-      .grid.features{grid-template-columns:repeat(3,minmax(0,1fr))}
-      .grid.steps{grid-template-columns:repeat(4,minmax(0,1fr))}
-      .pipeline{grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center}
-      .arrow{transform:rotate(-90deg)}
-      .beta{grid-template-columns:1.35fr .65fr;align-items:center}
+      .hero{padding:94px 0 52px}
+      .proof-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .sample-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .flow{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .secondary-path{grid-template-columns:1.2fr .8fr;align-items:center}
     }
     @media(max-width:620px){
-      .top-actions .pill{display:none}
+      .topbar .pill{display:none}
       .hero-actions .btn,.hero-actions .btn.secondary{width:100%}
-      .proof{grid-template-columns:1fr 1fr}
+      .hero-actions .btn.secondary{min-height:48px}
+      .sample-top{display:block}.example-tag{display:inline-block;margin-top:10px}
     }
   </style>
   <script src="/launch.js" defer></script>
@@ -98,88 +101,89 @@
         <span class="mark">PF</span>
         <span><strong>Publisher Forge</strong><small>Public beta</small></span>
       </a>
-      <div class="top-actions">
-        <a class="pill" href="https://github.com/jeffyyjr/Publisher-Forge" data-launch-event="view_repo">GitHub</a>
-        <a class="btn" href="/" data-launch-event="open_app">Open Forge</a>
-      </div>
+      <a class="pill" href="/account" data-launch-event="create_account">Sign in</a>
     </header>
 
     <section class="hero">
       <div>
-        <p class="eyebrow">AI-agent product pipeline</p>
-        <h1>Find the idea. Build it. QA it. Ship the package.</h1>
+        <p class="eyebrow">One free live Trend Radar scan</p>
+        <h1>Find a product idea worth building in about 60 seconds.</h1>
         <p class="hero-copy">
-          Publisher Forge is a working AI-agent beta for researching product opportunities,
-          producing original marketplace content, checking the actual release files, and
-          learning from what happens next.
+          Publisher Forge scans current public web signals, ranks original product opportunities,
+          and shows the evidence behind the ideas. Your first live scan is free.
         </p>
         <div class="hero-actions">
-          <a class="btn" href="/" data-launch-event="open_app">Try the beta</a>
-          <a class="btn secondary" href="/?view=viral" data-launch-event="open_viral">Create a Short</a>
-          <a class="btn secondary" href="/account" data-launch-event="create_account">Sign up / Sign in</a>
-          <a class="btn secondary" href="#demo" data-launch-event="view_demo">See the 60-second flow</a>
+          <a class="btn" href="/" data-launch-event="open_app">Run my free live scan →</a>
+          <a class="btn secondary" href="#how" data-launch-event="view_demo">See what I get</a>
         </div>
-        <div class="starter-wrap">
-          <p class="starter-label">Want to test the fastest path? Pick a starter topic:</p>
+        <div class="trust" aria-label="Free scan details">
+          <span>No signup required</span>
+          <span>Current public web research</span>
+          <span>KDP · Etsy · Shopify</span>
+        </div>
+        <p class="micro">No card. No publishing commitment. Results are decision support, not guaranteed sales.</p>
+      </div>
+    </section>
+
+    <section class="section" id="how">
+      <div class="section-head">
+        <p class="eyebrow">What the scan gives you</p>
+        <h2>Useful research first. Account later.</h2>
+        <p>Cold visitors should not have to understand every Forge agent before seeing whether the research is useful.</p>
+      </div>
+      <div class="proof-grid">
+        <article class="proof-card"><strong>5 ranked opportunities</strong><p>Original product ideas scored from the signals collected during the live scan.</p></article>
+        <article class="proof-card"><strong>Evidence stays visible</strong><p>Public source links and confidence stay attached so you can inspect the reasoning yourself.</p></article>
+        <article class="proof-card"><strong>A next step</strong><p>Promising ideas can continue into analysis, production, QA, and packaging after you choose to keep going.</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="sample">
+        <div class="sample-top">
+          <div>
+            <h3>What a finished scan looks like</h3>
+            <p>This is a UI example, not a claim that this specific product will sell.</p>
+          </div>
+          <span class="example-tag">EXAMPLE OUTPUT</span>
+        </div>
+        <div class="sample-grid">
+          <div class="sample-item"><b>Opportunity</b><span>Clear product concept + target marketplace</span></div>
+          <div class="sample-item"><b>Signals</b><span>Demand, competition, differentiation, margin, confidence</span></div>
+          <div class="sample-item"><b>Evidence</b><span>Current public sources you can open and verify</span></div>
+        </div>
+        <div class="hero-actions" style="margin-top:2px">
+          <a class="btn" href="/" data-launch-event="open_app">Run my free scan →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <p class="eyebrow">The first-user path</p>
+        <h2>Three steps. No account wall before the result.</h2>
+      </div>
+      <div class="flow">
+        <div class="step"><b>1</b><div><strong>Open Trend Radar</strong><span>Choose a marketplace and, if you want, a niche.</span></div></div>
+        <div class="step"><b>2</b><div><strong>Run the free live scan</strong><span>Forge researches current public signals and returns ranked opportunities.</span></div></div>
+        <div class="step"><b>3</b><div><strong>Save only if it is useful</strong><span>Create a free account after the scan to keep the research and continue building.</span></div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="secondary-path">
+        <div>
+          <p class="eyebrow">Already have a content idea?</p>
+          <h2>Forge also has a Viral Remix path.</h2>
+          <p>Research an angle, source reusable footage, add original narration and captions, and export a vertical video package.</p>
+        </div>
+        <div>
           <div class="starter-chips" aria-label="Viral Remix starter topics">
             <a class="starter-chip" href="/?view=viral&topic=Crazy%20weather%20phenomena" data-launch-event="open_viral">Crazy weather</a>
             <a class="starter-chip" href="/?view=viral&topic=Deep%20ocean%20discoveries" data-launch-event="open_viral">Deep ocean</a>
             <a class="starter-chip" href="/?view=viral&topic=Space%20mysteries" data-launch-event="open_viral">Space mysteries</a>
             <a class="starter-chip" href="/?view=viral&topic=Weird%20animal%20behavior" data-launch-event="open_viral">Weird animals</a>
           </div>
-        </div>
-        <div class="proof" aria-label="Current beta capabilities">
-          <div><strong>Live</strong><span>KDP + Etsy research</span></div>
-          <div><strong>Working</strong><span>Production + release QA</span></div>
-          <div><strong>Built in</strong><span>KDP export packaging</span></div>
-          <div><strong>Beta</strong><span>Viral Remix for Shorts + TikTok</span></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="demo">
-      <div class="section-head">
-        <p class="eyebrow">The 60-second demo</p>
-        <h2>One pipeline instead of ten disconnected AI chats.</h2>
-        <p>Publisher Forge keeps the research, build, quality checks, release files, and learning loop connected.</p>
-      </div>
-      <div class="pipeline" aria-label="Publisher Forge workflow">
-        <div class="stage"><b>1</b><div><strong>Research</strong><small>Scan current public signals and rank opportunities.</small></div></div>
-        <div class="arrow">↓</div>
-        <div class="stage"><b>2</b><div><strong>Produce</strong><small>Turn an approved brief into original content and listing metadata.</small></div></div>
-        <div class="arrow">↓</div>
-        <div class="stage"><b>3</b><div><strong>QA</strong><small>Check structure, files, artwork, dimensions, pricing, and blockers.</small></div></div>
-        <div class="arrow">↓</div>
-        <div class="stage"><b>4</b><div><strong>Package</strong><small>Export a guided publishing bundle and measure the result.</small></div></div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <p class="eyebrow">What is already inside</p>
-        <h2>Built for the boring work between an idea and a usable product.</h2>
-      </div>
-      <div class="grid features">
-        <article class="card"><div class="num">01</div><h3>Trend Radar</h3><p>Researches current public web signals, ranks opportunities, and keeps source-backed evidence visible.</p></article>
-        <article class="card"><div class="num">02</div><h3>Production Agent</h3><p>Builds original drafts, listing copy, keywords, checklists, and marketplace metadata from an approved brief.</p></article>
-        <article class="card"><div class="num">03</div><h3>Release / QA Agent</h3><p>Checks the actual customer-facing files and keeps release approval locked when a real blocker remains.</p></article>
-        <article class="card"><div class="num">04</div><h3>KDP handoff</h3><p>Prepares print files, cover sizing, pricing guidance, and an organized upload package instead of a mystery ZIP.</p></article>
-        <article class="card"><div class="num">05</div><h3>Revenue Agent</h3><p>Records measured results and recommends whether to scale, iterate, or stop a product test.</p></article>
-        <article class="card"><div class="num">06</div><h3>Viral Remix</h3><p>Research a current angle, match it with rights-checked reusable footage, add original narration and captions, and export a vertical video package for Shorts or TikTok.</p><p><a href="/?view=viral" data-launch-event="open_viral">Open Viral Remix →</a></p></article>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="beta">
-        <div>
-          <p class="eyebrow">Public beta</p>
-          <h2>Use it. Break it. Tell us where it wastes your time.</h2>
-          <p>The goal of this beta is not to pretend every marketplace step is automatic. The goal is to automate what can be done reliably and make the remaining human decisions obvious.</p>
-          <p class="note">Nothing is published, posted, applied for, or spent without a human approval step.</p>
-        </div>
-        <div class="hero-actions">
-          <a class="btn" href="/" data-launch-event="open_app">Open Publisher Forge</a>
-          <a class="btn secondary" href="https://github.com/jeffyyjr/Publisher-Forge/issues/new" data-launch-event="feedback">Report a problem</a>
         </div>
       </div>
     </section>
@@ -190,18 +194,16 @@
         <h2>Before you try it.</h2>
       </div>
       <div class="faq">
-        <details><summary>Is this an automatic Amazon publishing bot?</summary><p>No. Forge automates research, production, QA, packaging, and guided handoff where it can do so reliably. Marketplace publishing still keeps human approval in the loop.</p></details>
-        <details><summary>Does Forge guarantee a product will sell?</summary><p>No. Trend evidence and scoring are decision support, not verified sales or a revenue guarantee. The Revenue Agent exists specifically to measure what actually happened.</p></details>
-        <details><summary>Does it only work for books?</summary><p>Publishing is the most mature path today. Shopify, Pinterest, opportunity search, viral remix, security, and orchestration are active beta layers in the same project.</p></details>
+        <details><summary>Do I have to create an account first?</summary><p>No. One live Trend Radar scan is available before signup. An account is offered afterward so you can save the research, run more scans, and continue into the rest of Forge.</p></details>
+        <details><summary>Does Forge guarantee a product will sell?</summary><p>No. Trend evidence and scoring are decision support, not verified sales or a revenue guarantee. The point is to make a better-informed test before spending meaningful time or money.</p></details>
+        <details><summary>What happens after I find an idea?</summary><p>If you want to continue, Publisher Forge can move an opportunity through analysis, production, release QA, marketplace packaging, and measured-results tracking.</p></details>
         <details><summary>How much does the beta cost?</summary><p>The current beta is free with daily usage allowances so Forge can collect real usage and feedback without exposing unlimited AI and video costs. Pricing and paid plans are not live yet.</p></details>
       </div>
     </section>
 
     <footer>
       Publisher Forge is an independent beta. Marketplace names belong to their respective owners.
-      <a href="/">Open app</a> · <a href="/account">Account</a> ·
-      <a href="/command-center">Command Center</a> ·
-      <a href="https://github.com/jeffyyjr/Publisher-Forge">GitHub</a>
+      <a href="/account">Account</a> · <a href="https://github.com/jeffyyjr/Publisher-Forge" data-launch-event="view_repo">GitHub</a>
     </footer>
   </main>
 </body>
