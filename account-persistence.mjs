@@ -412,7 +412,10 @@ function registerAccountPersistence(application, options = {}) {
       SUM(CASE WHEN event='account_created' THEN 1 ELSE 0 END) AS signups,
       SUM(CASE WHEN event='guest_demo_started' THEN 1 ELSE 0 END) AS demo_starts,
       SUM(CASE WHEN event='guest_demo_completed' THEN 1 ELSE 0 END) AS demo_completions,
-      SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses
+      SUM(CASE WHEN event='quota_consumed' THEN 1 ELSE 0 END) AS feature_uses,
+      SUM(CASE WHEN event='quota_consumed' AND feature='productBuild' THEN 1 ELSE 0 END) AS project_starts,
+      SUM(CASE WHEN event='feature_completed' AND feature='productBuild' THEN 1 ELSE 0 END) AS artifact_completions,
+      SUM(CASE WHEN event='feature_failed' THEN 1 ELSE 0 END) AS feature_failures
     FROM growth_events
     WHERE occurred_at >= ?
   `);
@@ -494,6 +497,9 @@ function registerAccountPersistence(application, options = {}) {
           ? Math.round((Number(totals.demo_completions) / Number(totals.demo_starts)) * 1000) / 10
           : 0,
         featureUses: Number(totals.feature_uses) || 0,
+        projectStarts: Number(totals.project_starts) || 0,
+        artifactCompletions: Number(totals.artifact_completions) || 0,
+        featureFailures: Number(totals.feature_failures) || 0,
         signupConversion: visitors ? Math.round((signups / visitors) * 1000) / 10 : 0,
         activeUsers: active,
         returningUsers: returning,
