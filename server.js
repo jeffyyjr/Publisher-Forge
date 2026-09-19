@@ -186,7 +186,22 @@ function accountQuota(feature) {
   return function publisherForgeAccountQuota(req, res, next) {
     const quota = app.locals.publisherForgeQuota;
     if (!quota || process.env.NODE_ENV === "test") return next();
-    if (quota.consume(req, res, feature)) next();
+    if (quota.consume(req, res, feature)) {
+      const startedAt = Date.now();
+      res.once("finish", () => {
+        const event = res.statusCode >= 200 && res.statusCode < 300 ? "feature_completed" : "feature_failed";
+        app.locals.publisherForgeGrowth?.recordLaunch(req, res, {
+          event,
+          feature,
+          path: req.path,
+          content: event === "feature_failed" ? String(res.statusCode) : "",
+          campaign: "product-funnel",
+          source: "app"
+        });
+        console.log(JSON.stringify({type:"publisher_forge_funnel",timestamp:new Date().toISOString(),event,feature,status:res.statusCode,durationMs:Date.now()-startedAt,path:req.path}));
+      });
+      next();
+    }
   };
 }
 
