@@ -38,6 +38,8 @@
     setStage("journeyDone", totals.demoCompletions, rate(totals.demoCompletions, totals.demoStarts), "Completed free scan");
     setStage("journeySignup", totals.signups, rate(totals.signups, totals.demoCompletions || totals.visitors), "Created account");
     setStage("journeyUse", totals.featureUses, rate(totals.featureUses, totals.signups), "Signed-in feature uses");
+    setStage("journeyProject", totals.projectStarts, rate(totals.projectStarts, totals.signups), "First project started");
+    setStage("journeyArtifact", totals.artifactCompletions, rate(totals.artifactCompletions, totals.projectStarts), "Artifact generated");
   }
 
   function renderSources(rows) {
@@ -116,7 +118,9 @@
     if ((t.demoStarts || 0) < (t.appOpens || 0) * 0.5) return "Biggest bottleneck: Forge open → free scan. Make the first action more obvious and reduce choices for new visitors.";
     if ((t.demoStarts || 0) && (t.demoCompletions || 0) < (t.demoStarts || 0) * 0.7) return "Biggest bottleneck: scan completion. Check scan speed/errors before promoting harder.";
     if ((t.demoCompletions || 0) && (t.signups || 0) < (t.demoCompletions || 0) * 0.25) return "Biggest bottleneck: completed scan → account. Strengthen the reason to save the research and continue building.";
-    if ((t.signups || 0) && (t.featureUses || 0) < (t.signups || 0) * 0.5) return "Biggest bottleneck: signup → second Forge action. The new return-to-Forge handoff is the step to watch now.";
+    if ((t.signups || 0) && (t.projectStarts || 0) < (t.signups || 0) * 0.5) return "Biggest bottleneck: signup → first project. Make the build path the obvious next action.";
+    if ((t.projectStarts || 0) && (t.artifactCompletions || 0) < (t.projectStarts || 0) * 0.7) return "Biggest bottleneck: project → successful artifact. Check generation failures and latency before adding traffic.";
+    if ((t.signups || 0) && (t.featureUses || 0) < (t.signups || 0) * 0.5) return "Biggest bottleneck: signup → continued Forge use. Improve the return-to-Forge handoff.";
 
     const ranked = [...rows].sort((a, b) =>
       (b.featureUses - a.featureUses) || (b.signups - a.signups) ||
@@ -146,6 +150,9 @@
     setMetric("signups", number(totals.signups));
     setMetric("signupConversion", pct(totals.signupConversion));
     setMetric("featureUses", number(totals.featureUses));
+    setMetric("projectStarts", number(totals.projectStarts));
+    setMetric("artifactCompletions", number(totals.artifactCompletions));
+    setMetric("featureFailures", number(totals.featureFailures));
     setMetric("activeUsers", number(totals.activeUsers));
     setMetric("returningUsers", number(totals.returningUsers));
     setMetric("returningRate", pct(totals.returningRate));
