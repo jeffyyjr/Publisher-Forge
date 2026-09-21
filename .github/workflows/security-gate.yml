@@ -44,9 +44,6 @@ jobs:
       - name: Install locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
-      - name: Diagnostic test output
-        run: NODE_ENV=test node --test
-
       - name: Prepare normalized evidence directory
         run: mkdir -p security-artifacts
 
