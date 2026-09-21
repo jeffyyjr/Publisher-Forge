@@ -143,6 +143,7 @@ function createStore(config = databaseConfig()) {
       content TEXT NOT NULL DEFAULT '',
       path TEXT NOT NULL DEFAULT '',
       feature TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
       visitor_key TEXT NOT NULL DEFAULT '',
       user_key TEXT NOT NULL DEFAULT ''
     );
@@ -151,6 +152,10 @@ function createStore(config = databaseConfig()) {
     CREATE INDEX IF NOT EXISTS growth_events_visitor_idx ON growth_events(visitor_key);
     CREATE INDEX IF NOT EXISTS growth_events_user_idx ON growth_events(user_key);
   `);
+  const growthColumns = db.prepare("PRAGMA table_info(growth_events)").all();
+  if (!growthColumns.some((column) => column.name === "user_agent")) {
+    db.exec("ALTER TABLE growth_events ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''");
+  }
   return { db, config };
 }
 
@@ -395,8 +400,8 @@ function registerAccountPersistence(application, options = {}) {
   `);
   const insertGrowthEvent = db.prepare(`
     INSERT INTO growth_events
-      (occurred_at,event,source,campaign,content,path,feature,visitor_key,user_key)
-    VALUES (?,?,?,?,?,?,?,?,?)
+      (occurred_at,event,source,campaign,content,path,feature,user_agent,visitor_key,user_key)
+    VALUES (?,?,?,?,?,?,?,?,?,?)
   `);
   const latestVisitorAttribution = db.prepare(`
     SELECT source,campaign,content,path
@@ -452,6 +457,13 @@ function registerAccountPersistence(application, options = {}) {
     SELECT COUNT(DISTINCT user_id) AS active_users
     FROM daily_usage WHERE usage_date >= ?
   `);
+  const recentTraffic = db.prepare(`
+    SELECT occurred_at,event,source,campaign,content,path,user_agent
+    FROM growth_events
+    WHERE occurred_at >= ?
+    ORDER BY id DESC
+    LIMIT 100
+  `);
 
   function recordGrowth(req, res, event, fields = {}) {
     const occurredAt = new Date().toISOString();
@@ -459,6 +471,7 @@ function registerAccountPersistence(application, options = {}) {
     const userKey = fields.userId ? anonymousKey(fields.userId) : "";
     const clean = (value, max = 120) =>
       String(value || "").replace(/[\r\n\t]/g, " ").trim().slice(0, max);
+    const userAgent = clean(fields.userAgent || req.headers["user-agent"] || "", 500);
     insertGrowthEvent.run(
       occurredAt,
       clean(event, 50),
@@ -467,10 +480,11 @@ function registerAccountPersistence(application, options = {}) {
       clean(fields.content || "", 100),
       clean(fields.path || "", 160),
       clean(fields.feature || "", 80),
+      userAgent,
       visitKey,
       userKey
     );
-    return { occurredAt, visitorKey: visitKey, userKey };
+    return { occurredAt, visitorKey: visitKey, userKey, userAgent };
   }
 
   function growthSummary(days = 30) {
@@ -527,6 +541,15 @@ function registerAccountPersistence(application, options = {}) {
         feature: row.feature,
         uses: Number(row.uses) || 0,
         users: Number(row.users) || 0
+      })),
+      recentTraffic: recentTraffic.all(since).map((row) => ({
+        occurredAt: row.occurred_at,
+        event: row.event,
+        source: row.source || "direct",
+        campaign: row.campaign || "public-beta",
+        content: row.content || "",
+        path: row.path || "",
+        userAgent: row.user_agent || ""
       }))
     };
   }
