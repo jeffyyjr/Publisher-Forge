@@ -44,6 +44,9 @@ jobs:
       - name: Install locked dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
 
+      - name: Run test suite with visible output
+        run: NODE_ENV=test node --test
+
       - name: Prepare normalized evidence directory
         run: mkdir -p security-artifacts
 
@@ -62,9 +65,6 @@ jobs:
           output: security-artifacts/codeql
           upload: never
           upload-database: false
-
-      - name: Run test suite with visible output
-        run: NODE_ENV=test node --test
 
       - name: Normalize findings and decide the release
         run: npm run security:gate -- --sarif-dir security-artifacts
