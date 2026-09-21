@@ -86,7 +86,8 @@ function registerMoneyDashboard(application = app) {
       source: launchField(req.body?.source || "direct"),
       campaign: launchField(req.body?.campaign || "public-beta"),
       content: launchField(req.body?.content || "", 100),
-      path: launchField(req.body?.path || "/launch", 120)
+      path: launchField(req.body?.path || "/launch", 120),
+      userAgent: launchField(req.headers["user-agent"] || "", 500)
     };
 
     application.locals.publisherForgeGrowth?.recordLaunch(req, res, record);
