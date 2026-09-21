@@ -83,7 +83,10 @@ test("account registration creates a session and versioned state", async () => {
   const email = `forge-${Date.now()}@example.com`;
   const launch = await fetch(baseUrl + "/api/launch-event", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "PublisherForgeTrafficTest/1.0"
+    },
     body: JSON.stringify({
       event: "page_view",
       source: "tiktok",
@@ -237,6 +240,12 @@ test("account registration creates a session and versioned state", async () => {
     assert.equal(growth.sources[0].content, "test_angle");
     assert.equal(growth.sources[0].signups, 1);
     assert.equal(growth.sources[0].featureUses, 3);
+    const launchTraffic = growth.recentTraffic.find((item) =>
+      item.event === "page_view" && item.source === "tiktok"
+    );
+    assert.ok(launchTraffic);
+    assert.equal(launchTraffic.path, "/launch");
+    assert.equal(launchTraffic.userAgent, "PublisherForgeTrafficTest/1.0");
 
     const growthPage = await fetch(baseUrl + "/admin/growth", {
       headers: { Cookie: cookie },
