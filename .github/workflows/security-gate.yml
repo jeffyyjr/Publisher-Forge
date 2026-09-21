@@ -63,6 +63,9 @@ jobs:
           upload: never
           upload-database: false
 
+      - name: Run test suite with visible output
+        run: npm test
+
       - name: Normalize findings and decide the release
         run: npm run security:gate -- --sarif-dir security-artifacts
 
