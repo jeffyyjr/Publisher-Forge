@@ -439,6 +439,28 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  const requestedPath = String(req.originalUrl || req.url || req.path || "")
+    .replace(/[\r\n\t]/g, " ")
+    .slice(0, 500);
+  const userAgent = String(req.headers["user-agent"] || "")
+    .replace(/[\r\n\t]/g, " ")
+    .slice(0, 500);
+
+  res.once("finish", () => {
+    if (res.statusCode !== 404) return;
+    console.warn(JSON.stringify({
+      type: "publisher_forge_404",
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      path: requestedPath,
+      userAgent
+    }));
+  });
+
+  next();
+});
+
+app.use((req, res, next) => {
   if (req.method !== "POST" || !DIAGNOSTIC_ROUTES.has(req.path)) return next();
 
   const started = Date.now();
