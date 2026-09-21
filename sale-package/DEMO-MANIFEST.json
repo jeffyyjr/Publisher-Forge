@@ -1,0 +1,46 @@
+{
+  "series": "Publisher Forge Buyer Demo",
+  "branch": "sale-package",
+  "live_url": "https://publisher-forge.onrender.com",
+  "target_clip_seconds": 30,
+  "planned_clips": [
+    {
+      "day": 1,
+      "topic": "Landing page and free Trend Radar entry",
+      "status": "planned"
+    },
+    {
+      "day": 2,
+      "topic": "Trend Radar opportunity research and evidence",
+      "status": "planned"
+    },
+    {
+      "day": 3,
+      "topic": "Product brief and production workflow",
+      "status": "planned"
+    },
+    {
+      "day": 4,
+      "topic": "Quality Control, Release QA and KDP packaging",
+      "status": "planned"
+    },
+    {
+      "day": 5,
+      "topic": "Accounts, project history and growth analytics",
+      "status": "planned"
+    },
+    {
+      "day": 6,
+      "topic": "Viral Remix and expansion agents",
+      "status": "planned"
+    },
+    {
+      "day": 7,
+      "topic": "Security gate, deployment readiness and buyer handoff",
+      "status": "planned"
+    }
+  ],
+  "clips": [],
+  "master": null,
+  "teaser": null
+}
