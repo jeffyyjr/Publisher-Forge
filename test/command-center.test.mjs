@@ -36,7 +36,7 @@ test("public beta launch page and script are served", async () => {
 
   assert.equal(page.status, 200);
   assert.match(html, /Find a product idea worth building \| Publisher Forge/);
-  assert.match(html, /Try the beta/);
+  assert.match(html, /Run my free live scan/);
   assert.match(html, /data-launch-event="open_app"/);
   assert.match(html, /src="\/launch\.js"/);
 
