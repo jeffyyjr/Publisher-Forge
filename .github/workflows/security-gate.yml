@@ -64,7 +64,7 @@ jobs:
           upload-database: false
 
       - name: Run test suite with visible output
-        run: npm test
+        run: NODE_ENV=test node --test
 
       - name: Normalize findings and decide the release
         run: npm run security:gate -- --sarif-dir security-artifacts
