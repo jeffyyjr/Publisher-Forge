@@ -6,8 +6,8 @@ Last updated: 2026-09-22
 
 - [x] **1. Verify repo/deployment/sale branch/docs and build transfer asset inventory.** Completed 2026-09-21. Added `ASSET-INVENTORY.md`. Verified private repo, sale-package branch, existing sale documents, and connected Render production configuration. Production remains on `main`; no production changes or paid model calls were made.
 - [x] **2. Buyer memo.** Completed 2026-09-22. Refined `BUYER-MEMO.md` against current architecture and live beta evidence. It now separates core working paths from beta/adjacent paths, describes the target buyer/user and transfer thesis, and explicitly avoids treating page views, possible signups, monetization options, or repository functionality as proven revenue/demand.
-- [ ] **3. Technical handoff documentation.** Next.
-- [ ] **4. Acquisition listing assets.**
+- [x] **3. Technical handoff documentation.** Completed 2026-09-22. Added `TECHNICAL-HANDOFF.md` covering the verified Node/Render topology, environment-variable names without values, SQLite/persistent-disk behavior, deployment and verification flow, test/security commands, third-party dependencies, buyer transfer sequence, credential rotation, and known handoff caveats. No production deploy or paid model call was triggered.
+- [ ] **4. Acquisition listing assets.** Next.
 - [ ] **5. Comparable-listing research and internal pricing notes.**
 - [ ] **6. Due-diligence package.**
 - [ ] **7. Demo integration and buyer-facing demo index.**
@@ -31,6 +31,14 @@ The memo deliberately does not convert these traffic observations into customer 
 
 The memo also distinguishes core working product paths from Shopify/Pinterest/jobs/orchestration/viral-video adjacent paths and states that payments are not a completed production feature.
 
+## Milestone 3 evidence
+
+`TECHNICAL-HANDOFF.md` was added on 2026-09-22. Repository verification confirms Node `>=22.5 <23`, `npm start`, `npm test`, `npm run security:gate`, and `npm run security:target`; direct dependencies include Express, OpenAI SDK, PDFKit, JSZip, ffmpeg-static, dotenv, and Inter font assets.
+
+Connected Render verification confirms production still deploys from `main` with auto-deploy enabled, `npm install` / `npm start`, Node runtime, Ohio region, `/api/health`, one `0.5c-512mb` instance, and a 1 GB disk at `/var/data`. The sale-package branch was not deployed and main was not modified.
+
+The handoff inventories configuration names without secret values, including OpenAI model/key variables, `PF_DATA_DIR`/`PF_DB_PATH`, quota/admin controls, optional Pixabay, and staging/security variables. It documents SQLite data handling, a clean buyer-controlled credential rotation, and an exact transfer/cutover sequence while explicitly leaving the production-user-data inclusion decision unresolved until an appropriate agreement/privacy process exists.
+
 ## Remaining blockers / diligence decisions
 
 1. Decide whether the production SQLite/user database is excluded, transferred under an appropriate agreement, or privacy-scrubbed/exported.
@@ -38,8 +46,8 @@ The memo also distinguishes core working product paths from Shopify/Pinterest/jo
 3. Verify provenance/license of final demo media and generated assets before representing them as transferable IP.
 4. Capture current operating-cost evidence and current test/security evidence during the due-diligence milestone.
 5. Keep revenue/user claims evidence-based; do not infer revenue or customer demand from visits or repository functionality.
-6. Technical handoff still needs an exact environment-variable-name inventory, clean deployment/redeployment sequence, storage migration notes, test/security commands, third-party dependency checklist, and credential-rotation steps.
+6. Reconfirm provider-specific repository/Render ownership-transfer mechanics at closing; the handoff deliberately documents the safe sequence rather than guessing future provider UI behavior.
 
 ## Next milestone
 
-**Milestone 3 — Technical handoff documentation:** document Node/Render setup, environment-variable names without values, persistence/storage, deployment flow, test/security commands, third-party dependencies, and exact transfer steps. Keep credentials and secret values out of the sale package.
+**Milestone 4 — Acquisition listing assets:** build a concise feature list, tech-stack summary, screenshots/captions checklist, product history/timeline, and buyer-facing FAQ. Keep claims aligned with the buyer memo and distinguish working production paths from beta/roadmap capabilities.
