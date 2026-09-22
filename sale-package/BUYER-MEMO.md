@@ -1,172 +1,115 @@
 # Publisher Forge — Acquisition Memo
 
+Last verified: 2026-09-22
+
 ## Executive summary
 
-Publisher Forge is a live AI-assisted publishing and digital-product operations platform. It combines opportunity research, AI production, quality control, release validation, packaging, account persistence, growth analytics, and adjacent monetization workflows in one Node.js application.
+Publisher Forge is a live beta software asset for AI-assisted publishing and digital-product operations. It combines opportunity research, production workflows, quality/release checks, packaging, account persistence, and growth instrumentation in a Node.js application.
 
-**Current stage:** live beta / pre-revenue with limited external traction.  
+**Current stage:** live beta / pre-revenue.  
 **Live app:** https://publisher-forge.onrender.com  
-**Repository:** jeffyyjr/Publisher-Forge  
+**Repository:** private `jeffyyjr/Publisher-Forge` repository.  
 **Runtime:** Node.js 22, Express, SQLite persistence, OpenAI API, PDFKit, JSZip, ffmpeg-static.  
-**Hosting:** Render web service with persistent disk and health checks.  
-**Security:** automated GitHub security gate with CodeQL, Gitleaks, npm audit, runtime security tests, staging-only ZAP support, and release blocking for unresolved high/critical findings.
+**Hosting:** Render web service with persistent disk and health endpoint.  
 
-The asset is being offered because the founder is reallocating time to other software projects, not because the application has been shut down. The service is live and the codebase is actively maintained through the sale-preparation period.
+This is being positioned as an acquisition of working software, source code, deployment know-how, product workflows, and transferable product assets—not as an acquisition of established revenue or a proven customer base.
 
-## What the buyer gets
+## Target buyer / user
 
-- Full Publisher Forge source code and commit history.
-- Live production architecture and deployment documentation.
-- Publisher Forge brand/product identity and buyer-demo materials included in this sale package.
-- Trend Radar research pipeline for KDP, Etsy, and Shopify opportunities.
-- AI opportunity analysis, product briefs, original draft generation, listing metadata, and packaging.
-- Quality Control and Release QA pipelines.
-- KDP-focused PDF/ZIP generation, cover tooling, metadata validation, page-count/pricing logic, and upload handoff structure.
-- Account sign-up/sign-in, persisted per-account state, usage controls, and stats.
-- Admin growth dashboard with source/campaign/content attribution and recent traffic instrumentation.
-- 404 path + user-agent logging for distinguishing crawler/bot hits from real visitors.
-- Device-local project vault and revenue-learning history.
-- Shopify beta path.
-- Pinterest planning agent.
-- Opportunity Agent for source-backed jobs/gigs.
-- Orchestrator Agent for ranking next money actions.
-- Viral Remix workflow with reusable-footage safeguards, narration/captions, license records, and vertical-video packaging.
-- Automated Security Gate and runtime-policy checks.
+The product is designed around creators, indie publishers, digital-product operators, and small teams that want one workflow for researching an opportunity, producing an original product, checking the output, packaging it, and measuring launch activity.
 
-## Product flow
+A likely acquirer is an AI-SaaS operator, creator-tool company, KDP/digital-product operator, agency, or technical founder who can add billing, tighten onboarding, and build distribution around the existing product engine.
 
-The core Publisher Forge workflow is:
+## What is working today
 
-1. **Discover** — Trend Radar searches current public web evidence for product opportunities.
-2. **Evaluate** — opportunities are ranked with evidence, competition, differentiation, margin and confidence signals.
-3. **Plan** — Forge creates a product brief and recommended production path.
-4. **Produce** — AI creates original content/assets and marketplace metadata.
-5. **Quality control** — deterministic and AI-assisted checks identify blockers.
-6. **Release QA** — real output files are rebuilt and validated before approval.
-7. **Package** — final files are assembled into marketplace-friendly download bundles.
-8. **Measure** — growth and revenue tracking feed future iteration decisions.
+The repository and live service support a broad operating surface. Buyer diligence should distinguish mature core paths from beta/adjacent paths.
 
-## Current technical architecture
+### Core working product paths
+
+- Trend/opportunity research and evidence-oriented opportunity analysis.
+- Product briefs and AI-assisted original-content generation.
+- Quality-control and release-QA logic.
+- KDP-oriented PDF/ZIP generation, cover/metadata support, page-count/pricing logic, and upload-handoff structure.
+- Account sign-up/sign-in with persisted account state and usage controls.
+- Growth instrumentation with source/campaign/content attribution.
+- Launch-page analytics and user-agent-aware 404 logging.
+- Security/test automation in the repository.
+
+### Beta / adjacent product paths
+
+The codebase also contains Shopify, Pinterest, jobs/gigs opportunity, orchestration, and viral-video/remix functionality. These expand the product's option value, but a buyer should evaluate each path independently rather than assume every adjacent workflow has equal production maturity or market validation.
+
+Payments are **not** represented as a completed production feature. Billing/checkout remains a commercial milestone for an acquirer.
+
+## Main workflow
+
+1. **Discover** — gather current public evidence for product opportunities.
+2. **Evaluate** — rank opportunities using evidence, competition, differentiation, margin and confidence signals.
+3. **Plan** — create a product brief and recommended production path.
+4. **Produce** — generate original content/assets and marketplace metadata.
+5. **Quality control** — run deterministic and AI-assisted checks.
+6. **Release QA** — rebuild/validate output files before approval.
+7. **Package** — assemble marketplace-friendly deliverables.
+8. **Measure** — record launch/growth signals for iteration.
+
+## Architecture
 
 - Node.js 22 / ECMAScript modules
 - Express 4
 - SQLite persistence
-- OpenAI API
+- OpenAI API integration
 - PDFKit
 - JSZip
 - ffmpeg-static
 - Render production hosting
 - GitHub Actions CI/security workflows
 
-Production runs from `main` and auto-deploys to Render on commit. The Render service uses a persistent disk at `/var/data`, a health endpoint at `/api/health`, and a single production instance.
+Production deploys from `main` to Render. Sale-preparation work stays on `sale-package`, so sale documentation does not itself trigger production deployment. The production service uses persistent storage mounted at `/var/data` and exposes `/api/health`.
 
 ## Reliability and security posture
 
-The repository includes automated tests covering account persistence, launch analytics, command center behavior, release QA, retry/recovery behavior, security controls, Trend Radar history, and viral workflows.
+The repository includes automated tests for account persistence, launch analytics, command-center behavior, release QA, retry/recovery behavior, security controls, Trend Radar history, and viral workflows.
 
-The Security Gate includes:
+Security automation includes CodeQL JavaScript/TypeScript analysis, Gitleaks scanning, npm dependency audit, runtime security tests, normalized findings, release blocking for unresolved high/critical findings, and controls around staging-only active security testing.
 
-- CodeQL JavaScript/TypeScript analysis
-- Gitleaks history scan
-- npm dependency audit
-- runtime security tests
-- normalized findings
-- release blocking for unresolved high/critical findings
-- staging-only active security testing controls
+Exact current test/security results will be captured separately in the due-diligence milestone; this memo does not treat historical passing results as proof of a future clean scan.
 
-The most recent traffic-instrumentation release passed the production Security Gate and the runtime test suite before merge.
+## Truthful traction snapshot
 
-## Growth instrumentation
+Publisher Forge has been publicly deployed and subjected to founder-led beta traffic experiments. Render application logs through **2026-09-22** show tracked launch-page traffic from YouTube and Product Hunt-tagged campaigns, plus direct visits. YouTube-tagged experiments generated launch visits and demo-view events. Product Hunt-tagged traffic continued to generate launch-page views into 2026-09-22.
 
-The app tracks:
+These are **traffic signals, not proof of commercial demand**. Current evidence does not justify representing Publisher Forge as having meaningful revenue, a proven conversion funnel, or a validated recurring customer base. The sale package therefore treats the asset as **pre-revenue with limited external traction**.
 
-- anonymous launch visits
-- app opens
-- signup conversion
-- returning and active users
-- feature usage
-- UTM source/campaign/content
-- recent traffic path
-- user agent for launch traffic
-- path + user agent for 404 responses
+Account/feature-use evidence should be disclosed conservatively. Prior instrumentation review found a successful `account_created` event but no demonstrated social attribution to that signup, and no verified `quota_consumed` feature-use event at that point. The current Render log review did not establish a stronger conversion claim. Buyer diligence should use the underlying logs/data rather than extrapolate from page views.
 
-This was added specifically to prevent bots/crawlers from being mistaken for real prospects.
+## Why the asset is transferable
 
-## Monetization opportunities
+The software is configuration-driven rather than dependent on transferring the seller's personal credentials. A buyer can receive the repository and product assets, create fresh third-party credentials, deploy to a new Render account or assume an agreed infrastructure path, and migrate only the data that the parties explicitly agree is appropriate to transfer.
 
-The current codebase leaves several straightforward buyer paths:
+Primary transfer candidates are:
 
-- SaaS subscription for creators / indie publishers.
-- Credit-based AI generation.
-- Higher-priced KDP production tier.
-- Agency / done-for-you publishing workflow.
-- Shopify digital-product research and production tier.
-- White-label creator-business platform.
-- Licensing the Release QA / Security Gate portions independently.
-- Expanding the Orchestrator into a broader monetization operating system.
+- Publisher Forge source code and commit history.
+- Product/brand assets specifically identified as included.
+- Deployment and environment-variable documentation.
+- Render architecture/redeployment instructions.
+- Approved demo and launch materials with verified provenance.
+- Transferable documentation and workflow assets.
+- Production data only if separately reviewed for privacy, necessity, and contractual transfer terms.
 
-Payments are not presented as a completed production feature in this sale package. A buyer should treat billing integration as an obvious next commercial milestone.
+## Explicit exclusions / safeguards
 
-## Current stage and traction
+The package must not include personal Gmail access, personal API keys, personal Google/GitHub credentials, private financial information, unrelated projects, or unrelated social accounts. Third-party credentials should be regenerated by the buyer.
 
-Publisher Forge should be evaluated as a **working software asset / live beta**, not as a mature recurring-revenue company.
+The final agreement must also state whether the existing SQLite/user data is excluded, scrubbed/exported, or transferred under an appropriate agreement. Brand/domain/social assets must be enumerated rather than assumed.
 
-The product has been deployed publicly and promoted through founder-led launch experiments, including YouTube and community channels. External user/revenue traction is still limited. No revenue or customer count should be assumed unless separately documented during diligence.
+## Commercial upside without overclaiming
 
-That is also the opportunity: the buyer is acquiring the built product, infrastructure, workflows and IP before a full monetization/growth program has been executed.
+Potential monetization paths include SaaS subscriptions, credit-based AI generation, a higher-priced publishing-production tier, agency/done-for-you workflows, creator-business tooling, or licensing selected QA/security components. These are buyer opportunities, **not current revenue streams**.
 
-## Why it is transferable
-
-The application is already separated from the founder's personal credentials through environment-variable configuration. The buyer should create new credentials for all third-party services at transfer rather than receiving the seller's API keys.
-
-Primary transfer items:
-
-- GitHub repository ownership/access
-- brand/product assets
-- Render deployment configuration or a clean redeployment
-- environment-variable checklist
-- database/data transfer decision
-- documentation
-- demo videos
-- launch/growth materials
-
-## Important transfer exclusions
-
-The sale package must **not** include:
-
-- personal Gmail access
-- personal OpenAI credentials or API keys
-- personal Google credentials
-- personal GitHub credentials
-- unrelated projects (Oracle Stack, Lead-OS, etc.)
-- private financial information
-- unrelated social accounts unless separately negotiated
-
-Third-party API keys should be regenerated by the buyer.
-
-## Buyer fit
-
-Publisher Forge is best suited for a buyer who already understands one or more of:
-
-- AI SaaS
-- Amazon KDP / creator tools
-- digital-product marketplaces
-- growth/creator software
-- workflow automation
-- indie SaaS acquisition and monetization
-
-A technical buyer can operate the current stack directly. A marketing-oriented buyer could focus on pricing, payments, onboarding and distribution while retaining the existing product engine.
+The acquisition thesis is straightforward: a buyer receives a live, working product and its supporting code/infrastructure before a full billing and distribution program has been executed. The buyer is paying for build-time compression and product optionality, not for proven MRR.
 
 ## Diligence package in progress
 
-This `sale-package` branch will contain:
+The `sale-package` branch is being organized into a buyer memo, asset inventory, technical handoff, acquisition listing assets, comparable-listing/internal pricing notes, due-diligence evidence, demo index, transfer checklist, and final marketplace/outreach package.
 
-- this acquisition memo
-- buyer-facing listing draft
-- transfer checklist
-- demo-video manifest
-- seven ~30-second workflow clips
-- one stitched buyer walkthrough
-- concise teaser video when the footage supports it
-
-The production application remains on `main`; sale-preparation files on this branch do not trigger the Render production deployment.
+Production remains on `main`; sale-preparation documentation does not disturb the live service.
