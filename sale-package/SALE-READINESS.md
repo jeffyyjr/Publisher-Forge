@@ -8,8 +8,8 @@ Last updated: 2026-09-22
 - [x] **2. Buyer memo.** Completed 2026-09-22. Refined `BUYER-MEMO.md` against current architecture and live beta evidence. It separates core working paths from beta/adjacent paths and avoids treating traffic or functionality as proven revenue/demand.
 - [x] **3. Technical handoff documentation.** Completed 2026-09-22. Added `TECHNICAL-HANDOFF.md` covering verified Node/Render topology, configuration names without values, persistence, deployment/test/security flow, dependencies, transfer sequence and caveats.
 - [x] **4. Acquisition listing assets.** Completed 2026-09-22. Added `ACQUISITION-LISTING-ASSETS.md` with a concise feature list, tech-stack summary, nine-shot screenshot/caption checklist, evidence-bounded product timeline, buyer FAQ, and listing-copy claim guardrails. Core working paths are explicitly separated from beta/adjacent capabilities; billing and commercial traction are not overstated.
-- [ ] **5. Comparable-listing research and internal pricing notes.** Next.
-- [ ] **6. Due-diligence package.**
+- [x] **5. Comparable-listing research and internal pricing notes.** Completed 2026-09-22. Added `PRICING-COMPS-INTERNAL.md` using dated public marketplace evidence, explicitly separating asking prices from closed-sale evidence. Internal initial asking range is $15,000–$22,500 with a $19,500 practical list target and a private $10,000 cash-equivalent negotiation floor, subject to diligence.
+- [ ] **6. Due-diligence package.** Next.
 - [ ] **7. Demo integration and buyer-facing demo index.**
 - [ ] **8. Final sale-readiness audit and ready-to-paste sale package.**
 
@@ -45,6 +45,14 @@ The handoff inventories configuration names without secret values, including Ope
 
 The buyer FAQ explicitly states that Publisher Forge is pre-revenue, that tracked beta traffic is not proven demand, that billing is unfinished, that adjacent workflows vary in maturity, that personal credentials are excluded, and that production user-data transfer remains an explicit diligence/closing decision. A final guardrail section lists safe versus unsupported marketplace claims.
 
+## Milestone 5 evidence
+
+`PRICING-COMPS-INTERNAL.md` was added on 2026-09-22. Research used current public Acquire.com, Flippa and Microns evidence. Current marketplace observations include a $9,000 asking price for a very early AI SaaS with 29 stated subscribers and minimal economics, while revenue-producing AI SaaS examples currently ask roughly $60,000 to $300,000+ depending on traction. These are recorded as asking-price observations rather than assumed closed-sale prices.
+
+Acquire.com's January 2026 report states that confirmed SaaS transactions in 2024 and 2025 had a median 3.9x profit multiple and notes that asking prices often exceed final outcomes. Its current 2026 market commentary describes approximately 3–5x profit or 1–3x revenue ranges for operating SaaS businesses. Those multiples are not applied directly to Publisher Forge because it is pre-revenue.
+
+The internal pricing note recommends an initial $15,000–$22,500 range, with $19,500 as a practical starting ask and a private $10,000 cash-equivalent negotiation floor. This is a seller strategy judgment grounded in Publisher Forge's working software/IP and transfer package while discounting heavily for absent revenue, limited traction, unfinished billing and product-market-fit risk; it is not represented as an appraisal or guaranteed market value.
+
 ## Remaining blockers / diligence decisions
 
 1. Decide whether the production SQLite/user database is excluded, transferred under an appropriate agreement, or privacy-scrubbed/exported.
@@ -57,4 +65,4 @@ The buyer FAQ explicitly states that Publisher Forge is pre-revenue, that tracke
 
 ## Next milestone
 
-**Milestone 5 — Comparable-listing research and internal pricing notes:** research current AI/SaaS asset marketplaces and comparable asking prices, date every observation, distinguish asking prices from closed-sale evidence, and develop a defensible asking-price range and private negotiation floor without presenting speculative comps as realized transactions.
+**Milestone 6 — Due-diligence package:** capture current test/security and deployment evidence, known limitations and ongoing costs, third-party/platform dependencies, IP/content-license notes, customer/user-data handling, and a clean buyer disclosure list.
