@@ -28,9 +28,27 @@ function shortHash(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 12);
 }
 
+// Fix #4: resolve a user-supplied path relative to the repo root, but refuse
+// to resolve outside of it. Prevents --sarif/--zap/--audit-file/--entry from
+// being pointed at arbitrary files on the CI runner's filesystem.
+function resolveWithinRepo(rawValue, flagName) {
+  const resolved = path.resolve(repositoryRoot, rawValue);
+  const relative = path.relative(repositoryRoot, resolved);
+  const escapesRoot = relative.startsWith("..") || path.isAbsolute(relative);
+
+  if (escapesRoot) {
+    throw new Error(
+      flagName + " must point inside the repository (" + rawValue + " resolves outside it)."
+    );
+  }
+
+  return resolved;
+}
+
 function parseArguments(argv) {
   const options = {
     auditFile: "",
+    entryFile: "server.js",
     report: path.join(repositoryRoot, "security-artifacts/security-report.json"),
     sarifDirs: [],
     sarifFiles: [],
@@ -44,10 +62,11 @@ function parseArguments(argv) {
     const next = () => {
       index += 1;
       if (!argv[index]) throw new Error(argument + " requires a path.");
-      return path.resolve(repositoryRoot, argv[index]);
+      return resolveWithinRepo(argv[index], argument);
     };
 
     if (argument === "--audit-file") options.auditFile = next();
+    else if (argument === "--entry") options.entryFile = next();
     else if (argument === "--report") options.report = next();
     else if (argument === "--sarif") options.sarifFiles.push(next());
     else if (argument === "--sarif-dir") options.sarifDirs.push(next());
@@ -77,6 +96,12 @@ function runCommand(command, args, extra = {}) {
       return (chunk) => {
         outputBytes += chunk.length;
         if (outputBytes > maxBytes) {
+          // Fix #3 (documented, behavior unchanged): a scanner/test process
+          // producing more than 8MB of output is treated as untrustworthy
+          // and forced to a failing exit code, even if it would otherwise
+          // have exited 0. This is intentional fail-closed behavior, not a
+          // bug — do not "fix" this by letting a real exit code through
+          // once stoppedForSize is true.
           stoppedForSize = true;
           child.kill("SIGTERM");
           return;
@@ -256,7 +281,9 @@ function normalizeZap(document, policy) {
   return findings;
 }
 
-async function filesBelow(directory, extension) {
+// Fix #1: report whether the walk hit the file cap, instead of silently
+// dropping any files beyond it.
+async function filesBelow(directory, extension, limit = 50) {
   const found = [];
 
   async function walk(current) {
@@ -270,7 +297,11 @@ async function filesBelow(directory, extension) {
   }
 
   await walk(directory);
-  return found.slice(0, 50);
+  return {
+    files: found.slice(0, limit),
+    totalFound: found.length,
+    truncated: found.length > limit
+  };
 }
 
 async function readJson(file, maxBytes = 20 * 1024 * 1024) {
@@ -337,6 +368,21 @@ function fixPlan(report) {
     ""
   ];
 
+  // Fix #5: surface invalid/expired accepted-risk entries prominently, since
+  // a single stale exception blocks the entire gate, not just its own finding.
+  if (report.invalidAcceptedRisks?.length) {
+    lines.push(
+      "## ⚠ Blocking: invalid or expired risk exceptions",
+      "",
+      "The following entries in `security/accepted-risks.json` are missing " +
+        "required fields or have expired, and are blocking the gate " +
+        "regardless of the findings below:",
+      ""
+    );
+    for (const id of report.invalidAcceptedRisks) lines.push("- `" + id + "`");
+    lines.push("", "Fix or remove these entries, or renew them with a valid `expiresAt`, `approvedBy`, and `reason`.", "");
+  }
+
   if (!actionable.length) {
     lines.push("No unaccepted scanner findings remain.");
   } else {
@@ -373,22 +419,43 @@ async function buildReport(options) {
   const scannerErrors = [];
 
   if (!options.skipTests) {
-    const syntax = await runCommand(process.execPath, ["--check", "server.js"]);
-    scanners.push({
-      name: "Node syntax",
-      status: syntax.code === 0 ? "passed" : "failed"
-    });
-    if (syntax.code !== 0) {
+    // Fix #2: entry file is now configurable (--entry), defaults to
+    // server.js, and its absence is reported as a real finding instead of
+    // producing a confusing syntax-check result against a missing file.
+    const entryExists = await fs.access(
+      path.join(repositoryRoot, options.entryFile)
+    ).then(() => true).catch(() => false);
+
+    if (!entryExists) {
+      scanners.push({ name: "Node syntax", status: "error" });
       findings.push({
-        id: "policy:server-syntax",
+        id: "policy:entry-missing",
         scanner: "Node syntax",
         severity: "high",
-        title: "Server source does not parse",
-        location: "server.js",
-        evidence: clean(syntax.stderr || syntax.stdout || "Syntax check failed."),
-        remediation: "Correct the syntax error and rerun the complete gate.",
+        title: "Configured entry file not found",
+        location: clean(options.entryFile, 260),
+        evidence: "The entry file passed via --entry (or the default server.js) does not exist in the repository.",
+        remediation: "Pass --entry <path> pointing at the real server entry point, or restore server.js.",
         reference: null
       });
+    } else {
+      const syntax = await runCommand(process.execPath, ["--check", options.entryFile]);
+      scanners.push({
+        name: "Node syntax",
+        status: syntax.code === 0 ? "passed" : "failed"
+      });
+      if (syntax.code !== 0) {
+        findings.push({
+          id: "policy:server-syntax",
+          scanner: "Node syntax",
+          severity: "high",
+          title: "Server source does not parse",
+          location: clean(options.entryFile, 260),
+          evidence: clean(syntax.stderr || syntax.stdout || "Syntax check failed."),
+          remediation: "Correct the syntax error and rerun the complete gate.",
+          reference: null
+        });
+      }
     }
 
     const tests = await runCommand(process.execPath, ["--test"], {
@@ -444,7 +511,16 @@ async function buildReport(options) {
   const sarifFiles = [...options.sarifFiles];
   for (const directory of options.sarifDirs) {
     try {
-      sarifFiles.push(...await filesBelow(directory, ".sarif"));
+      const result = await filesBelow(directory, ".sarif");
+      sarifFiles.push(...result.files);
+      // Fix #1: don't silently drop files beyond the cap.
+      if (result.truncated) {
+        scannerErrors.push(
+          "SARIF directory " + path.relative(repositoryRoot, directory) + ": " +
+          result.totalFound + " .sarif files found, only " + result.files.length +
+          " processed (cap reached). Findings beyond this cap were not scanned."
+        );
+      }
     } catch (error) {
       scannerErrors.push("SARIF directory: " + clean(error.message));
     }
