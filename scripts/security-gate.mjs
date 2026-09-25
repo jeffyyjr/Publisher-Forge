@@ -423,8 +423,8 @@ async function buildReport(options) {
     // server.js, and its absence is reported as a real finding instead of
     // producing a confusing syntax-check result against a missing file.
     const entryExists = await fs.access(
-      path.join(repositoryRoot, options.entryFile)
-    ).then(() => true).catch(() => false);
+  options.entryFile
+).then(() => true).catch(() => false);
 
     if (!entryExists) {
       scanners.push({ name: "Node syntax", status: "error" });
