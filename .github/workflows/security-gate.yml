@@ -64,7 +64,7 @@ jobs:
           upload-database: false
 
       - name: Normalize findings and decide the release
-        run: npm run security:gate -- --sarif-dir security-artifacts
+        run: npm run security:gate -- --entry dashboard-start.mjs --sarif-dir security-artifacts
 
       - name: Preserve the security report
         if: always()
