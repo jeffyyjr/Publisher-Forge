@@ -1,37 +1,67 @@
 # Publisher Forge — Sale Readiness
 
-Last updated: 2026-09-22
+Last updated: 2026-09-27
 
 ## Ordered milestone status
 
 - [x] **1. Verify repo/deployment/sale branch/docs and build transfer asset inventory.** Completed 2026-09-21. Added `ASSET-INVENTORY.md`.
-- [x] **2. Buyer memo.** Completed 2026-09-22. Refined `BUYER-MEMO.md` with evidence-bounded product/traction claims.
+- [x] **2. Buyer memo.** Completed 2026-09-22. `BUYER-MEMO.md` contains evidence-bounded product, traction and transfer claims.
 - [x] **3. Technical handoff documentation.** Completed 2026-09-22. Added `TECHNICAL-HANDOFF.md`.
 - [x] **4. Acquisition listing assets.** Completed 2026-09-22. Added `ACQUISITION-LISTING-ASSETS.md`.
-- [x] **5. Comparable-listing research and internal pricing notes.** Completed 2026-09-22. Added `PRICING-COMPS-INTERNAL.md`; internal initial range $15,000–$22,500, practical opening ask $19,500, private $10,000 cash-equivalent floor, subject to diligence.
-- [x] **6. Due-diligence package.** Completed 2026-09-22. Added `DUE-DILIGENCE.md` with current deployment/security evidence, limitations, cost categories/evidence gap, dependencies, IP/media notes, data handling and clean disclosures.
-- [ ] **7. Demo integration and buyer-facing demo index.** In progress / blocked on approved media. Added `DEMO-INDEX.md` with verification gate, planned buyer-demo structure, still-selection rules, and the exact missing-media gap. `DEMO-MANIFEST.json` still has an empty `clips` array with `master` and `teaser` null, so no clip can yet be truthfully verified.
-- [ ] **8. Final sale-readiness audit and ready-to-paste sale package.** Begins only after Milestone 7 is complete.
+- [x] **5. Comparable-listing research and internal pricing notes.** Completed 2026-09-22. `PRICING-COMPS-INTERNAL.md` sets an internal $15,000–$22,500 range, a practical published ask of **$19,500**, and a private $10,000 cash-equivalent floor.
+- [x] **6. Due-diligence package.** Completed 2026-09-22. `DUE-DILIGENCE.md` documents deployment/security evidence, dependencies, limitations, data/IP treatment and evidence gaps.
+- [ ] **7. Demo integration and buyer-facing demo index.** The written demo plan and verification gate are complete, but actual approved media is still missing. `DEMO-MANIFEST.json` has no verified clips and no master/teaser.
+- [ ] **8. Final sale-readiness activation.** All non-media commercial components are now prepared. Final activation consists only of inserting verified demo/stills, performing the final claim check, and then publishing/outreaching.
 
-## Milestone 7 evidence / blocker
+## Non-video sale package completed 2026-09-27
 
-On 2026-09-22 the sale-package branch was re-inspected before doing new work. `DEMO-MANIFEST.json` lists seven planned topics, but all remain `planned`; `clips` is empty and both `master` and `teaser` are null. The sale-package directory contains the written sale documents but no approved demo output referenced by the manifest. Repository search also did not surface a demo/teaser/video asset that could substitute for the required approved outputs.
+The following commercial layer is now prepared on the `sale-package` branch:
 
-`DEMO-INDEX.md` was therefore added rather than fabricating media verification. It defines the per-clip verification gate (visible feature proof, environment, provenance/license, transfer status, claim qualification, still timestamps/captions), the priority order for final buyer-facing stills, and acquisition-video notes. No clip, screenshot, or transferable-media claim is marked verified until actual approved media can be inspected.
+- `FINAL-SALE-PACKAGE.md` — ready-to-paste buyer listing at a **$19,500 asking price**.
+- `OUTREACH-PACK.md` — buyer targeting, DM/email copy, follow-ups, qualification questions and objection handling.
+- `BUYER-DATA-ROOM-INDEX.md` — public vs. diligence vs. internal material and disclosure sequence.
+- `DEAL-TERMS-INTERNAL.md` — internal negotiation bands, private floor, asset defaults, closing sequence and support guardrails.
 
-Production `main` was not changed or redeployed, and no paid model calls were made for this verification.
+The existing buyer memo, asset inventory, technical handoff, due-diligence summary, listing assets, pricing notes and transfer checklist remain part of the package.
 
-## Remaining blockers / diligence decisions
+## Current default transaction posture
 
-1. **Milestone 7 blocking item:** approved demo outputs must be added to `sale-package/DEMO-MANIFEST.json` or otherwise made available through a connected source. Current manifest contains plans only, not inspectable media.
-2. Decide whether the production SQLite/user database is excluded, transferred under an appropriate agreement, or privacy-scrubbed/exported.
-3. Confirm the exact brand/domain/social assets included; unrelated/personal accounts are excluded by default.
-4. Verify provenance/license of final demo media and generated assets before representing them as transferable IP.
-5. Obtain/verify current provider invoices if an exact monthly operating-cost figure is needed for buyer diligence.
-6. Keep revenue/user claims evidence-based; do not infer revenue or customer demand from visits or repository functionality.
-7. Reconfirm provider-specific repository/Render ownership-transfer mechanics at closing.
-8. Capture/select the final screenshot/still set only after the demo outputs pass the Milestone 7 verification gate.
+Unless a signed deal states otherwise:
 
-## Next milestone
+1. Sell Publisher Forge as a **source/IP and product-asset acquisition**, not as an MRR business.
+2. Publish the **$19,500 asking price**; do not disclose the private floor in buyer-facing material.
+3. Treat existing production SQLite/user data as **excluded by default**.
+4. Use a clean buyer-controlled deployment with fresh buyer-owned credentials.
+5. Include only specifically enumerated Publisher Forge brand/media assets.
+6. Exclude seller personal credentials, personal accounts, unrelated projects, banking/payment data and unrelated social/community accounts.
+7. Do not promise indefinite support, custom development, revenue, customer acquisition or marketplace/platform outcomes in the base sale.
 
-**Finish Milestone 7 — Demo integration:** when approved demo outputs become available, inspect each actual clip against `DEMO-INDEX.md`, update the manifest/index with pass/fail feature and provenance verification, select the strongest factual stills, and then mark Milestone 7 complete. Do not begin the final Milestone 8 package until this evidence gate is satisfied.
+## Only remaining blocker
+
+The only material prep item intentionally left unfinished is the **actual demo-media evidence**.
+
+To complete it:
+
+1. Record/approve the real product footage.
+2. Verify the visible feature claims and provenance against `DEMO-INDEX.md`.
+3. Populate `DEMO-MANIFEST.json`.
+4. Select the strongest factual stills.
+5. Insert the final media references into the buyer package.
+6. Run one final claim/security/privacy review.
+7. Begin buyer outreach.
+
+## Items that remain closing-time decisions, not prep blockers
+
+These do not prevent listing the asset:
+
+- exact provider invoices if a buyer wants a precise historical monthly operating-cost figure;
+- final repository/hosting transfer mechanics based on the buyer's accounts;
+- any buyer request for production-data transfer;
+- any domain/social asset a buyer asks to add to the asset schedule;
+- the exact amount and duration of post-close transition assistance.
+
+## Status
+
+**Written sale prep: complete.**  
+**Video/media verification: pending.**  
+**Production `main`: untouched by sale-package documentation.**
