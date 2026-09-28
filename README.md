@@ -34,6 +34,14 @@ The app intentionally avoids a heavyweight frontend framework or separate build 
 
 See [BUYER-TECHNICAL-OVERVIEW.md](BUYER-TECHNICAL-OVERVIEW.md) for the buyer-oriented architecture and handoff summary.
 
+## Buyer / operator requirements and ongoing costs
+
+Publisher Forge does **not** include OpenAI API credits or a transferable OpenAI account. A buyer or operator must provide their own server-side `OPENAI_API_KEY` and will be responsible for ongoing OpenAI API usage charges.
+
+AI costs are usage-based and vary with the selected models and how heavily features are used. Research/analysis, product generation, image generation, quality-review calls, and text-to-speech can all create API charges. The built-in daily account quotas are partly intended to help control those costs, but they do not make API usage free. Current OpenAI pricing should be reviewed before production use, and usage limits/budgets should be set to match the buyer's operating plan.
+
+Render hosting and any optional third-party provider costs are separate from OpenAI API charges.
+
 ## Run
 Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 
