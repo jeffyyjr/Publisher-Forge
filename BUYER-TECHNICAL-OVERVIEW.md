@@ -40,6 +40,14 @@ The current production service runs on Render from the `main` branch.
 - The production process listens on the host-provided `PORT` (falling back to `10000` locally).
 - A mounted persistent disk can hold the SQLite database so account and usage data survive deploys/restarts.
 
+## Buyer-provided credentials and operating costs
+
+The OpenAI account and API credits are **not included in a transfer of the codebase**. After acquisition, the buyer should replace any seller-side credentials and configure their own `OPENAI_API_KEY` in the deployment environment.
+
+OpenAI API usage is billed separately to the buyer according to the models and volume used. Costs are therefore variable rather than a fixed Publisher Forge software fee. AI research/analysis, product generation, image generation, quality-review calls, and text-to-speech can all contribute to ongoing API spend.
+
+Publisher Forge includes daily usage quotas to reduce accidental or unbounded spend during the beta, but a buyer should still set appropriate OpenAI billing limits and review current OpenAI pricing before production use. Render hosting and optional third-party services/providers may create additional operating costs.
+
 ## Important environment variables
 
 No secret values belong in the repository. The implementation expects or supports:
