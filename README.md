@@ -5,6 +5,35 @@ A browser-based AI product workflow for finding, evaluating, planning, producing
 ## Operating principle
 If AI or software can do a task reliably, automate it instead of making the operator do it manually.
 
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Vanilla HTML, CSS, and browser JavaScript served directly by the app |
+| Backend | Node.js 22 + Express 4 |
+| AI | OpenAI API via the official OpenAI Node SDK |
+| Data | SQLite via Node's built-in `node:sqlite` |
+| Authentication | Email/password accounts, scrypt password hashing, secure cookie-based sessions |
+| Documents | PDFKit for PDF generation |
+| Packaging | JSZip for downloadable publishing bundles |
+| Video | FFmpeg through `ffmpeg-static` for Viral Remix rendering |
+| Hosting | Render Web Service; production storage can use a mounted persistent disk |
+| Security | CSP/security headers, same-origin checks, rate limiting, automated dependency/secret/code scanning, and staged ZAP checks |
+
+The app intentionally avoids a heavyweight frontend framework or separate build system. Express serves the browser UI and API from the same Node service, which keeps deployment and handoff relatively simple.
+
+### Runtime and deployment
+
+- Node engine: `>=22.5 <23`
+- Start command: `npm start` → `node dashboard-start.mjs`
+- Default port: `10000` or the host-provided `PORT`
+- Current production host: Render
+- Persistent account/state storage can be configured with `PF_DB_PATH` or `PF_DATA_DIR`
+- Core AI configuration uses server-side environment variables such as `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_IMAGE_MODEL`, and `OPENAI_TTS_MODEL`
+- Optional reusable-footage expansion uses `PIXABAY_API_KEY`
+
+See [BUYER-TECHNICAL-OVERVIEW.md](BUYER-TECHNICAL-OVERVIEW.md) for the buyer-oriented architecture and handoff summary.
+
 ## Run
 Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 
