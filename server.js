@@ -1883,6 +1883,202 @@ function printableText(value, limit) {
     .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "");
 }
 
+
+function docxXmlEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function docxPlainText(value) {
+  return printableText(value, 50000)
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt) =>
+      alt ? "[Illustration: " + alt + "]" : "[Illustration]"
+    )
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/[*_\x60]/g, "")
+    .trim();
+}
+
+function docxRun(value, options = {}) {
+  const textValue = docxXmlEscape(value);
+  if (!textValue) return "";
+  const size = Math.max(14, Math.round(Number(options.size || 22)));
+  const props = [
+    options.bold ? "<w:b/>" : "",
+    options.italic ? "<w:i/>" : "",
+    "<w:sz w:val=\"" + size + "\"/>",
+    "<w:szCs w:val=\"" + size + "\"/>"
+  ].join("");
+  return "<w:r><w:rPr>" + props + "</w:rPr><w:t xml:space=\"preserve\">" +
+    textValue + "</w:t></w:r>";
+}
+
+function docxParagraph(value, options = {}) {
+  const alignment = options.align
+    ? "<w:jc w:val=\"" + options.align + "\"/>"
+    : "";
+  const spacing = "<w:spacing w:after=\"" +
+    Math.max(0, Math.round(Number(options.after ?? 120))) + "\"/>";
+  const pageBreakBefore = options.pageBreakBefore ? "<w:pageBreakBefore/>" : "";
+  const indent = options.indent
+    ? "<w:ind w:left=\"" + Math.max(0, Math.round(Number(options.indent))) + "\"/>"
+    : "";
+  const pPr = "<w:pPr>" + alignment + spacing + pageBreakBefore + indent + "</w:pPr>";
+  return "<w:p>" + pPr + docxRun(value, options) + "</w:p>";
+}
+
+function docxPageBreak() {
+  return "<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>";
+}
+
+async function kdpManuscriptDocx(packageData) {
+  const normalizedPackage = publicationReadyPackage(
+    packageData,
+    packageData?.authorName
+  );
+  const title = docxPlainText(normalizedPackage.packageTitle) || "Untitled product";
+  const subtitle = docxPlainText(normalizedPackage.subtitle);
+  const author = docxPlainText(normalizedPackage.authorName);
+  const deliverable = docxPlainText(normalizedPackage.deliverableType);
+  const markdown = text(normalizedPackage.draftMarkdown, 50000);
+  const body = [];
+
+  body.push(docxParagraph("PAPERBACK EDITION", {
+    bold: true, size: 20, after: 260
+  }));
+  body.push(docxParagraph(title, {
+    bold: true, size: 48, after: 220
+  }));
+  if (subtitle) body.push(docxParagraph(subtitle, { size: 28, after: 260 }));
+  if (deliverable) body.push(docxParagraph(deliverable, { bold: true, size: 20 }));
+  if (author) body.push(docxParagraph("By " + author, { size: 20 }));
+  body.push(docxPageBreak());
+
+  for (const rawLine of String(markdown || "").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) {
+      body.push("<w:p><w:pPr><w:spacing w:after=\"100\"/></w:pPr></w:p>");
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      body.push(docxParagraph(docxPlainText(heading[2]), {
+        bold: true,
+        size: level === 1 ? 36 : level === 2 ? 30 : 26,
+        after: level === 1 ? 220 : 160
+      }));
+      continue;
+    }
+
+    const checklist = line.match(/^-\s*\[([ xX])\]\s+(.+)$/);
+    if (checklist) {
+      body.push(docxParagraph(
+        (checklist[1].trim() ? "[x] " : "[ ] ") + docxPlainText(checklist[2]),
+        { size: 22, indent: 360 }
+      ));
+      continue;
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      body.push(docxParagraph("• " + docxPlainText(bullet[1]), {
+        size: 22, indent: 360
+      }));
+      continue;
+    }
+
+    if (/^_{3,}$|^-{3,}$/.test(line)) {
+      body.push(docxParagraph("—", { align: "center", size: 20 }));
+      continue;
+    }
+
+    body.push(docxParagraph(docxPlainText(line), { size: 22, after: 120 }));
+  }
+
+  const documentXml =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+    "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+    "<w:body>" + body.join("") +
+    "<w:sectPr>" +
+    "<w:pgSz w:w=\"8640\" w:h=\"12960\"/>" +
+    "<w:pgMar w:top=\"1080\" w:right=\"1080\" w:bottom=\"1080\" w:left=\"1080\" w:header=\"360\" w:footer=\"360\" w:gutter=\"0\"/>" +
+    "</w:sectPr></w:body></w:document>";
+
+  const stylesXml =
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+    "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+    "<w:docDefaults><w:rPrDefault><w:rPr>" +
+    "<w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/>" +
+    "<w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/>" +
+    "</w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults>" +
+    "</w:styles>";
+
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml",
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+    "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+    "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+    "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+    "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+    "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>" +
+    "</Types>"
+  );
+  zip.folder("_rels").file(".rels",
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+    "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
+    "</Relationships>"
+  );
+  const word = zip.folder("word");
+  word.file("document.xml", documentXml);
+  word.file("styles.xml", stylesXml);
+  word.folder("_rels").file("document.xml.rels",
+    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+    "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>" +
+    "</Relationships>"
+  );
+
+  return zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+}
+
+async function docxStructure(buffer) {
+  const result = {
+    headerValid: Buffer.isBuffer(buffer) &&
+      buffer.length >= 4 &&
+      buffer[0] === 0x50 && buffer[1] === 0x4b,
+    bytes: Buffer.isBuffer(buffer) ? buffer.length : 0,
+    requiredPartsPresent: false
+  };
+
+  if (!result.headerValid) return result;
+
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    result.requiredPartsPresent = [
+      "[Content_Types].xml",
+      "_rels/.rels",
+      "word/document.xml",
+      "word/styles.xml",
+      "word/_rels/document.xml.rels"
+    ].every((name) => Boolean(zip.file(name)));
+  } catch (error) {
+    result.requiredPartsPresent = false;
+  }
+
+  return result;
+}
+
 function printablePdf(packageData, options = {}) {
   return new Promise((resolve, reject) => {
     const normalizedPackage = options.packageIsReady
@@ -2761,6 +2957,7 @@ async function buildReleaseQa({
   let coverDimensions = null;
   let interiorArt = [];
   let printable = null;
+  let manuscriptDocx = null;
   let wrapCover = null;
   let pricing = null;
   let coverSpecs = null;
@@ -2951,6 +3148,41 @@ async function buildReleaseQa({
     );
 
     if (market === "KDP") {
+      try {
+        manuscriptDocx = await kdpManuscriptDocx(packageData);
+        const docx = await docxStructure(manuscriptDocx);
+        const docxReady = docx.headerValid &&
+          docx.requiredPartsPresent &&
+          docx.bytes >= 1000;
+
+        addCheck(
+          "interior-docx",
+          "Editable KDP DOCX manuscript",
+          docxReady ? "PASS" : "BLOCKED",
+          docxReady
+            ? "Valid DOCX package (" + Math.round(docx.bytes / 1024) +
+              " KB) generated for KDP's no-bleed manuscript upload path."
+            : "The generated DOCX package is incomplete.",
+          "Regenerate the DOCX manuscript before release."
+        );
+
+        if (interiorArt.length || printable.recordPagesAdded ||
+            isColoringBookPackage(packageData)) {
+          warnings.push(
+            "DOCX is included as an editable manuscript source, but use the checked PDF interior for this layout-sensitive or illustrated book."
+          );
+        }
+      } catch (error) {
+        addCheck(
+          "interior-docx",
+          "Editable KDP DOCX manuscript",
+          "BLOCKED",
+          error.message,
+          "The KDP DOCX manuscript could not be generated: " + error.message
+        );
+      }
+
+    if (market === "KDP") {
       addCheck(
         "page-count",
         "KDP page count",
@@ -3124,6 +3356,14 @@ async function buildReleaseQa({
         intentionalBlankPageCount: printable.intentionalBlankPageCount,
         recordPagesAdded: printable.recordPagesAdded || 0
       } : null,
+      interiorDocx: manuscriptDocx ? {
+        filename: "1-manuscript-interior.docx",
+        bytes: manuscriptDocx.length,
+        recommendedForUpload: market === "KDP" &&
+          !interiorArt.length &&
+          !(printable?.recordPagesAdded) &&
+          !isColoringBookPackage(packageData)
+      } : null,
       coverPdf: wrapCover ? {
         filename: "2-paperback-cover.pdf",
         bytes: wrapCover.length,
@@ -3144,6 +3384,7 @@ async function buildReleaseQa({
     report,
     packageData,
     printable,
+    manuscriptDocx,
     wrapCover,
     cover,
     coverSpecs,
@@ -3976,9 +4217,17 @@ app.post("/api/export-bundle", async (req, res) => {
       : null;
     const interiorArt = release.interiorArt;
     const printable = release.printable;
+    const manuscriptDocx = release.manuscriptDocx;
     const pricing = release.pricing;
     const coverSpecs = release.coverSpecs;
     const wrapCover = release.wrapCover;
+    const docxPreferred = Boolean(
+      pricing &&
+      manuscriptDocx &&
+      !interiorArt.length &&
+      !printable.recordPagesAdded &&
+      !isColoringBookPackage(packageData)
+    );
     const kdpUploadGuide = pricing ? [
       "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
       "",
@@ -3987,7 +4236,9 @@ app.post("/api/export-bundle", async (req, res) => {
       "1. In KDP Bookshelf, choose Create > Paperback.",
       "2. Open 3-copy-paste-book-details.txt and copy each value into the matching KDP field.",
       "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
-      "4. Upload 1-manuscript-interior.pdf as the manuscript.",
+      docxPreferred
+        ? "4. Upload 1-manuscript-interior.docx as the manuscript. KDP supports DOCX for this no-bleed interior. If Amazon's conversion changes the layout, use 1-manuscript-interior.pdf instead."
+        : "4. Upload 1-manuscript-interior.pdf as the manuscript. This book is layout-sensitive or illustrated; use 1-manuscript-interior.docx only as an editable source.",
       "5. After the manuscript processes, upload 2-paperback-cover.pdf as the book cover.",
       "6. Open Print Previewer and resolve every warning before continuing.",
       "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
@@ -4036,7 +4287,11 @@ app.post("/api/export-bundle", async (req, res) => {
       "",
       "Only use the files inside this UPLOAD-TO-KDP folder for the paperback listing.",
       "",
-      "1-manuscript-interior.pdf — upload in KDP's Manuscript section",
+      docxPreferred
+        ? "1-manuscript-interior.docx — preferred manuscript upload for this no-bleed text interior"
+        : "1-manuscript-interior.pdf — preferred manuscript upload for this layout-sensitive interior",
+      "1-manuscript-interior.pdf — checked fixed-layout interior and DOCX fallback",
+      "1-manuscript-interior.docx — editable KDP-supported manuscript source",
       "2-paperback-cover.pdf — upload in KDP's Book Cover section",
       "3-copy-paste-book-details.txt — title, description, author, keywords, and settings",
       "4-upload-steps.txt — the exact order to finish the listing",
@@ -4056,7 +4311,7 @@ app.post("/api/export-bundle", async (req, res) => {
       "FILES",
       ...(pricing
         ? [
-            "UPLOAD-TO-KDP/ — the only four files needed to finish the paperback listing",
+            "UPLOAD-TO-KDP/ — numbered KDP manuscript, cover, metadata, and upload files",
             "START-HERE.txt — one-page map of the final handoff"
           ]
         : []),
@@ -4146,6 +4401,7 @@ app.post("/api/export-bundle", async (req, res) => {
     });
     if (wrapCover) product.file("kdp-paperback-cover-wrap.pdf", wrapCover);
     if (upload) {
+      upload.file("1-manuscript-interior.docx", manuscriptDocx);
       upload.file("1-manuscript-interior.pdf", printable);
       upload.file("2-paperback-cover.pdf", wrapCover);
       upload.file("3-copy-paste-book-details.txt", copyPasteDetails);
