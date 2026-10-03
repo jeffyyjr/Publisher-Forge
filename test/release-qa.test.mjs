@@ -236,7 +236,7 @@ after(async () => {
   });
 });
 
-test("approved KDP ZIP has an unmistakable four-file upload folder", async () => {
+test("approved KDP ZIP includes DOCX and PDF manuscript handoff files", async () => {
   const packageData = kdpPackage({
     approvedAt: "2026-09-08T00:00:00.000Z"
   });
@@ -260,6 +260,7 @@ test("approved KDP ZIP has an unmistakable four-file upload folder", async () =>
   const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()));
   for (const filename of [
     "START-HERE.txt",
+    "UPLOAD-TO-KDP/1-manuscript-interior.docx",
     "UPLOAD-TO-KDP/1-manuscript-interior.pdf",
     "UPLOAD-TO-KDP/2-paperback-cover.pdf",
     "UPLOAD-TO-KDP/3-copy-paste-book-details.txt",
@@ -273,4 +274,22 @@ test("approved KDP ZIP has an unmistakable four-file upload folder", async () =>
     await zip.file("review/release-qa.json").async("string")
   );
   assert.equal(report.verdict, "READY");
+
+  const manuscriptDocx = await zip.file(
+    "UPLOAD-TO-KDP/1-manuscript-interior.docx"
+  ).async("nodebuffer");
+  const docx = await JSZip.loadAsync(manuscriptDocx);
+  for (const part of [
+    "[Content_Types].xml",
+    "_rels/.rels",
+    "word/document.xml",
+    "word/styles.xml",
+    "word/_rels/document.xml.rels"
+  ]) {
+    assert.ok(docx.file(part), part + " must be present in the DOCX");
+  }
+  assert.match(
+    await zip.file("START-HERE.txt").async("string"),
+    /1-manuscript-interior\.docx/
+  );
 });
