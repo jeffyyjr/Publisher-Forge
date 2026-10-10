@@ -1617,6 +1617,11 @@
                 Download publishing ZIP
               </button>
 
+              <button class="btn primary" id="downloadDocxButton"
+                type="button" disabled hidden>
+                Download Word manuscript (.docx)
+              </button>
+
               <button class="btn secondary" id="downloadPdfButton"
                 type="button" disabled>
                 Download printable PDF
@@ -2465,6 +2470,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       sendRevenueButton.disabled = true;
 
       if (!hadCover) {
@@ -2524,6 +2530,7 @@
             "Approve on this device";
           document.getElementById("downloadBundleButton").disabled = true;
           document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
           sendRevenueButton.disabled = true;
           saveActiveProject();
         }
@@ -2557,6 +2564,7 @@
           !releaseReady || Boolean(activePackage && activePackage.approvedAt);
         document.getElementById("downloadBundleButton").disabled = !approved;
         document.getElementById("downloadPdfButton").disabled = !approved;
+      document.getElementById("downloadDocxButton").disabled = !approved;
         downloadWrapButton.disabled = !approved;
         sendRevenueButton.disabled = !approved;
       }
@@ -2664,6 +2672,7 @@
 
     function resetReleaseQa() {
       activeReleaseQa = null;
+      document.getElementById("downloadDocxButton").hidden = !activePackage || activePackage.platform !== "KDP";
       document.getElementById("releaseQaCard").classList.remove("visible");
       document.getElementById("releaseQaVerdict").className = "verdict";
       document.getElementById("releaseQaVerdict").textContent = "NOT CHECKED";
@@ -2675,6 +2684,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       downloadWrapButton.disabled = true;
       sendRevenueButton.disabled = true;
       if (activeQualityReview && activeQualityReview.verdict === "PASS") {
@@ -2700,6 +2710,7 @@
 
     function showReleaseQa(data) {
       activeReleaseQa = data;
+      document.getElementById("downloadDocxButton").hidden = !activePackage || activePackage.platform !== "KDP";
       const card = document.getElementById("releaseQaCard");
       const badge = document.getElementById("releaseQaVerdict");
       const checks = document.getElementById("releaseQaChecks");
@@ -2744,6 +2755,7 @@
         !ready || Boolean(approved);
       document.getElementById("downloadBundleButton").disabled = !approved;
       document.getElementById("downloadPdfButton").disabled = !approved;
+      document.getElementById("downloadDocxButton").disabled = !approved;
       downloadWrapButton.disabled = !approved;
       sendRevenueButton.disabled = !approved;
       const manuscriptFixNeeded = !ready && (data.checks || []).some(
@@ -2884,6 +2896,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       downloadWrapButton.disabled = true;
       sendRevenueButton.disabled = true;
       document.getElementById("approvalNote").textContent =
@@ -2958,6 +2971,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       sendRevenueButton.disabled = true;
       revisePackageButton.hidden = true;
       revisePackageButton.disabled = false;
@@ -3018,6 +3032,7 @@
         !passed || !releaseReady || Boolean(approved);
       document.getElementById("downloadBundleButton").disabled = !approved;
       document.getElementById("downloadPdfButton").disabled = !approved;
+      document.getElementById("downloadDocxButton").disabled = !approved;
       downloadWrapButton.disabled = !approved;
       sendRevenueButton.disabled = !approved;
       revisePackageButton.hidden = passed;
@@ -4375,6 +4390,7 @@
         "downloadMetadataButton",
         "downloadBundleButton",
         "downloadPdfButton",
+        "downloadDocxButton",
         "runQualityButton",
         "runReleaseQaButton",
         "revisePackageButton",
@@ -4440,6 +4456,7 @@
       approveButton.textContent = "Approve on this device";
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       sendRevenueButton.disabled = true;
       document.getElementById("approvalNote").textContent =
         "Run Quality Control before human approval is unlocked.";
@@ -4560,6 +4577,7 @@
       document.getElementById("approveProductionButton").disabled = true;
       document.getElementById("downloadBundleButton").disabled = true;
       document.getElementById("downloadPdfButton").disabled = true;
+      document.getElementById("downloadDocxButton").disabled = true;
       revisePackageButton.hidden = true;
       document.getElementById("approvalNote").textContent =
         "Approval remains locked while the independent review runs.";
@@ -4995,6 +5013,7 @@
       button.textContent = "Approved on this device";
       document.getElementById("downloadBundleButton").disabled = false;
       document.getElementById("downloadPdfButton").disabled = false;
+      document.getElementById("downloadDocxButton").disabled = false;
       downloadWrapButton.disabled = false;
       sendRevenueButton.disabled = false;
       document.getElementById("approvalNote").textContent =
@@ -5293,6 +5312,47 @@
           toast(error.message);
         } finally {
           loading(button, false, "Download publishing ZIP");
+        }
+      });
+
+    document.getElementById("downloadDocxButton")
+      .addEventListener("click", async function () {
+        if (!activePackage || activePackage.platform !== "KDP" ||
+            !activeQualityReview || !activeReleaseQa ||
+            activeReleaseQa.verdict !== "READY") return;
+        const button = document.getElementById("downloadDocxButton");
+        loading(button, true, "Download Word manuscript (.docx)");
+        try {
+          const response = await fetch("/api/export-docx", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: activeProductionTitle,
+              package: activePackage,
+              qualityReview: activeQualityReview,
+              cover: activeCover,
+              authorName: coverAuthorName.value.trim()
+            })
+          });
+          if (!response.ok) {
+            const data = await readJson(response);
+            if (data.releaseQa) showReleaseQa(data.releaseQa);
+            throw new Error(data.message || data.error || "Word export failed");
+          }
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileSlug(activePackage.packageTitle) + "-kdp-manuscript.docx";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          toast("Word manuscript downloaded");
+        } catch (error) {
+          toast(error.message);
+        } finally {
+          loading(button, false, "Download Word manuscript (.docx)");
         }
       });
 

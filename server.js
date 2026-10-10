@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import JSZip from "jszip";
 import PDFDocument from "pdfkit";
+import { buildManuscriptDocx } from "./docx-export.mjs";
 import ffmpegPath from "ffmpeg-static";
 import { createHash } from "crypto";
 import { createWriteStream, readFileSync } from "fs";
@@ -18,7 +19,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const APP_VERSION = "0.26.0";
+const APP_VERSION = "0.27.0";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
@@ -63,6 +64,7 @@ function inlineScriptSources(html) {
 
 const LARGE_JSON_ROUTES = new Set([
   "/api/export-bundle",
+  "/api/export-docx",
   "/api/export-pdf",
   "/api/kdp-cover",
   "/api/kdp-pricing",
@@ -71,7 +73,8 @@ const LARGE_JSON_ROUTES = new Set([
 const DIAGNOSTIC_ROUTES = new Set([
   "/api/kdp-pricing",
   "/api/quality-review",
-  "/api/release-qa"
+  "/api/release-qa",
+  "/api/export-docx"
 ]);
 
 const SECURITY_HEADERS = Object.freeze({
@@ -3979,6 +3982,11 @@ app.post("/api/export-bundle", async (req, res) => {
     const pricing = release.pricing;
     const coverSpecs = release.coverSpecs;
     const wrapCover = release.wrapCover;
+    const manuscriptDocx = pricing ? await buildManuscriptDocx(release.packageData, {
+      authorName,
+      interiorArt,
+      recordPagesAdded: printable.recordPagesAdded || 0
+    }) : null;
     const kdpUploadGuide = pricing ? [
       "PUBLISHER FORGE — KDP PAPERBACK UPLOAD GUIDE",
       "",
@@ -3987,15 +3995,17 @@ app.post("/api/export-bundle", async (req, res) => {
       "1. In KDP Bookshelf, choose Create > Paperback.",
       "2. Open 3-copy-paste-book-details.txt and copy each value into the matching KDP field.",
       "3. Choose black ink, white paper, 6 x 9 inch trim, and no bleed.",
-      "4. Upload 1-manuscript-interior.pdf as the manuscript.",
-      "5. After the manuscript processes, upload 2-paperback-cover.pdf as the book cover.",
-      "6. Open Print Previewer and resolve every warning before continuing.",
-      "7. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
-      "8. Start with the suggested price of $" +
+      "4. Upload 1-manuscript-interior.docx for an editable Word manuscript; KDP accepts DOCX for no-bleed interiors.",
+      "5. KDP may repaginate Word files. Confirm the converted page count in Print Previewer before using the included cover.",
+      "6. If the DOCX page count differs from Release QA, use 1-manuscript-interior.pdf with the included cover or regenerate the cover to match the final page count.",
+      "7. Upload 2-paperback-cover.pdf only after confirming its spine matches the final manuscript page count.",
+      "8. Open Print Previewer and resolve every warning before continuing.",
+      "9. Review rights, AI-content disclosure, territories, and marketplace settings yourself.",
+      "10. Start with the suggested price of $" +
         pricing.recommendedPrice.toFixed(2) +
         ". Confirm KDP's displayed print cost and royalty before saving.",
-      "9. Let Amazon place the barcode in the reserved white area on the back cover.",
-      "10. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
+      "11. Let Amazon place the barcode in the reserved white area on the back cover.",
+      "12. Publish only after the preview, metadata, cover, pricing, and rights are correct.",
       "",
       "KDP Bookshelf: https://kdp.amazon.com/bookshelf"
     ].join("\n") : "";
@@ -4034,10 +4044,11 @@ app.post("/api/export-bundle", async (req, res) => {
     const startHere = pricing ? [
       "START HERE — YOUR KDP FILES PASSED RELEASE QA",
       "",
-      "Only use the files inside this UPLOAD-TO-KDP folder for the paperback listing.",
+      "Use the files inside this UPLOAD-TO-KDP folder to finish the paperback listing.",
       "",
-      "1-manuscript-interior.pdf — upload in KDP's Manuscript section",
-      "2-paperback-cover.pdf — upload in KDP's Book Cover section",
+      "1-manuscript-interior.docx — editable Word manuscript; inspect the converted page count",
+      "1-manuscript-interior.pdf — validated print-ready interior and page-count-matched fallback",
+      "2-paperback-cover.pdf — wrap cover sized to the validated PDF page count",
       "3-copy-paste-book-details.txt — title, description, author, keywords, and settings",
       "4-upload-steps.txt — the exact order to finish the listing",
       "",
@@ -4056,7 +4067,7 @@ app.post("/api/export-bundle", async (req, res) => {
       "FILES",
       ...(pricing
         ? [
-            "UPLOAD-TO-KDP/ — the only four files needed to finish the paperback listing",
+            "UPLOAD-TO-KDP/ — editable DOCX, validated PDF fallback, cover, details, and upload steps",
             "START-HERE.txt — one-page map of the final handoff"
           ]
         : []),
@@ -4064,7 +4075,7 @@ app.post("/api/export-bundle", async (req, res) => {
       "product/draft.md — product content",
       "product/printable.pdf — formatted printable product",
       ...(pricing
-        ? ["product/kdp-paperback-interior-6x9.pdf — KDP manuscript upload file"]
+        ? ["product/kdp-paperback-interior-6x9.pdf — validated print-ready interior", "product/kdp-paperback-interior-6x9.docx — editable Word manuscript"]
         : []),
       ...(cover && !pricing
         ? ["product/cover.png — original generated front cover"]
@@ -4138,7 +4149,10 @@ app.post("/api/export-bundle", async (req, res) => {
     product.file("full-package.md", fullPackage);
     product.file("draft.md", draft);
     product.file("printable.pdf", printable);
-    if (pricing) product.file("kdp-paperback-interior-6x9.pdf", printable);
+    if (pricing) {
+      product.file("kdp-paperback-interior-6x9.pdf", printable);
+      product.file("kdp-paperback-interior-6x9.docx", manuscriptDocx);
+    }
     if (pricing && cover) product.file("front-cover.png", cover);
     if (cover && !pricing) product.file("cover.png", cover);
     interiorArt.forEach((item) => {
@@ -4146,6 +4160,7 @@ app.post("/api/export-bundle", async (req, res) => {
     });
     if (wrapCover) product.file("kdp-paperback-cover-wrap.pdf", wrapCover);
     if (upload) {
+      upload.file("1-manuscript-interior.docx", manuscriptDocx);
       upload.file("1-manuscript-interior.pdf", printable);
       upload.file("2-paperback-cover.pdf", wrapCover);
       upload.file("3-copy-paste-book-details.txt", copyPasteDetails);
@@ -4181,6 +4196,14 @@ app.post("/api/export-bundle", async (req, res) => {
     }
     review.file("quality-review.json", JSON.stringify(qualityReview, null, 2));
     review.file("release-qa.json", JSON.stringify(release.report, null, 2));
+    if (pricing) review.file("docx-export.json", JSON.stringify({
+      filename: "1-manuscript-interior.docx",
+      bytes: manuscriptDocx.length,
+      format: "Office Open XML DOCX",
+      editable: true,
+      trimSize: "6 x 9 in",
+      note: "Word/KDP conversion may repaginate; the supplied wrap cover is sized to the validated PDF page count."
+    }, null, 2));
     review.file("production-checklist.md", checklist);
     review.file("approved-brief.txt", brief);
 
@@ -4200,6 +4223,65 @@ app.post("/api/export-bundle", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Publishing bundle failed",
+      message: error.message
+    });
+  }
+});
+
+app.post("/api/export-docx", async (req, res) => {
+  const title = text(req.body.title, 200);
+  const packageData = publicationReadyPackage(
+    req.body.package,
+    req.body.authorName || req.body.package?.authorName
+  );
+  const qualityReview = req.body.qualityReview;
+
+  if (!title || !packageData || !qualityReview) {
+    return res.status(400).json({
+      error: "An approved KDP package and passing quality review are required"
+    });
+  }
+  if (platform(packageData.platform) !== "KDP") {
+    return res.status(400).json({ error: "Word manuscript export is for KDP packages" });
+  }
+  if (qualityReview.verdict !== "PASS" || !packageData.approvedAt) {
+    return res.status(409).json({
+      error: "Pass Quality Control and approve the package before exporting"
+    });
+  }
+
+  try {
+    const release = await buildReleaseQa({
+      title,
+      package: packageData,
+      qualityReview,
+      cover: req.body.cover,
+      authorName: req.body.authorName || packageData.authorName
+    });
+    if (release.report.verdict !== "READY") {
+      return res.status(409).json({
+        error: "Release QA blocked this Word manuscript",
+        message: release.report.blockers[0] || "Run the release check again before exporting.",
+        releaseQa: release.report
+      });
+    }
+    const docx = await buildManuscriptDocx(release.packageData, {
+      authorName: req.body.authorName || release.packageData.authorName,
+      interiorArt: release.interiorArt,
+      recordPagesAdded: release.printable.recordPagesAdded || 0
+    });
+    const filename = text(release.packageData.packageTitle || title, 100)
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") ||
+      "publisher-forge-manuscript";
+    res.set({
+      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Disposition": 'attachment; filename="' + filename + '-kdp-manuscript.docx"',
+      "Cache-Control": "no-store"
+    });
+    res.send(docx);
+  } catch (error) {
+    res.status(500).json({
+      error: "Word manuscript export failed",
       message: error.message
     });
   }
