@@ -3,9 +3,34 @@ import JSZip from "jszip";
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const E = 914400;
+const PAGE_W = 8640;
+const MARGIN = 1080;
 const esc = (v) => String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
 const br = () => '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 const textRun = (v,bold=false) => '<w:r>' + (bold ? '<w:rPr><w:b/></w:rPr>' : '') + '<w:t xml:space="preserve">' + esc(v) + '</w:t></w:r>';
+
+function inline(value) {
+  const source = String(value ?? "");
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|\x60[^\x60]+\x60|\[[^\]]+\]\([^)]+\))/g;
+  const out = [];
+  let offset = 0;
+  for (const match of source.matchAll(pattern)) {
+    const at = match.index ?? 0;
+    if (at > offset) out.push(textRun(source.slice(offset, at)));
+    const token = match[0];
+    if (token.startsWith("**")) out.push(textRun(token.slice(2, -2), true));
+    else if (token.startsWith("*")) out.push('<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">' + esc(token.slice(1, -1)) + '</w:t></w:r>');
+    else if (token.startsWith("\x60")) out.push('<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/></w:rPr><w:t xml:space="preserve">' + esc(token.slice(1, -1)) + '</w:t></w:r>');
+    else {
+      const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      out.push(textRun(link ? link[1] + " (" + link[2] + ")" : token));
+    }
+    offset = at + token.length;
+  }
+  if (offset < source.length) out.push(textRun(source.slice(offset)));
+  return out.join("");
+}
+
 const para = (v,style="",align="") => '<w:p>' + ((style || align) ? '<w:pPr>' + (style ? '<w:pStyle w:val="' + style + '"/>' : '') + (align ? '<w:jc w:val="' + align + '"/>' : '') + '</w:pPr>' : '') + v + '</w:p>';
 const plain = (v,style="",align="") => para(inline(v),style,align);
 
