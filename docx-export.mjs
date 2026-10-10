@@ -1,1 +1,1 @@
-export const x = 1;
+export async function buildManuscriptDocx(packageData, zipLib) { return zipLib; }
