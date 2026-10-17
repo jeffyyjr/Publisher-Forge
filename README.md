@@ -14,7 +14,7 @@ If AI or software can do a task reliably, automate it instead of making the oper
 | AI | OpenAI API via the official OpenAI Node SDK |
 | Data | SQLite via Node's built-in `node:sqlite` |
 | Authentication | Email/password accounts, scrypt password hashing, secure cookie-based sessions |
-| Documents | PDFKit for PDF generation |
+| Documents | PDFKit for print-ready PDFs and native OOXML DOCX export for editable KDP manuscripts |
 | Packaging | JSZip for downloadable publishing bundles |
 | Video | FFmpeg through `ffmpeg-static` for Viral Remix rendering |
 | Hosting | Render Web Service; production storage can use a mounted persistent disk |
@@ -71,6 +71,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Device-local Project Vault with automatic saving and project restoration
 - One-tap approved publishing ZIP with draft, listing, QC, brief, and checklist files
 - Print-formatted PDF export with a title page, structured headings, and page numbers
+- Editable 6 x 9 KDP Word manuscript (.docx) with headings, lists, tables, embedded interior art, and repair-added logbook forms; the validated PDF remains the page-count-matched fallback because Word/KDP conversion may repaginate
 - AI Cover Studio with original artwork, exact title typography, PNG download, and ZIP inclusion
 - Interior Art Studio that replaces up to 12 manuscript placeholders in safe automatic batches, embedding the finished black-and-white illustrations in the PDF and ZIP
 - Single-sided KDP coloring pages with clean blank reverse sides and artwork-aware Quality Control
@@ -79,7 +80,7 @@ Run `npm install`, set `OPENAI_API_KEY`, and start the server with `npm start`.
 - Large illustrated publishing-bundle support with readable download errors
 - Verified publishing metadata that uses the chosen pen name, removes invented credits, and limits page and file claims to what the bundle actually contains
 - Automatic KDP paperback pricing with print-cost, royalty, and sales estimates
-- Foolproof KDP handoff with a top-level `UPLOAD-TO-KDP` folder containing numbered manuscript, cover, copy-and-paste details, and upload steps
+- KDP handoff with a top-level `UPLOAD-TO-KDP` folder containing editable DOCX, validated PDF fallback, cover, copy-and-paste details, and upload steps
 - Automatic KDP full-wrap cover PDF with calculated back, spine, front, bleed, and reserved barcode area
 - Remembered author or pen name with matching front-cover typography
 - Revenue/Market Agent with measured conversion, profit, scale/iterate/stop decisions, and one controlled next experiment
