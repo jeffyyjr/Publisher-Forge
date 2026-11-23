@@ -19,7 +19,7 @@
     "ffmpeg-static": "^5.2.0",
     "jszip": "^3.10.2",
     "openai": "^4.76.0",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.21.0"
   },
   "overrides": {
     "qs": "^6.16.0"
